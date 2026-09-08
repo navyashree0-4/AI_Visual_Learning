@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>EduVision | AI Visual Learning</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+
+    <!-- ================= NAVBAR ================= -->
+
+    <header class="navbar">
+        <div class="nav-container">
+
+            <a href="/" class="logo">
+                <span class="logo-icon">E</span>
+                <span class="logo-text">EduVision</span>
+            </a>
+
+            <nav class="nav-menu">
+
+                <a href="#features">
+                    What We Offer
+                </a>
+
+                <a href="/login" class="login-btn">
+                    Login
+                </a>
+
+                <a href="/register" class="account-btn">
+                    Create Account
+                </a>
+
+            </nav>
+
+        </div>
+    </header>
+
+
+    <!-- ================= HERO ================= -->
+
+    <section class="hero">
+
+        <div class="hero-container">
+
+            <!-- LEFT CONTENT -->
+
+            <div class="hero-content">
+
+                <div class="eyebrow">
+                    AI-ASSISTED VISUAL LEARNING
+                </div>
+
+                <h1>
+                    Learn smarter.
+                    <span>Understand better.</span>
+                </h1>
+
+                <p>
+                    EduVision transforms your study material
+                    into simple explanations, visual content,
+                    educational videos and interactive quizzes
+                    using Generative AI.
+                </p>
+
+                <div class="hero-buttons">
+
+                    <a href="/register" class="primary-btn">
+                        Start Learning
+                        <span>→</span>
+                    </a>
+
+                </div>
+
+                <div class="hero-info">
+
+                    <span>✓ Text</span>
+                    <span>✓ PDF</span>
+                    <span>✓ Images</span>
+                    <span>✓ AI Generated Content</span>
+
+                </div>
+
+            </div>
+
+
+            <!-- ================= VIDEO ================= -->
+
+            <div class="video-card">
+
+                <div class="video-top">
+
+                    <div class="browser-dots">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+
+                    <div class="video-title">
+                        EduVision Preview
+                    </div>
+
+                    <div class="ai-tag">
+                        AI
+                    </div>
+
+                </div>
+
+
+                <div class="video-box">
+
+                    <video
+                        id="eduVisionVideo"
+                        autoplay
+                        muted
+                        loop
+                        controls
+                        playsinline
+                        preload="auto">
+
+                        <source
+                            src="{{ url_for('static', filename='video/demo.mp4') }}"
+                            type="video/mp4">
+
+                        Your browser does not support
+                        video playback.
+
+                    </video>
+
+                </div>
+
+
+                <div class="video-bottom">
+
+                    <div class="video-description">
+
+                        <strong>
+                            Visual Learning
+                        </strong>
+
+                        <small>
+                            See EduVision in action
+                        </small>
+
+                    </div>
+
+                    <div class="playing">
+                        ● Playing
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- ================= FEATURES ================= -->
+
+    <section class="features-section" id="features">
+
+        <div class="section-container">
+
+            <div class="section-heading">
+
+                <div class="eyebrow">
+                    WHAT WE OFFER
+                </div>
+
+                <h2>
+                    Everything you need for smarter learning.
+                </h2>
+
+                <p>
+                    EduVision combines educational content
+                    with AI-powered visual and interactive
+                    learning tools.
+                </p>
+
+            </div>
+
+
+            <div class="feature-grid">
+
+
+                <div class="feature-card">
+
+                    <div class="feature-top">
+
+                        <div class="feature-icon">
+                            ▶
+                        </div>
+
+                        <span class="feature-number">
+                            01
+                        </span>
+
+                    </div>
+
+                    <h3>
+                        Educational Videos
+                    </h3>
+
+                    <p>
+                        Convert study material into engaging
+                        educational videos with narration,
+                        captions and visual elements.
+                    </p>
+
+                </div>
+
+
+                <div class="feature-card">
+
+                    <div class="feature-top">
+
+                        <div class="feature-icon">
+                            Aa
+                        </div>
+
+                        <span class="feature-number">
+                            02
+                        </span>
+
+                    </div>
+
+                    <h3>
+                        Simple Explanations
+                    </h3>
+
+                    <p>
+                        Understand difficult topics through
+                        clear and easy-to-follow explanations
+                        generated from your study material.
+                    </p>
+
+                </div>
+
+
+                <div class="feature-card">
+
+                    <div class="feature-top">
+
+                        <div class="feature-icon">
+                            ?
+                        </div>
+
+                        <span class="feature-number">
+                            03
+                        </span>
+
+                    </div>
+
+                    <h3>
+                        AI Quizzes
+                    </h3>
+
+                    <p>
+                        Generate quizzes from your learning
+                        content and test your understanding
+                        interactively.
+                    </p>
+
+                </div>
+
+
+                <div class="feature-card">
+
+                    <div class="feature-top">
+
+                        <div class="feature-icon">
+                            ✦
+                        </div>
+
+                        <span class="feature-number">
+                            04
+                        </span>
+
+                    </div>
+
+                    <h3>
+                        Educational Games
+                    </h3>
+
+                    <p>
+                        Make learning more interesting with
+                        interactive educational games and
+                        activities.
+                    </p>
+
+                </div>
+
+
+                <div class="feature-card">
+
+                    <div class="feature-top">
+
+                        <div class="feature-icon">
+                            ★
+                        </div>
+
+                        <span class="feature-number">
+                            05
+                        </span>
+
+                    </div>
+
+                    <h3>
+                        Progress Tracking
+                    </h3>
+
+                    <p>
+                        Track your learning activities and
+                        monitor your progress as you learn.
+                    </p>
+
+                </div>
+
+
+                <div class="feature-card">
+
+                    <div class="feature-top">
+
+                        <div class="feature-icon">
+                            A
+                        </div>
+
+                        <span class="feature-number">
+                            06
+                        </span>
+
+                    </div>
+
+                    <h3>
+                        Multiple Languages
+                    </h3>
+
+                    <p>
+                        Access generated learning content
+                        in English, Hindi or Kannada.
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- ================= CTA ================= -->
+
+    <section class="cta-section">
+
+        <div class="cta-container">
+
+            <div class="cta-label">
+                EDUVISION
+            </div>
+
+            <h2>
+                Turn study material into
+                visual understanding.
+            </h2>
+
+            <p>
+                Learn through AI-generated explanations,
+                educational videos, quizzes and
+                interactive activities.
+            </p>
+
+            <a href="/register" class="cta-button">
+                Get Started →
+            </a>
+
+        </div>
+
+    </section>
+
+
+    <!-- ================= FOOTER ================= -->
+
+    <footer>
+
+        <div class="footer-container">
+
+            <div class="footer-brand">
+
+                <a href="/" class="logo footer-logo">
+
+                    <span class="logo-icon">
+                        E
+                    </span>
+
+                    <span class="logo-text">
+                        EduVision
+                    </span>
+
+                </a>
+
+                <p>
+                    AI-Based Multimodal Visual Learning
+                    and Educational Video Generation System.
+                </p>
+
+            </div>
+
+
+            <div class="footer-links">
+
+                <a href="#features">
+                    What We Offer
+                </a>
+
+                <a href="/login">
+                    Login
+                </a>
+
+                <a href="/register">
+                    Create Account
+                </a>
+
+            </div>
+
+        </div>
+
+
+        <div class="copyright">
+            © 2026 EduVision. All rights reserved.
+        </div>
+
+    </footer>
+
+
+    <!-- ================= VIDEO AUTOPLAY SCRIPT ================= -->
+
+    <script>
+
+        const video = document.getElementById("eduVisionVideo");
+
+        window.addEventListener("load", function () {
+
+            video.muted = true;
+
+            video.play().catch(function () {
+                console.log("Autoplay was blocked by the browser.");
+            });
+
+        });
+
+    </script>
+
+</body>
+
+</html>

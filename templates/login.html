@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>Login | EduVision</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/style.css') }}">
+
+</head>
+
+<body>
+
+    <!-- Background -->
+    <div class="background-shape shape-one"></div>
+    <div class="background-shape shape-two"></div>
+
+
+    <main class="login-wrapper">
+
+
+        <!-- LEFT SECTION -->
+
+        <section class="login-intro">
+
+            <a href="/" class="brand">
+
+                <span class="brand-icon">E</span>
+
+                <span>EduVision</span>
+
+            </a>
+
+
+            <div class="login-welcome">
+
+                <div class="eyebrow">
+                    WELCOME BACK
+                </div>
+
+                <h1>
+                    Continue your
+                    <span>learning journey.</span>
+                </h1>
+
+                <p>
+                    Sign in to access your personalized learning
+                    space, visual content, quizzes and AI-assisted
+                    educational resources.
+                </p>
+
+
+                <div class="login-highlights">
+
+                    <div>
+                        <strong>Learn Visually</strong>
+                        <small>
+                            Turn concepts into easy-to-understand
+                            visual learning material.
+                        </small>
+                    </div>
+
+                    <div>
+                        <strong>Learn Smarter</strong>
+                        <small>
+                            Use AI-assisted tools to make learning
+                            simple and engaging.
+                        </small>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+
+        <!-- LOGIN SECTION -->
+
+        <section class="login-section">
+
+            <div class="login-card">
+
+
+                <!-- HEADER -->
+
+                <div class="login-header">
+
+                    <div class="login-logo">
+
+                        <span class="brand-icon">E</span>
+
+                        <span>EduVision</span>
+
+                    </div>
+
+
+                    <h2>
+                        Welcome back
+                    </h2>
+
+                   
+
+                </div>
+
+
+
+                <!-- FLASH MESSAGE -->
+
+                {% with messages = get_flashed_messages() %}
+
+                    {% if messages %}
+
+                        <div class="flash-message">
+
+                            {% for message in messages %}
+
+                                {{ message }}
+
+                            {% endfor %}
+
+                        </div>
+
+                    {% endif %}
+
+                {% endwith %}
+
+
+
+                <!-- LOGIN FORM -->
+
+                <form method="POST"
+                      action="{{ url_for('login') }}"
+                      id="loginForm">
+
+
+                    <!-- EMAIL -->
+
+                    <div class="form-group">
+
+                        <label for="email">
+                            Email Address
+                        </label>
+
+                        <input
+                            type="email"
+                            id="email"
+                            name="email"
+                            placeholder="Enter your email"
+                            required>
+
+                    </div>
+
+
+
+                    <!-- PASSWORD -->
+
+                    <div class="form-group">
+
+                        <label for="password">
+                            Password
+                        </label>
+
+                        <input
+                            type="password"
+                            id="password"
+                            name="password"
+                            placeholder="Enter your password"
+                            minlength="6"
+                            required>
+
+                    </div>
+
+
+
+                    <!-- LOGIN -->
+
+                    <button
+                        type="submit"
+                        class="login-button">
+
+                        Login
+
+                        <span>→</span>
+
+                    </button>
+
+                </form>
+
+
+
+                <!-- REGISTER -->
+
+                <div class="register-text">
+
+                    Don't have an account?
+
+                    <a href="{{ url_for('register') }}">
+                        Create Account
+                    </a>
+
+                </div>
+
+
+
+                <!-- HOME -->
+
+                <a href="/" class="back-home">
+                    ← Back to EduVision
+                </a>
+
+            </div>
+
+        </section>
+
+    </main>
+
+
+
+    <!-- SIMPLE VALIDATION -->
+
+    <script>
+
+        document.getElementById("loginForm")
+        .addEventListener("submit", function(event) {
+
+            const email =
+                document.getElementById("email").value.trim();
+
+            const password =
+                document.getElementById("password").value;
+
+
+            if (email === "") {
+
+                event.preventDefault();
+
+                alert("Please enter your email address.");
+
+                return;
+
+            }
+
+
+            if (password.length < 6) {
+
+                event.preventDefault();
+
+                alert("Password must contain at least 6 characters.");
+
+                return;
+
+            }
+
+        });
+
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,14 @@
+Flask
+Flask-SQLAlchemy
+PyMySQL
+python-dotenv
+Werkzeug
+openai
+PyMuPDF
+Pillow
+pytesseract
+gTTS
+moviepy
+imageio
+imageio-ffmpeg
+requests
