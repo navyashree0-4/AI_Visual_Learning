@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>My Study Materials | EduVision</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/style.css') }}">
+
+</head>
+
+<body class="dashboard-body">
+
+    <!-- SIDEBAR -->
+
+    <aside class="sidebar">
+
+        <div class="logo">
+
+            <span class="logo-icon">E</span>
+
+            <span>EduVision</span>
+
+        </div>
+
+        <nav>
+
+            <a href="{{ url_for('dashboard') }}">
+                <span>⌂</span>
+                Dashboard
+            </a>
+
+            <a href="{{ url_for('materials') }}"
+               class="active">
+                <span>▣</span>
+                My Learning
+            </a>
+
+            <a href="#">
+                <span>▶</span>
+                Visual Lessons
+            </a>
+
+            <a href="#">
+                <span>?</span>
+                Quizzes
+            </a>
+
+            <a href="#">
+                <span>◈</span>
+                Progress
+            </a>
+
+        </nav>
+
+        <div class="sidebar-bottom">
+
+            <a href="#">
+                ⚙ Settings
+            </a>
+
+            <a href="{{ url_for('logout') }}">
+                ↪ Logout
+            </a>
+
+        </div>
+
+    </aside>
+
+
+    <!-- MAIN CONTENT -->
+
+    <main class="main-content">
+
+        <div class="topbar">
+
+            <div>
+
+                <h1>My Study Materials</h1>
+
+                <p>
+                    View your uploaded study materials
+                </p>
+
+            </div>
+
+            <div class="profile">
+
+                <div class="profile-circle">
+
+                    {{ session["user_name"][0]|upper }}
+
+                </div>
+
+                <div>
+
+                    <strong>
+                        {{ session["user_name"] }}
+                    </strong>
+
+                    <small>Student</small>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- MATERIALS -->
+
+        <div class="dashboard-card">
+
+            <div class="card-heading">
+
+                <div>
+
+                    <h3>Uploaded Materials</h3>
+
+                    <p>
+                        Your PDF, TXT and DOCX files
+                    </p>
+
+                </div>
+
+                <a href="{{ url_for('upload') }}">
+                    + Upload
+                </a>
+
+            </div>
+
+
+            {% if files %}
+
+                {% for file in files %}
+
+                <div class="lesson material-item">
+
+                    <div class="lesson-icon">
+                        📄
+                    </div>
+
+                    <div class="lesson-info">
+
+                        <strong>
+                            {{ file }}
+                        </strong>
+
+                        <span>
+                            Study Material
+                        </span>
+
+                    </div>
+
+                    <a href="{{ url_for('uploaded_file', filename=file) }}"
+                       target="_blank"
+                       class="view-button">
+
+                        View
+
+                    </a>
+
+                </div>
+
+                {% endfor %}
+
+            {% else %}
+
+                <div class="empty-materials">
+
+                    <div class="empty-icon">
+                        📂
+                    </div>
+
+                    <h3>No study materials yet</h3>
+
+                    <p>
+                        Upload your first PDF or study material
+                        to see it here.
+                    </p>
+
+                    <a href="{{ url_for('upload') }}"
+                       class="primary-button">
+
+                        Upload Material
+
+                    </a>
+
+                </div>
+
+            {% endif %}
+
+        </div>
+
+    </main>
+
+</body>
+
+</html>

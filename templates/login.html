@@ -15,253 +15,693 @@
 
 </head>
 
+
 <body>
 
-    <!-- Background -->
-    <div class="background-shape shape-one"></div>
-    <div class="background-shape shape-two"></div>
+
+<!-- =====================================================
+     BACKGROUND
+===================================================== -->
+
+<div class="background-shape shape-one"></div>
+<div class="background-shape shape-two"></div>
 
 
-    <main class="login-wrapper">
+
+<!-- =====================================================
+     NAVBAR
+===================================================== -->
+
+<nav class="navbar">
+
+    <a href="/" class="brand">
+
+        <span class="brand-icon">
+            E
+        </span>
+
+        <span>
+            EduVision
+        </span>
+
+    </a>
 
 
-        <!-- LEFT SECTION -->
+    <div class="nav-links">
 
-        <section class="login-intro">
-
-            <a href="/" class="brand">
-
-                <span class="brand-icon">E</span>
-
-                <span>EduVision</span>
-
-            </a>
+        <a href="/">
+            Home
+        </a>
 
 
-            <div class="login-welcome">
+        <!-- DARK MODE -->
 
-                <div class="eyebrow">
-                    WELCOME BACK
-                </div>
+        <button
+            type="button"
+            class="theme-btn"
+            id="themeButton"
+            onclick="toggleTheme()"
+            aria-label="Toggle dark mode">
 
-                <h1>
-                    Continue your
-                    <span>learning journey.</span>
-                </h1>
+            🌙
 
-                <p>
-                    Sign in to access your personalized learning
-                    space, visual content, quizzes and AI-assisted
-                    educational resources.
-                </p>
+        </button>
 
 
-                <div class="login-highlights">
+        <!-- CREATE ACCOUNT -->
 
-                    <div>
-                        <strong>Learn Visually</strong>
-                        <small>
-                            Turn concepts into easy-to-understand
-                            visual learning material.
-                        </small>
-                    </div>
+        <a href="{{ url_for('register') }}"
+           class="login-btn">
 
-                    <div>
-                        <strong>Learn Smarter</strong>
-                        <small>
-                            Use AI-assisted tools to make learning
-                            simple and engaging.
-                        </small>
-                    </div>
+            Create Account
 
-                </div>
+        </a>
+
+    </div>
+
+</nav>
+
+
+
+
+
+<!-- =====================================================
+     MAIN LOGIN AREA
+===================================================== -->
+
+<main class="login-wrapper">
+
+
+    <!-- =================================================
+         LEFT SECTION
+    ================================================== -->
+
+    <section class="login-intro">
+
+        <div class="login-welcome">
+
+
+            <div class="eyebrow">
+
+                WELCOME BACK
 
             </div>
 
-        </section>
+
+
+            <h1>
+
+                Continue your
+
+                <span>
+                    learning journey.
+                </span>
+
+            </h1>
 
 
 
-        <!-- LOGIN SECTION -->
+            <p>
 
-        <section class="login-section">
+                Sign in to access your personalized learning
+                space, visual content, quizzes and AI-assisted
+                educational resources.
 
-            <div class="login-card">
+            </p>
 
 
-                <!-- HEADER -->
 
-                <div class="login-header">
+            <!-- =========================================
+                 HIGHLIGHTS
+            ========================================== -->
 
-                    <div class="login-logo">
+            <div class="login-highlights">
 
-                        <span class="brand-icon">E</span>
 
-                        <span>EduVision</span>
+                <!-- LEARN VISUALLY -->
+
+                <div class="login-highlight">
+
+                    <div class="benefit-icon">
+
+                        ▶
 
                     </div>
 
+                    <div>
 
-                    <h2>
-                        Welcome back
-                    </h2>
+                        <strong>
+                            Learn Visually
+                        </strong>
 
-                   
+                        <small>
+
+                            Turn concepts into
+                            easy-to-understand
+                            visual learning material.
+
+                        </small>
+
+                    </div>
 
                 </div>
 
 
 
-                <!-- FLASH MESSAGE -->
+                <!-- LEARN SMARTER -->
 
-                {% with messages = get_flashed_messages() %}
+                <div class="login-highlight">
 
-                    {% if messages %}
+                    <div class="benefit-icon">
 
-                        <div class="flash-message">
-
-                            {% for message in messages %}
-
-                                {{ message }}
-
-                            {% endfor %}
-
-                        </div>
-
-                    {% endif %}
-
-                {% endwith %}
-
-
-
-                <!-- LOGIN FORM -->
-
-                <form method="POST"
-                      action="{{ url_for('login') }}"
-                      id="loginForm">
-
-
-                    <!-- EMAIL -->
-
-                    <div class="form-group">
-
-                        <label for="email">
-                            Email Address
-                        </label>
-
-                        <input
-                            type="email"
-                            id="email"
-                            name="email"
-                            placeholder="Enter your email"
-                            required>
+                        ✦
 
                     </div>
 
+                    <div>
 
+                        <strong>
+                            Learn Smarter
+                        </strong>
 
-                    <!-- PASSWORD -->
+                        <small>
 
-                    <div class="form-group">
+                            Use AI-assisted tools to make
+                            learning simple and engaging.
 
-                        <label for="password">
-                            Password
-                        </label>
-
-                        <input
-                            type="password"
-                            id="password"
-                            name="password"
-                            placeholder="Enter your password"
-                            minlength="6"
-                            required>
+                        </small>
 
                     </div>
-
-
-
-                    <!-- LOGIN -->
-
-                    <button
-                        type="submit"
-                        class="login-button">
-
-                        Login
-
-                        <span>→</span>
-
-                    </button>
-
-                </form>
-
-
-
-                <!-- REGISTER -->
-
-                <div class="register-text">
-
-                    Don't have an account?
-
-                    <a href="{{ url_for('register') }}">
-                        Create Account
-                    </a>
 
                 </div>
 
 
 
-                <!-- HOME -->
+                <!-- PRACTICE -->
 
-                <a href="/" class="back-home">
-                    ← Back to EduVision
+                <div class="login-highlight">
+
+                    <div class="benefit-icon">
+
+                        ✓
+
+                    </div>
+
+                    <div>
+
+                        <strong>
+                            Practice
+                        </strong>
+
+                        <small>
+
+                            Test your understanding through
+                            quizzes and interactive activities.
+
+                        </small>
+
+                    </div>
+
+                </div>
+
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+
+
+
+    <!-- =================================================
+         LOGIN SECTION
+    ================================================== -->
+
+    <section class="login-section">
+
+
+        <div class="login-card">
+
+
+            <!-- =========================================
+                 LOGIN HEADER
+            ========================================== -->
+
+            <div class="login-header">
+
+
+                <div class="login-logo">
+
+                    <span class="brand-icon">
+                        E
+                    </span>
+
+                    <span>
+                        EduVision
+                    </span>
+
+                </div>
+
+
+
+                <h2>
+                    Welcome back
+                </h2>
+
+
+                <p>
+                    Login to continue learning.
+                </p>
+
+
+            </div>
+
+
+
+
+
+            <!-- =========================================
+                 FLASH MESSAGE
+            ========================================== -->
+
+            {% with messages = get_flashed_messages() %}
+
+                {% if messages %}
+
+                    <div class="flash-message">
+
+                        {% for message in messages %}
+
+                            {{ message }}
+
+                        {% endfor %}
+
+                    </div>
+
+                {% endif %}
+
+            {% endwith %}
+
+
+
+
+
+            <!-- =========================================
+                 LOGIN FORM
+            ========================================== -->
+
+            <form
+                method="POST"
+                action="{{ url_for('login') }}"
+                id="loginForm"
+                novalidate>
+
+
+                <!-- =====================================
+                     EMAIL
+                ====================================== -->
+
+                <div class="form-group">
+
+                    <label for="email">
+
+                        Email Address
+
+                    </label>
+
+
+                    <input
+                        type="email"
+                        id="email"
+                        name="email"
+                        placeholder="Enter your email"
+                        autocomplete="email"
+                        required>
+
+
+                    <small
+                        class="input-error"
+                        id="emailError">
+                    </small>
+
+                </div>
+
+
+
+
+
+                <!-- =====================================
+                     PASSWORD
+                ====================================== -->
+
+                <div class="form-group">
+
+                    <label for="password">
+
+                        Password
+
+                    </label>
+
+
+                    <input
+                        type="password"
+                        id="password"
+                        name="password"
+                        placeholder="Enter your password"
+                        autocomplete="current-password"
+                        minlength="6"
+                        required>
+
+
+                    <small
+                        class="input-error"
+                        id="passwordError">
+                    </small>
+
+                </div>
+
+
+
+
+
+                <!-- =====================================
+                     LOGIN BUTTON
+                ====================================== -->
+
+                <button
+                    type="submit"
+                    class="login-button">
+
+                    Login
+
+                    <span>
+                        →
+                    </span>
+
+                </button>
+
+
+            </form>
+
+
+
+
+
+            <!-- =========================================
+                 REGISTER
+            ========================================== -->
+
+            <div class="register-text">
+
+                Don't have an account?
+
+                <a href="{{ url_for('register') }}">
+
+                    Create Account
+
                 </a>
 
             </div>
 
-        </section>
-
-    </main>
 
 
 
-    <!-- SIMPLE VALIDATION -->
 
-    <script>
+            <!-- =========================================
+                 BACK HOME
+            ========================================== -->
 
-        document.getElementById("loginForm")
-        .addEventListener("submit", function(event) {
+            <a href="/" class="back-home">
+
+                ← Back to EduVision
+
+            </a>
+
+
+        </div>
+
+    </section>
+
+</main>
+
+
+
+
+
+<!-- =====================================================
+     JAVASCRIPT
+===================================================== -->
+
+<script>
+
+
+/* =====================================================
+   DARK MODE
+===================================================== */
+
+function toggleTheme() {
+
+    document.body.classList.toggle("dark-theme");
+
+
+    const themeButton =
+        document.getElementById("themeButton");
+
+
+    if (
+        document.body.classList.contains("dark-theme")
+    ) {
+
+        themeButton.innerHTML = "☀️";
+
+
+        localStorage.setItem(
+            "theme",
+            "dark"
+        );
+
+    } else {
+
+        themeButton.innerHTML = "🌙";
+
+
+        localStorage.setItem(
+            "theme",
+            "light"
+        );
+
+    }
+
+}
+
+
+
+
+
+/* =====================================================
+   LOAD SAVED THEME
+===================================================== */
+
+window.addEventListener(
+    "DOMContentLoaded",
+    function () {
+
+
+        const savedTheme =
+            localStorage.getItem("theme");
+
+
+        const themeButton =
+            document.getElementById("themeButton");
+
+
+        if (savedTheme === "dark") {
+
+            document.body.classList.add(
+                "dark-theme"
+            );
+
+
+            themeButton.innerHTML = "☀️";
+
+        }
+
+    }
+);
+
+
+
+
+
+/* =====================================================
+   LOGIN VALIDATION
+===================================================== */
+
+document
+    .getElementById("loginForm")
+    .addEventListener(
+        "submit",
+        function (event) {
+
+
+            /* -----------------------------------------
+               GET VALUES
+            ----------------------------------------- */
 
             const email =
-                document.getElementById("email").value.trim();
+                document
+                    .getElementById("email")
+                    .value
+                    .trim();
+
 
             const password =
-                document.getElementById("password").value;
+                document
+                    .getElementById("password")
+                    .value;
 
+
+            const emailError =
+                document.getElementById(
+                    "emailError"
+                );
+
+
+            const passwordError =
+                document.getElementById(
+                    "passwordError"
+                );
+
+
+            /* -----------------------------------------
+               CLEAR PREVIOUS ERRORS
+            ----------------------------------------- */
+
+            emailError.textContent = "";
+            passwordError.textContent = "";
+
+
+            document
+                .getElementById("email")
+                .classList.remove("input-invalid");
+
+
+            document
+                .getElementById("password")
+                .classList.remove("input-invalid");
+
+
+            let valid = true;
+
+
+
+            /* -----------------------------------------
+               EMAIL EMPTY CHECK
+            ----------------------------------------- */
 
             if (email === "") {
 
-                event.preventDefault();
+                emailError.textContent =
+                    "Please enter your email address.";
 
-                alert("Please enter your email address.");
+                document
+                    .getElementById("email")
+                    .classList.add("input-invalid");
 
-                return;
+                valid = false;
+
+            }
+
+
+
+            /* -----------------------------------------
+               EMAIL FORMAT CHECK
+            ----------------------------------------- */
+
+            else {
+
+                const emailPattern =
+                    /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+
+                if (!emailPattern.test(email)) {
+
+                    emailError.textContent =
+                        "Please enter a valid email address.";
+
+                    document
+                        .getElementById("email")
+                        .classList.add(
+                            "input-invalid"
+                        );
+
+                    valid = false;
+
+                }
 
             }
 
 
-            if (password.length < 6) {
 
-                event.preventDefault();
+            /* -----------------------------------------
+               PASSWORD EMPTY CHECK
+            ----------------------------------------- */
 
-                alert("Password must contain at least 6 characters.");
+            if (password === "") {
 
-                return;
+                passwordError.textContent =
+                    "Please enter your password.";
+
+                document
+                    .getElementById("password")
+                    .classList.add(
+                        "input-invalid"
+                    );
+
+                valid = false;
 
             }
 
-        });
 
-    </script>
+
+            /* -----------------------------------------
+               PASSWORD LENGTH CHECK
+            ----------------------------------------- */
+
+            else if (password.length < 6) {
+
+                passwordError.textContent =
+                    "Password must contain at least 6 characters.";
+
+                document
+                    .getElementById("password")
+                    .classList.add(
+                        "input-invalid"
+                    );
+
+                valid = false;
+
+            }
+
+
+
+            /* -----------------------------------------
+               STOP FORM IF INVALID
+            ----------------------------------------- */
+
+            if (!valid) {
+
+                event.preventDefault();
+
+            }
+
+        }
+    );
+
+</script>
+
 
 </body>
 

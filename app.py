@@ -1,208 +1,623 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, send_from_directory
-import sqlite3
+from flask import (
+    Flask,
+    render_template,
+    request,
+    redirect,
+    url_for,
+    session,
+    flash
+)
+
+import mysql.connector
+from mysql.connector import Error
+from werkzeug.security import generate_password_hash, check_password_hash
+
 import os
+from dotenv import load_dotenv
+
+
+# ============================================================
+# LOAD ENVIRONMENT VARIABLES
+# ============================================================
+
+load_dotenv()
+
+
+# ============================================================
+# FLASK APPLICATION
+# ============================================================
 
 app = Flask(__name__)
 
-app.secret_key = "eduvision_secret_key"
-
-# --------------------------------------------------
-# DATABASE
-# --------------------------------------------------
-
-DATABASE = "eduvision.db"
+app.secret_key = os.getenv(
+    "FLASK_SECRET_KEY",
+    "eduvision-secret-key"
+)
 
 
-def get_db():
-    conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row
-    return conn
+# ============================================================
+# DATABASE CONFIGURATION
+# ============================================================
+
+# MySQL settings are read from the .env file.
+DB_CONFIG = {
+    "host": os.getenv("MYSQL_HOST", "localhost"),
+    "user": os.getenv("MYSQL_USER", "root"),
+    "password": os.getenv("MYSQL_PASSWORD", ""),
+    "database": os.getenv("MYSQL_DATABASE", "ai_visual_learning"),
+    "port": int(os.getenv("MYSQL_PORT", "3306")),
+    "connection_timeout": 10,
+    "autocommit": False
+}
 
 
-def create_database():
+# ============================================================
+# DATABASE CONNECTION
+# ============================================================
 
-    conn = get_db()
+def get_db_connection():
+    """Connect to MySQL and return a connection, or None on failure."""
+    try:
+        connection = mysql.connector.connect(**DB_CONFIG)
 
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL
+        if connection.is_connected():
+            print("DATABASE CONNECTED SUCCESSFULLY")
+            return connection
+
+        print("DATABASE CONNECTION ERROR: MySQL connection is not active.")
+
+    except mysql.connector.Error as e:
+        print("DATABASE CONNECTION ERROR:", e)
+
+    except Exception as e:
+        print("UNEXPECTED DATABASE ERROR:", e)
+
+    return None
+
+
+# ============================================================
+# GET USER CREDITS
+# ============================================================
+
+def get_user_credits(user_id):
+
+    connection = get_db_connection()
+
+    if connection is None:
+        return 0
+
+    try:
+
+        cursor = connection.cursor(
+            dictionary=True
         )
-    """)
 
-    conn.commit()
-    conn.close()
+        cursor.execute(
+            """
+            SELECT credits
+            FROM users
+            WHERE id = %s
+            """,
+            (user_id,)
+        )
+
+        user = cursor.fetchone()
+
+        cursor.close()
+        connection.close()
+
+        if user:
+            return user["credits"]
+
+        return 0
+
+    except Error as e:
+
+        print(
+            "CREDITS ERROR:",
+            e
+        )
+
+        try:
+            connection.close()
+        except Exception:
+            pass
+
+        return 0
 
 
-# --------------------------------------------------
-# HOME PAGE
-# --------------------------------------------------
+# ============================================================
+# HOME
+# ============================================================
 
 @app.route("/")
-def home():
+def index():
 
-    return render_template("index.html")
+    return render_template(
+        "index.html"
+    )
 
 
-# --------------------------------------------------
+# ============================================================
 # REGISTER
-# --------------------------------------------------
+# ============================================================
 
-@app.route("/register", methods=["GET", "POST"])
+@app.route(
+    "/register",
+    methods=["GET", "POST"]
+)
 def register():
 
     if request.method == "POST":
 
-        name = request.form.get("name")
-        email = request.form.get("email")
-        password = request.form.get("password")
-        confirm_password = request.form.get("confirm_password")
+        name = request.form.get(
+            "name",
+            ""
+        ).strip()
 
-        # Basic validation
+        email = request.form.get(
+            "email",
+            ""
+        ).strip().lower()
 
-        if not name or not email or not password:
-            flash("Please fill all the fields.")
-            return redirect(url_for("register"))
+        password = request.form.get(
+            "password",
+            ""
+        )
 
-        if len(name.strip()) < 3:
-            flash("Name must contain at least 3 characters.")
-            return redirect(url_for("register"))
+        confirm_password = request.form.get(
+            "confirm_password",
+            ""
+        )
+
+
+        # ----------------------------
+        # BASIC VALIDATION
+        # ----------------------------
+
+        if not name:
+
+            flash(
+                "Please enter your name."
+            )
+
+            return redirect(
+                url_for("register")
+            )
+
+
+        if not email:
+
+            flash(
+                "Please enter your email address."
+            )
+
+            return redirect(
+                url_for("register")
+            )
+
 
         if len(password) < 6:
-            flash("Password must contain at least 6 characters.")
-            return redirect(url_for("register"))
+
+            flash(
+                "Password must contain at least 6 characters."
+            )
+
+            return redirect(
+                url_for("register")
+            )
+
 
         if password != confirm_password:
-            flash("Passwords do not match.")
-            return redirect(url_for("register"))
 
-        # Save user
+            flash(
+                "Passwords do not match."
+            )
+
+            return redirect(
+                url_for("register")
+            )
+
+
+        # ----------------------------
+        # DATABASE
+        # ----------------------------
+
+        connection = get_db_connection()
+
+        if connection is None:
+
+            flash(
+                "Database connection error."
+            )
+
+            return redirect(
+                url_for("register")
+            )
+
 
         try:
 
-            conn = get_db()
-
-            conn.execute(
-                """
-                INSERT INTO users (name, email, password)
-                VALUES (?, ?, ?)
-                """,
-                (name, email, password)
+            cursor = connection.cursor(
+                dictionary=True
             )
 
-            conn.commit()
-            conn.close()
 
-            flash("Account created successfully! Please login.")
+            # Check existing email
 
-            return redirect(url_for("login"))
+            cursor.execute(
+                """
+                SELECT id
+                FROM users
+                WHERE email = %s
+                """,
+                (email,)
+            )
 
-        except sqlite3.IntegrityError:
-
-            flash("This email is already registered.")
-
-            return redirect(url_for("register"))
-
-    return render_template("register.html")
+            existing_user = cursor.fetchone()
 
 
-# --------------------------------------------------
+            if existing_user:
+
+                cursor.close()
+                connection.close()
+
+                flash(
+                    "An account with this email already exists."
+                )
+
+                return redirect(
+                    url_for("login")
+                )
+
+
+            # Hash password
+
+            hashed_password = (
+                generate_password_hash(password)
+            )
+
+
+            # Create user
+
+            cursor.execute(
+                """
+                INSERT INTO users
+                (
+                    name,
+                    email,
+                    password,
+                    credits
+                )
+                VALUES
+                (
+                    %s,
+                    %s,
+                    %s,
+                    %s
+                )
+                """,
+                (
+                    name,
+                    email,
+                    hashed_password,
+                    50
+                )
+            )
+
+
+            connection.commit()
+
+            cursor.close()
+            connection.close()
+
+
+            flash(
+                "Account created successfully. Please login."
+            )
+
+            return redirect(
+                url_for("login")
+            )
+
+
+        except Error as e:
+
+            print(
+                "REGISTER ERROR:",
+                e
+            )
+
+            try:
+                connection.rollback()
+                connection.close()
+            except Exception:
+                pass
+
+            flash(
+                "Unable to create your account."
+            )
+
+            return redirect(
+                url_for("register")
+            )
+
+
+    return render_template(
+        "register.html"
+    )
+
+
+# ============================================================
 # LOGIN
-# --------------------------------------------------
+# ============================================================
 
-@app.route("/login", methods=["GET", "POST"])
+@app.route(
+    "/login",
+    methods=["GET", "POST"]
+)
 def login():
 
     if request.method == "POST":
 
-        email = request.form.get("email")
-        password = request.form.get("password")
+        email = request.form.get(
+            "email",
+            ""
+        ).strip().lower()
 
-        if not email or not password:
-
-            flash("Please enter email and password.")
-
-            return redirect(url_for("login"))
-
-
-        conn = get_db()
-
-        user = conn.execute(
-            """
-            SELECT * FROM users
-            WHERE email = ? AND password = ?
-            """,
-            (email, password)
-        ).fetchone()
-
-        conn.close()
+        password = request.form.get(
+            "password",
+            ""
+        )
 
 
-        if user:
+        # ----------------------------
+        # VALIDATION
+        # ----------------------------
+
+        if not email:
+
+            flash(
+                "Please enter your email address."
+            )
+
+            return redirect(
+                url_for("login")
+            )
+
+
+        if not password:
+
+            flash(
+                "Please enter your password."
+            )
+
+            return redirect(
+                url_for("login")
+            )
+
+
+        # ----------------------------
+        # DATABASE
+        # ----------------------------
+
+        connection = get_db_connection()
+
+        if connection is None:
+
+            flash(
+                "Database connection error."
+            )
+
+            return redirect(
+                url_for("login")
+            )
+
+
+        try:
+
+            cursor = connection.cursor(
+                dictionary=True
+            )
+
+
+            cursor.execute(
+                """
+                SELECT
+                    id,
+                    name,
+                    email,
+                    password,
+                    credits
+                FROM users
+                WHERE email = %s
+                """,
+                (email,)
+            )
+
+
+            user = cursor.fetchone()
+
+
+            cursor.close()
+            connection.close()
+
+
+            # ----------------------------
+            # CHECK USER
+            # ----------------------------
+
+            if user is None:
+
+                flash(
+                    "Invalid email or password."
+                )
+
+                return redirect(
+                    url_for("login")
+                )
+
+
+            # ----------------------------
+            # CHECK PASSWORD
+            # ----------------------------
+
+            password_valid = check_password_hash(
+                user["password"],
+                password
+            )
+
+
+            if not password_valid:
+
+                flash(
+                    "Invalid email or password."
+                )
+
+                return redirect(
+                    url_for("login")
+                )
+
+
+            # ----------------------------
+            # CREATE SESSION
+            # ----------------------------
+
+            session.clear()
 
             session["user_id"] = user["id"]
+
             session["user_name"] = user["name"]
 
-            flash("Login successful!")
+            session["user_email"] = user["email"]
 
-            return redirect(url_for("home"))
-
-        else:
-
-            flash("Invalid email or password.")
-
-            return redirect(url_for("login"))
+            session["credits"] = user["credits"]
 
 
-    return render_template("login.html")
+            return redirect(
+                url_for("dashboard")
+            )
 
 
-# --------------------------------------------------
+        except Error as e:
+
+            print(
+                "LOGIN ERROR:",
+                e
+            )
+
+            try:
+                connection.close()
+            except Exception:
+                pass
+
+            flash(
+                "Unable to login. Please try again."
+            )
+
+            return redirect(
+                url_for("login")
+            )
+
+
+    return render_template(
+        "login.html"
+    )
+
+
+# ============================================================
+# DASHBOARD
+# ============================================================
+
+@app.route("/dashboard")
+def dashboard():
+
+    if "user_id" not in session:
+
+        flash(
+            "Please login to continue."
+        )
+
+        return redirect(
+            url_for("login")
+        )
+
+
+    user_id = session["user_id"]
+
+
+    credits = get_user_credits(
+        user_id
+    )
+
+
+    session["credits"] = credits
+
+
+    return render_template(
+        "dashboard.html",
+        user_name=session.get(
+            "user_name",
+            "Student"
+        ),
+        user_email=session.get(
+            "user_email",
+            ""
+        ),
+        credits=credits
+    )
+
+
+# ============================================================
 # LOGOUT
-# --------------------------------------------------
+# ============================================================
 
 @app.route("/logout")
 def logout():
 
     session.clear()
 
-    flash("You have been logged out.")
+    flash(
+        "You have been logged out successfully."
+    )
 
-    return redirect(url_for("home"))
-
-
-# --------------------------------------------------
-# VIDEO
-# --------------------------------------------------
-
-# Put your video inside:
-# static/video/
-
-VIDEO_FOLDER = os.path.join(
-    app.root_path,
-    "static",
-    "video"
-)
-
-
-@app.route("/video/<filename>")
-def video(filename):
-
-    return send_from_directory(
-        VIDEO_FOLDER,
-        filename
+    return redirect(
+        url_for("login")
     )
 
 
-# --------------------------------------------------
-# START APPLICATION
-# --------------------------------------------------
+# ============================================================
+# ERROR HANDLERS
+# ============================================================
+
+@app.errorhandler(404)
+def page_not_found(error):
+
+    return render_template(
+        "404.html"
+    ), 404
+
+
+@app.errorhandler(500)
+def internal_server_error(error):
+
+    return render_template(
+        "500.html"
+    ), 500
+
+
+# ============================================================
+# APPLICATION START
+# ============================================================
 
 if __name__ == "__main__":
 
-    create_database()
+    print()
+    print("=" * 60)
+    print("EDUVISION")
+    print("AI-Based Multimodal Visual Learning")
+    print("=" * 60)
+    print()
 
     app.run(
         debug=True

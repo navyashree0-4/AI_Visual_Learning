@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>{{ game_title or game_name or "EduVision Game" }}</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            background: #0b1020;
+            color: #f8fafc;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: min(1000px, 92%);
+            margin: 0 auto;
+            padding: 40px 0;
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .brand {
+            font-size: 24px;
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        .back-btn {
+            text-decoration: none;
+            color: #cbd5e1;
+            border: 1px solid #334155;
+            padding: 10px 16px;
+            border-radius: 10px;
+            transition: 0.2s;
+        }
+
+        .back-btn:hover {
+            background: #1e293b;
+            color: white;
+        }
+
+        .game-card {
+            background: #111827;
+            border: 1px solid #263244;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.25);
+        }
+
+        .game-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .game-icon {
+            font-size: 50px;
+            margin-bottom: 12px;
+        }
+
+        .game-header h1 {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+
+        .game-header p {
+            color: #94a3b8;
+            font-size: 15px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #1e293b;
+            border-radius: 20px;
+            overflow: hidden;
+            margin: 20px 0 30px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 50%;
+            background: #6366f1;
+            border-radius: 20px;
+        }
+
+        .question-box {
+            background: #0f172a;
+            border: 1px solid #263244;
+            border-radius: 16px;
+            padding: 25px;
+            margin-bottom: 20px;
+        }
+
+        .question-number {
+            color: #818cf8;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .question {
+            font-size: 21px;
+            line-height: 1.5;
+            margin-bottom: 20px;
+        }
+
+        .options {
+            display: grid;
+            gap: 12px;
+        }
+
+        .option {
+            width: 100%;
+            padding: 15px 18px;
+            text-align: left;
+            background: #172033;
+            color: #e2e8f0;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 15px;
+        }
+
+        .option:hover {
+            border-color: #818cf8;
+            background: #1e293b;
+        }
+
+        .option.selected {
+            background: #312e81;
+            border-color: #818cf8;
+        }
+
+        .option.correct {
+            background: #14532d;
+            border-color: #22c55e;
+        }
+
+        .option.wrong {
+            background: #7f1d1d;
+            border-color: #ef4444;
+        }
+
+        .submit-area {
+            text-align: center;
+            margin-top: 25px;
+        }
+
+        .submit-btn {
+            border: none;
+            background: #6366f1;
+            color: white;
+            padding: 13px 28px;
+            border-radius: 11px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .submit-btn:hover {
+            background: #4f46e5;
+        }
+
+        .scramble-word {
+            text-align: center;
+            font-size: 38px;
+            letter-spacing: 8px;
+            font-weight: 700;
+            color: #a5b4fc;
+            margin: 25px 0;
+        }
+
+        .answer-input {
+            width: 100%;
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #334155;
+            background: #0f172a;
+            color: white;
+            outline: none;
+            font-size: 16px;
+        }
+
+        .answer-input:focus {
+            border-color: #818cf8;
+        }
+
+        .memory-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .memory-card {
+            height: 110px;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            background: #172033;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+        }
+
+        .memory-card.flipped,
+        .memory-card.matched {
+            background: #312e81;
+            border-color: #818cf8;
+        }
+
+        .checkpoint {
+            background: #0f172a;
+            border: 1px solid #334155;
+            padding: 20px;
+            border-radius: 14px;
+            margin-bottom: 15px;
+        }
+
+        .checkpoint h3 {
+            margin-bottom: 8px;
+        }
+
+        .checkpoint p {
+            color: #94a3b8;
+            line-height: 1.5;
+        }
+
+        .choice-list {
+            display: grid;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .choice {
+            background: #172033;
+            color: white;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            padding: 13px;
+            cursor: pointer;
+        }
+
+        .choice:hover {
+            border-color: #818cf8;
+        }
+
+        .result-message {
+            text-align: center;
+            padding: 25px;
+            color: #cbd5e1;
+        }
+
+        @media (max-width: 700px) {
+
+            .container {
+                padding: 25px 0;
+            }
+
+            .game-card {
+                padding: 20px;
+            }
+
+            .game-header h1 {
+                font-size: 26px;
+            }
+
+            .memory-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .topbar {
+                gap: 15px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <div class="topbar">
+        <div class="brand">EduVision</div>
+
+        <a href="{{ url_for('dashboard') }}" class="back-btn">
+            ← Dashboard
+        </a>
+    </div>
+
+
+    <div class="game-card">
+
+        <div class="game-header">
+
+            <div class="game-icon">
+                {{ game_icon or "🎮" }}
+            </div>
+
+            <h1>
+                {{ game_title or game_name or "Learning Game" }}
+            </h1>
+
+            <p>
+                Learn, play and earn credits
+            </p>
+
+        </div>
+
+
+        {% if questions %}
+
+        <div class="progress-bar">
+            <div class="progress-fill"></div>
+        </div>
+
+
+        <form method="POST"
+              action="{{ url_for('submit_game') }}"
+              id="gameForm">
+
+            {% for question in questions %}
+
+            <div class="question-box">
+
+                <div class="question-number">
+                    Question {{ loop.index }} of {{ questions|length }}
+                </div>
+
+                <div class="question">
+                    {{ question.question }}
+                </div>
+
+
+                {% if question.options %}
+
+                <div class="options">
+
+                    {% for option in question.options %}
+
+                    <button
+                        type="button"
+                        class="option"
+                        onclick="selectOption(this, {{ loop.index0 }}, {{ loop.parent.index0 }})">
+
+                        {{ option }}
+
+                    </button>
+
+                    {% endfor %}
+
+                </div>
+
+                <input
+                    type="hidden"
+                    name="answer_{{ loop.index0 }}"
+                    id="answer_{{ loop.index0 }}"
+                >
+
+                {% endif %}
+
+            </div>
+
+            {% endfor %}
+
+
+            <input type="hidden"
+                   name="game_name"
+                   value="{{ game_name }}">
+
+            <input type="hidden"
+                   name="level"
+                   value="{{ level or 1 }}">
+
+            <div class="submit-area">
+
+                <button type="submit" class="submit-btn">
+                    Submit Game
+                </button>
+
+            </div>
+
+        </form>
+
+
+        {% elif word %}
+
+        <div class="question-box">
+
+            <div class="question-number">
+                Word Scramble
+            </div>
+
+            <div class="scramble-word">
+                {{ scrambled_word }}
+            </div>
+
+            <p style="text-align:center;color:#94a3b8;margin-bottom:20px;">
+                Unscramble the word
+            </p>
+
+            <form method="POST"
+                  action="{{ url_for('submit_game') }}">
+
+                <input
+                    class="answer-input"
+                    type="text"
+                    name="answer"
+                    placeholder="Enter your answer"
+                    required
+                >
+
+                <input type="hidden"
+                       name="game_name"
+                       value="Word Scramble">
+
+                <input type="hidden"
+                       name="level"
+                       value="{{ level or 1 }}">
+
+                <div class="submit-area">
+
+                    <button type="submit" class="submit-btn">
+                        Check Answer
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+
+
+        {% elif cards %}
+
+        <div class="question-box">
+
+            <div class="question-number">
+                Memory Cards
+            </div>
+
+            <p style="color:#94a3b8;margin-bottom:15px;">
+                Find matching pairs.
+            </p>
+
+            <div class="memory-grid">
+
+                {% for card in cards %}
+
+                <button
+                    type="button"
+                    class="memory-card"
+                    data-value="{{ card.value }}"
+                    onclick="flipCard(this)">
+
+                    ?
+
+                </button>
+
+                {% endfor %}
+
+            </div>
+
+
+            <form method="POST"
+                  action="{{ url_for('submit_game') }}"
+                  id="memoryForm">
+
+                <input type="hidden"
+                       name="score"
+                       id="memoryScore"
+                       value="0">
+
+                <input type="hidden"
+                       name="game_name"
+                       value="Memory Cards">
+
+                <input type="hidden"
+                       name="level"
+                       value="{{ level or 1 }}">
+
+                <div class="submit-area">
+
+                    <button type="submit"
+                            class="submit-btn"
+                            id="memorySubmit"
+                            disabled>
+
+                        Finish Game
+
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+
+
+        {% elif checkpoints %}
+
+        <div class="question-box">
+
+            <div class="question-number">
+                Knowledge Run
+            </div>
+
+            {% for checkpoint in checkpoints %}
+
+            <div class="checkpoint">
+
+                <h3>
+                    Checkpoint {{ loop.index }}
+                </h3>
+
+                <p>
+                    {{ checkpoint.question }}
+                </p>
+
+                {% if checkpoint.options %}
+
+                <div class="choice-list">
+
+                    {% for option in checkpoint.options %}
+
+                    <button
+                        type="button"
+                        class="choice"
+                        onclick="selectChoice(this)">
+
+                        {{ option }}
+
+                    </button>
+
+                    {% endfor %}
+
+                </div>
+
+                {% endif %}
+
+            </div>
+
+            {% endfor %}
+
+            <div class="submit-area">
+
+                <button
+                    type="button"
+                    class="submit-btn"
+                    onclick="finishGame()">
+
+                    Complete Challenge
+
+                </button>
+
+            </div>
+
+        </div>
+
+
+        {% else %}
+
+        <div class="result-message">
+
+            <p>
+                Start this learning activity and test your knowledge.
+            </p>
+
+            <div class="submit-area">
+
+                <a href="{{ url_for('dashboard') }}"
+                   class="submit-btn"
+                   style="display:inline-block;text-decoration:none;">
+
+                    Back to Dashboard
+
+                </a>
+
+            </div>
+
+        </div>
+
+        {% endif %}
+
+    </div>
+
+</div>
+
+
+<script>
+
+    function selectOption(button, optionIndex, questionIndex) {
+
+        const buttons =
+            button.parentElement.querySelectorAll(".option");
+
+        buttons.forEach(function(btn) {
+            btn.classList.remove("selected");
+        });
+
+        button.classList.add("selected");
+
+        const hidden =
+            document.getElementById("answer_" + questionIndex);
+
+        if (hidden) {
+            hidden.value = optionIndex;
+        }
+    }
+
+
+    function selectChoice(button) {
+
+        const parent =
+            button.parentElement;
+
+        const buttons =
+            parent.querySelectorAll(".choice");
+
+        buttons.forEach(function(btn) {
+            btn.classList.remove("selected");
+        });
+
+        button.classList.add("selected");
+    }
+
+
+    let firstCard = null;
+    let secondCard = null;
+    let lockBoard = false;
+    let matchedPairs = 0;
+
+    function flipCard(card) {
+
+        if (lockBoard ||
+            card.classList.contains("matched") ||
+            card === firstCard) {
+
+            return;
+        }
+
+        card.classList.add("flipped");
+
+        card.textContent =
+            card.dataset.value;
+
+        if (!firstCard) {
+
+            firstCard = card;
+            return;
+        }
+
+        secondCard = card;
+
+        checkMemoryMatch();
+    }
+
+
+    function checkMemoryMatch() {
+
+        const match =
+            firstCard.dataset.value ===
+            secondCard.dataset.value;
+
+        if (match) {
+
+            firstCard.classList.add("matched");
+            secondCard.classList.add("matched");
+
+            matchedPairs++;
+
+            resetMemory();
+
+            const totalCards =
+                document.querySelectorAll(".memory-card").length;
+
+            if (matchedPairs === totalCards / 2) {
+
+                document.getElementById("memoryScore").value =
+                    matchedPairs;
+
+                document.getElementById("memorySubmit").disabled =
+                    false;
+            }
+
+        } else {
+
+            lockBoard = true;
+
+            setTimeout(function() {
+
+                firstCard.classList.remove("flipped");
+                secondCard.classList.remove("flipped");
+
+                firstCard.textContent = "?";
+                secondCard.textContent = "?";
+
+                resetMemory();
+
+            }, 800);
+        }
+    }
+
+
+    function resetMemory() {
+
+        firstCard = null;
+        secondCard = null;
+        lockBoard = false;
+    }
+
+
+    function finishGame() {
+
+        alert(
+            "Challenge completed! Your result will be saved."
+        );
+
+        window.location.href =
+            "{{ url_for('dashboard') }}";
+    }
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Games | EduVision</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <style>
+        .games-page {
+            max-width: 1200px;
+            margin: auto;
+        }
+
+        .games-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .games-header h1 {
+            font-size: 28px;
+            margin-bottom: 5px;
+        }
+
+        .games-header p {
+            color: #7d8798;
+            font-size: 12px;
+        }
+
+        .credit-box {
+            background: linear-gradient(135deg, #315bea, #7048e8);
+            color: white;
+            padding: 15px 22px;
+            border-radius: 12px;
+            min-width: 130px;
+            text-align: center;
+            box-shadow: 0 8px 25px rgba(49, 91, 234, 0.2);
+        }
+
+        .credit-box small {
+            display: block;
+            font-size: 10px;
+            opacity: .8;
+        }
+
+        .credit-box strong {
+            display: block;
+            font-size: 25px;
+            margin-top: 3px;
+        }
+
+        .games-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        .game-card {
+            background: white;
+            border: 1px solid #e9ecf2;
+            border-radius: 16px;
+            padding: 25px;
+            transition: .3s;
+        }
+
+        .game-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 30px rgba(30, 40, 70, .08);
+        }
+
+        .game-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 13px;
+            background: #eef1ff;
+            color: #315bea;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            margin-bottom: 18px;
+        }
+
+        .game-card h3 {
+            font-size: 16px;
+            margin-bottom: 7px;
+        }
+
+        .game-card p {
+            color: #7d8798;
+            font-size: 11px;
+            line-height: 1.6;
+            min-height: 45px;
+        }
+
+        .game-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+        }
+
+        .credits {
+            color: #315bea;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .play-btn {
+            background: #315bea;
+            color: white;
+            text-decoration: none;
+            padding: 9px 17px;
+            border-radius: 8px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        .play-btn:hover {
+            background: #2448c9;
+        }
+
+        .info-card {
+            margin-top: 25px;
+            background: white;
+            border: 1px solid #e9ecf2;
+            border-radius: 14px;
+            padding: 20px 25px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .info-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: #eef1ff;
+            color: #315bea;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .info-card strong {
+            font-size: 12px;
+        }
+
+        .info-card p {
+            color: #7d8798;
+            font-size: 10px;
+            margin-top: 4px;
+        }
+
+        @media(max-width: 950px) {
+            .games-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media(max-width: 650px) {
+            .games-header {
+                align-items: flex-start;
+                gap: 15px;
+            }
+
+            .games-header h1 {
+                font-size: 22px;
+            }
+
+            .games-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .credit-box {
+                min-width: 100px;
+                padding: 12px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<!-- SIDEBAR -->
+
+<div class="sidebar">
+
+    <div class="logo">
+        <div class="logo-icon">E</div>
+        <span>EduVision</span>
+    </div>
+
+    <nav>
+
+        <a href="{{ url_for('dashboard') }}">
+            <span>⌂</span>
+            Dashboard
+        </a>
+
+        <a href="{{ url_for('games') }}" class="active">
+            <span>🎮</span>
+            Earn Credits
+        </a>
+
+        <a href="{{ url_for('videos') }}">
+            <span>▶</span>
+            AI Videos
+        </a>
+
+        <a href="{{ url_for('materials') }}">
+            <span>📚</span>
+            Study Materials
+        </a>
+
+    </nav>
+
+    <div class="sidebar-bottom">
+
+        <a href="{{ url_for('profile') }}">
+            <span>👤</span>
+            Profile
+        </a>
+
+        <a href="{{ url_for('logout') }}">
+            <span>↪</span>
+            Logout
+        </a>
+
+    </div>
+
+</div>
+
+
+<!-- MAIN CONTENT -->
+
+<div class="main-content">
+
+    <div class="games-page">
+
+        <!-- HEADER -->
+
+        <div class="games-header">
+
+            <div>
+                <h1>Earn Credits</h1>
+
+                <p>
+                    Play learning games, improve your knowledge and earn credits.
+                </p>
+            </div>
+
+            <div class="credit-box">
+
+                <small>Your Credits</small>
+
+                <strong>{{ credits|default(0) }}</strong>
+
+            </div>
+
+        </div>
+
+
+        <!-- GAMES -->
+
+        <div class="games-grid">
+
+            <!-- QUIZ -->
+
+            <div class="game-card">
+
+                <div class="game-icon">❓</div>
+
+                <h3>Quick Quiz</h3>
+
+                <p>
+                    Answer questions based on your learning topics.
+                </p>
+
+                <div class="game-footer">
+
+                    <span class="credits">
+                        +10 Credits
+                    </span>
+
+                    <a href="{{ url_for('quiz') }}" class="play-btn">
+                        Play
+                    </a>
+
+                </div>
+
+            </div>
+
+
+            <!-- MCQ -->
+
+            <div class="game-card">
+
+                <div class="game-icon">✓</div>
+
+                <h3>MCQ Challenge</h3>
+
+                <p>
+                    Test your understanding with multiple-choice questions.
+                </p>
+
+                <div class="game-footer">
+
+                    <span class="credits">
+                        +15 Credits
+                    </span>
+
+                    <a href="{{ url_for('mcq') }}" class="play-btn">
+                        Play
+                    </a>
+
+                </div>
+
+            </div>
+
+
+            <!-- TRUE FALSE -->
+
+            <div class="game-card">
+
+                <div class="game-icon">T/F</div>
+
+                <h3>True or False</h3>
+
+                <p>
+                    Identify whether each statement is true or false.
+                </p>
+
+                <div class="game-footer">
+
+                    <span class="credits">
+                        +10 Credits
+                    </span>
+
+                    <a href="{{ url_for('true_false') }}" class="play-btn">
+                        Play
+                    </a>
+
+                </div>
+
+            </div>
+
+
+            <!-- MATCH -->
+
+            <div class="game-card">
+
+                <div class="game-icon">🔗</div>
+
+                <h3>Match the Pair</h3>
+
+                <p>
+                    Match related concepts and improve your memory.
+                </p>
+
+                <div class="game-footer">
+
+                    <span class="credits">
+                        +15 Credits
+                    </span>
+
+                    <a href="{{ url_for('match_game') }}" class="play-btn">
+                        Play
+                    </a>
+
+                </div>
+
+            </div>
+
+
+            <!-- WORD SCRAMBLE -->
+
+            <div class="game-card">
+
+                <div class="game-icon">🔤</div>
+
+                <h3>Word Scramble</h3>
+
+                <p>
+                    Rearrange scrambled letters to find the correct word.
+                </p>
+
+                <div class="game-footer">
+
+                    <span class="credits">
+                        +10 Credits
+                    </span>
+
+                    <a href="{{ url_for('word_scramble') }}" class="play-btn">
+                        Play
+                    </a>
+
+                </div>
+
+            </div>
+
+
+            <!-- MEMORY -->
+
+            <div class="game-card">
+
+                <div class="game-icon">🧠</div>
+
+                <h3>Memory Cards</h3>
+
+                <p>
+                    Find matching cards and strengthen your learning memory.
+                </p>
+
+                <div class="game-footer">
+
+                    <span class="credits">
+                        +20 Credits
+                    </span>
+
+                    <a href="{{ url_for('memory_game') }}" class="play-btn">
+                        Play
+                    </a>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- INFORMATION -->
+
+        <div class="info-card">
+
+            <div class="info-icon">
+                💡
+            </div>
+
+            <div>
+
+                <strong>Use your credits for AI learning</strong>
+
+                <p>
+                    Earn credits by completing games. You can use your credits
+                    to generate personalized AI educational videos.
+                </p>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+</body>
+</html>

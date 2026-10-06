@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EduVision - True or False</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f7fb;
+            color: #1f2937;
+        }
+
+        .navbar {
+            height: 70px;
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 40px;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4f46e5;
+        }
+
+        .back {
+            text-decoration: none;
+            color: #4f46e5;
+            font-weight: bold;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 800px;
+            margin: 40px auto;
+        }
+
+        .game-card {
+            background: white;
+            padding: 35px;
+            border-radius: 20px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+            text-align: center;
+        }
+
+        .icon {
+            font-size: 55px;
+            margin-bottom: 15px;
+        }
+
+        h1 {
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #6b7280;
+            margin-bottom: 25px;
+        }
+
+        .score {
+            display: inline-block;
+            background: #fff7d6;
+            color: #8a6200;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin-bottom: 25px;
+        }
+
+        .question {
+            font-size: 21px;
+            font-weight: bold;
+            margin: 25px 0;
+            line-height: 1.5;
+        }
+
+        .option {
+            width: 100%;
+            padding: 15px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            background: #eef2ff;
+            color: #3730a3;
+        }
+
+        .option:hover {
+            background: #e0e7ff;
+        }
+
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            display: none;
+            font-weight: bold;
+        }
+
+        .next-btn {
+            display: none;
+            margin: 20px auto 0;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 10px;
+            background: #4f46e5;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .final {
+            display: none;
+            margin-top: 25px;
+            padding: 25px;
+            background: #f0fdf4;
+            border-radius: 15px;
+        }
+
+        .home-btn {
+            display: inline-block;
+            margin-top: 15px;
+            padding: 12px 20px;
+            background: #111827;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+
+<body>
+
+<nav class="navbar">
+    <div class="logo">EduVision</div>
+    <a href="{{ url_for('dashboard') }}" class="back">← Dashboard</a>
+</nav>
+
+<div class="container">
+
+    <div class="game-card">
+
+        <div class="icon">❓</div>
+
+        <h1>True or False</h1>
+
+        <p class="subtitle">
+            Test your knowledge and earn credits!
+        </p>
+
+        <div class="score">
+            ⭐ Score: <span id="score">0</span>
+        </div>
+
+        <div class="question" id="question">
+            Loading question...
+        </div>
+
+        <button class="option" onclick="answer(true)">
+            TRUE
+        </button>
+
+        <button class="option" onclick="answer(false)">
+            FALSE
+        </button>
+
+        <div class="result" id="result"></div>
+
+        <button class="next-btn" id="nextBtn" onclick="nextQuestion()">
+            Next Question →
+        </button>
+
+        <div class="final" id="final">
+            <h2>🎉 Game Completed!</h2>
+            <p id="finalScore"></p>
+            <p>⭐ You earned credits for completing the game.</p>
+
+            <a href="{{ url_for('dashboard') }}" class="home-btn">
+                Back to Dashboard
+            </a>
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+
+const questions = [
+    {
+        q: "Photosynthesis is the process by which green plants make food.",
+        answer: true
+    },
+    {
+        q: "The Earth is the largest planet in our solar system.",
+        answer: false
+    },
+    {
+        q: "Water boils at 100°C at normal atmospheric pressure.",
+        answer: true
+    },
+    {
+        q: "HTML is a programming language.",
+        answer: false
+    },
+    {
+        q: "The human brain is part of the nervous system.",
+        answer: true
+    }
+];
+
+let current = 0;
+let score = 0;
+let answered = false;
+
+function loadQuestion() {
+
+    document.getElementById("question").textContent =
+        questions[current].q;
+
+    document.getElementById("result").style.display = "none";
+    document.getElementById("nextBtn").style.display = "none";
+
+    answered = false;
+}
+
+function answer(value) {
+
+    if (answered) return;
+
+    answered = true;
+
+    const result = document.getElementById("result");
+
+    if (value === questions[current].answer) {
+
+        score += 2;
+
+        result.textContent = "✓ Correct! +2 Credits";
+        result.style.background = "#dcfce7";
+        result.style.color = "#166534";
+
+    } else {
+
+        result.textContent = "✗ Incorrect!";
+        result.style.background = "#fee2e2";
+        result.style.color = "#991b1b";
+    }
+
+    document.getElementById("score").textContent = score;
+
+    result.style.display = "block";
+
+    if (current < questions.length - 1) {
+        document.getElementById("nextBtn").style.display = "block";
+    } else {
+        setTimeout(showFinal, 700);
+    }
+}
+
+function nextQuestion() {
+
+    current++;
+
+    if (current < questions.length) {
+        loadQuestion();
+    }
+}
+
+function showFinal() {
+
+    document.getElementById("final").style.display = "block";
+
+    document.getElementById("finalScore").textContent =
+        "Your final score is " + score + " credits.";
+}
+
+loadQuestion();
+
+</script>
+
+</body>
+</html>

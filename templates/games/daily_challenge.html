@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>EduVision - Daily Challenge</title>
+
+<style>
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    background: #f5f7fb;
+    color: #1f2937;
+}
+
+.navbar {
+    height: 70px;
+    background: white;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 40px;
+}
+
+.logo {
+    font-size: 24px;
+    font-weight: bold;
+    color: #4f46e5;
+}
+
+.back {
+    text-decoration: none;
+    color: #4f46e5;
+    font-weight: bold;
+}
+
+.container {
+    width: 90%;
+    max-width: 750px;
+    margin: 40px auto;
+}
+
+.card {
+    background: white;
+    padding: 40px;
+    border-radius: 20px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+    text-align: center;
+}
+
+.icon {
+    font-size: 60px;
+}
+
+.subtitle {
+    color: #6b7280;
+    margin: 10px 0 25px;
+}
+
+.challenge {
+    background: #fff7d6;
+    padding: 25px;
+    border-radius: 15px;
+    margin-bottom: 20px;
+}
+
+.challenge h2 {
+    margin-bottom: 12px;
+}
+
+.question {
+    font-size: 20px;
+    font-weight: bold;
+    line-height: 1.5;
+    margin: 25px 0;
+}
+
+.options button {
+    display: block;
+    width: 100%;
+    margin: 10px 0;
+    padding: 15px;
+    border: 1px solid #d1d5db;
+    background: #f9fafb;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 15px;
+}
+
+.options button:hover {
+    background: #eef2ff;
+    border-color: #4f46e5;
+}
+
+.result {
+    display: none;
+    margin-top: 20px;
+    padding: 15px;
+    border-radius: 10px;
+    font-weight: bold;
+}
+
+.home {
+    display: inline-block;
+    margin-top: 20px;
+    padding: 12px 20px;
+    background: #111827;
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<nav class="navbar">
+
+    <div class="logo">
+        EduVision
+    </div>
+
+    <a href="{{ url_for('dashboard') }}" class="back">
+        ← Dashboard
+    </a>
+
+</nav>
+
+<div class="container">
+
+<div class="card">
+
+    <div class="icon">🔥</div>
+
+    <h1>Daily Challenge</h1>
+
+    <p class="subtitle">
+        Complete today's challenge and earn bonus credits.
+    </p>
+
+    <div class="challenge">
+
+        <h2>🏆 Today's Challenge</h2>
+
+        <p>
+            Answer the question correctly to earn bonus credits.
+        </p>
+
+    </div>
+
+    <div class="question">
+        Which component is mainly responsible for storing
+        data in a web application?
+    </div>
+
+    <div class="options">
+
+        <button onclick="check(this, false)">
+            CSS
+        </button>
+
+        <button onclick="check(this, true)">
+            Database
+        </button>
+
+        <button onclick="check(this, false)">
+            HTML
+        </button>
+
+        <button onclick="check(this, false)">
+            Browser
+        </button>
+
+    </div>
+
+    <div class="result" id="result"></div>
+
+    <a href="{{ url_for('dashboard') }}" class="home">
+        Back to Dashboard
+    </a>
+
+</div>
+
+</div>
+
+<script>
+
+let completed = false;
+
+function check(button, correct) {
+
+    if (completed) {
+        return;
+    }
+
+    const result =
+        document.getElementById("result");
+
+    result.style.display = "block";
+
+    if (correct) {
+
+        completed = true;
+
+        result.textContent =
+            "🎉 Correct! You earned +15 Daily Challenge Credits.";
+
+        result.style.background = "#dcfce7";
+        result.style.color = "#166534";
+
+    } else {
+
+        result.textContent =
+            "✗ Not correct. Try another answer.";
+
+        result.style.background = "#fee2e2";
+        result.style.color = "#991b1b";
+    }
+
+}
+
+</script>
+
+</body>
+</html>

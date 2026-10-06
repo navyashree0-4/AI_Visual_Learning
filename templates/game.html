@@ -1,0 +1,1217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>EduVision | Dashboard</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            background: #f5f7fb;
+            color: #172033;
+        }
+
+        a {
+            text-decoration: none;
+        }
+
+        /* SIDEBAR */
+
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 245px;
+            height: 100vh;
+            background: #111827;
+            color: white;
+            padding: 25px 16px;
+            z-index: 1000;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 0 12px;
+            margin-bottom: 35px;
+        }
+
+        .logo-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            background: #6366f1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .logo-text {
+            font-size: 21px;
+            font-weight: 700;
+        }
+
+        .nav-title {
+            color: #64748b;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding: 0 12px;
+            margin-bottom: 10px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #cbd5e1;
+            padding: 12px;
+            margin-bottom: 5px;
+            border-radius: 9px;
+            font-size: 14px;
+            transition: 0.2s;
+        }
+
+        .nav-item:hover,
+        .nav-item.active {
+            background: #1e293b;
+            color: white;
+        }
+
+        .nav-icon {
+            width: 22px;
+            text-align: center;
+            font-size: 16px;
+        }
+
+        .sidebar-bottom {
+            position: absolute;
+            bottom: 22px;
+            left: 16px;
+            right: 16px;
+        }
+
+        .logout {
+            color: #fca5a5;
+        }
+
+        /* MAIN */
+
+        .main {
+            margin-left: 245px;
+            min-height: 100vh;
+        }
+
+        .topbar {
+            height: 72px;
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 35px;
+        }
+
+        .page-title {
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .top-right {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+        }
+
+        .credit-badge {
+            background: #eef2ff;
+            color: #4f46e5;
+            padding: 8px 13px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .profile {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .profile-avatar {
+            width: 38px;
+            height: 38px;
+            background: #6366f1;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+        }
+
+        .profile-info strong {
+            display: block;
+            font-size: 13px;
+        }
+
+        .profile-info span {
+            color: #64748b;
+            font-size: 11px;
+        }
+
+        /* CONTENT */
+
+        .content {
+            padding: 30px 35px 45px;
+            max-width: 1500px;
+        }
+
+        /* HERO */
+
+        .hero {
+            background: linear-gradient(135deg, #111827, #1e293b);
+            border-radius: 18px;
+            padding: 32px;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 25px;
+            margin-bottom: 25px;
+        }
+
+        .hero-content h1 {
+            font-size: 29px;
+            margin-bottom: 10px;
+        }
+
+        .hero-content p {
+            color: #cbd5e1;
+            font-size: 14px;
+            line-height: 1.6;
+            max-width: 650px;
+        }
+
+        .hero-btn {
+            display: inline-block;
+            background: #6366f1;
+            color: white;
+            padding: 13px 20px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .hero-btn:hover {
+            background: #4f46e5;
+        }
+
+        /* STATS */
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 18px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 15px;
+            padding: 22px;
+        }
+
+        .stat-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .stat-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: #eef2ff;
+            color: #4f46e5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .stat-label {
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        .stat-value {
+            font-size: 26px;
+            font-weight: 700;
+        }
+
+        /* SECTION */
+
+        .section-header {
+            margin-bottom: 15px;
+        }
+
+        .section-header h2 {
+            font-size: 19px;
+        }
+
+        .section-header p {
+            color: #64748b;
+            font-size: 12px;
+            margin-top: 4px;
+        }
+
+        /* QUICK ACTIONS */
+
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 18px;
+            margin-bottom: 30px;
+        }
+
+        .quick-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 15px;
+            padding: 20px;
+            transition: 0.2s;
+        }
+
+        .quick-card:hover {
+            transform: translateY(-2px);
+            border-color: #c7d2fe;
+            box-shadow: 0 8px 25px rgba(15, 23, 42, 0.06);
+        }
+
+        .quick-icon {
+            width: 40px;
+            height: 40px;
+            background: #f1f5f9;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 14px;
+            font-size: 18px;
+        }
+
+        .quick-card h3 {
+            font-size: 15px;
+            margin-bottom: 6px;
+        }
+
+        .quick-card p {
+            color: #64748b;
+            font-size: 12px;
+            line-height: 1.5;
+            margin-bottom: 12px;
+        }
+
+        .quick-link {
+            color: #4f46e5;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        /* LOWER SECTION */
+
+        .lower-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 20px;
+        }
+
+        .panel {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 15px;
+            padding: 22px;
+        }
+
+        .panel-title {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+
+        /* PROGRESS */
+
+        .progress-item {
+            margin-bottom: 20px;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .progress-header span:first-child {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .progress-header span:last-child {
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: #e5e7eb;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #6366f1;
+            border-radius: 10px;
+        }
+
+        /* ACTIVITY */
+
+        .activity {
+            display: flex;
+            align-items: center;
+            gap: 13px;
+            padding: 13px 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .activity:last-child {
+            border-bottom: none;
+        }
+
+        .activity-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 9px;
+            background: #eef2ff;
+            color: #4f46e5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .activity-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .activity-info strong {
+            display: block;
+            font-size: 12px;
+            margin-bottom: 3px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .activity-info span {
+            color: #94a3b8;
+            font-size: 11px;
+        }
+
+        .activity-result {
+            color: #4f46e5;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .no-activity {
+            text-align: center;
+            color: #94a3b8;
+            font-size: 13px;
+            padding: 25px 0;
+        }
+
+        /* INFO */
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 18px;
+            margin-top: 20px;
+        }
+
+        .info-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 15px;
+            padding: 20px;
+        }
+
+        .info-card h3 {
+            font-size: 14px;
+            margin-bottom: 7px;
+        }
+
+        .info-card p {
+            color: #64748b;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        /* MOBILE */
+
+        .mobile-menu {
+            display: none;
+            border: none;
+            background: transparent;
+            font-size: 22px;
+            cursor: pointer;
+            margin-right: 15px;
+        }
+
+        @media (max-width: 1100px) {
+
+            .stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .quick-actions {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .lower-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 800px) {
+
+            .sidebar {
+                transform: translateX(-100%);
+                transition: 0.3s;
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+            }
+
+            .main {
+                margin-left: 0;
+            }
+
+            .mobile-menu {
+                display: block;
+            }
+
+            .topbar {
+                padding: 0 18px;
+            }
+
+            .content {
+                padding: 22px 18px;
+            }
+
+            .hero {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+
+        @media (max-width: 600px) {
+
+            .stats,
+            .quick-actions {
+                grid-template-columns: 1fr;
+            }
+
+            .profile-info {
+                display: none;
+            }
+
+            .hero-content h1 {
+                font-size: 23px;
+            }
+
+            .page-title {
+                font-size: 17px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<!-- SIDEBAR -->
+
+<aside class="sidebar" id="sidebar">
+
+    <div class="logo">
+
+        <div class="logo-icon">
+            E
+        </div>
+
+        <div class="logo-text">
+            EduVision
+        </div>
+
+    </div>
+
+
+    <div class="nav-title">
+        Main
+    </div>
+
+
+    <a href="{{ url_for('dashboard') }}"
+       class="nav-item active">
+
+        <span class="nav-icon">⌂</span>
+        Dashboard
+
+    </a>
+
+
+    <a href="{{ url_for('generate_video') }}"
+       class="nav-item">
+
+        <span class="nav-icon">▶</span>
+        Create Video
+
+    </a>
+
+
+    <a href="{{ url_for('qa') }}"
+       class="nav-item">
+
+        <span class="nav-icon">?</span>
+        Ask AI
+
+    </a>
+
+
+    <a href="{{ url_for('quiz_game') }}"
+       class="nav-item">
+
+        <span class="nav-icon">✓</span>
+        Take Quiz
+
+    </a>
+
+
+    <a href="{{ url_for('learning_progress') }}"
+       class="nav-item">
+
+        <span class="nav-icon">▥</span>
+        Learning Progress
+
+    </a>
+
+
+    <a href="{{ url_for('credits') }}"
+       class="nav-item">
+
+        <span class="nav-icon">◆</span>
+        Credits
+
+    </a>
+
+
+    <div class="sidebar-bottom">
+
+        <a href="{{ url_for('logout') }}"
+           class="nav-item logout">
+
+            <span class="nav-icon">↪</span>
+            Logout
+
+        </a>
+
+    </div>
+
+</aside>
+
+
+<!-- MAIN -->
+
+<main class="main">
+
+    <!-- TOPBAR -->
+
+    <header class="topbar">
+
+        <div style="display:flex;align-items:center;">
+
+            <button class="mobile-menu"
+                    onclick="toggleSidebar()">
+
+                ☰
+
+            </button>
+
+            <div class="page-title">
+                Dashboard
+            </div>
+
+        </div>
+
+
+        <div class="top-right">
+
+            <div class="credit-badge">
+                {{ credits|default(0) }} Credits
+            </div>
+
+
+            <div class="profile">
+
+                <div class="profile-avatar">
+
+                    {% if user %}
+                        {{ (user.name or 'S')[0]|upper }}
+                    {% else %}
+                        S
+                    {% endif %}
+
+                </div>
+
+
+                <div class="profile-info">
+
+                    <strong>
+
+                        {% if user %}
+                            {{ user.name }}
+                        {% else %}
+                            {{ user_name|default('Student') }}
+                        {% endif %}
+
+                    </strong>
+
+                    <span>
+                        Student
+                    </span>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </header>
+
+
+    <!-- CONTENT -->
+
+    <div class="content">
+
+        {% set videos = progress.get('videos_generated', 0) if progress else 0 %}
+        {% set quizzes = progress.get('quizzes_completed', 0) if progress else 0 %}
+        {% set games = progress.get('games_played', 0) if progress else 0 %}
+        {% set score = progress.get('total_score', 0) if progress else 0 %}
+
+
+        <!-- HERO -->
+
+        <section class="hero">
+
+            <div class="hero-content">
+
+                <h1>
+
+                    Welcome back,
+
+                    {% if user %}
+                        {{ user.name }}
+                    {% else %}
+                        {{ user_name|default('Student') }}
+                    {% endif %}
+
+                    👋
+
+                </h1>
+
+                <p>
+                    Turn your learning materials into simple,
+                    visual and interactive learning experiences
+                    with EduVision.
+                </p>
+
+            </div>
+
+
+            <a href="{{ url_for('generate_video') }}"
+               class="hero-btn">
+
+                + Create Educational Video
+
+            </a>
+
+        </section>
+
+
+        <!-- STATISTICS -->
+
+        <section class="stats">
+
+            <div class="stat-card">
+
+                <div class="stat-top">
+
+                    <div class="stat-icon">
+                        ◆
+                    </div>
+
+                    <span class="stat-label">
+                        Available
+                    </span>
+
+                </div>
+
+                <div class="stat-value">
+                    {{ credits|default(0) }}
+                </div>
+
+                <div class="stat-label">
+                    Credits
+                </div>
+
+            </div>
+
+
+            <div class="stat-card">
+
+                <div class="stat-top">
+
+                    <div class="stat-icon">
+                        ▶
+                    </div>
+
+                    <span class="stat-label">
+                        Created
+                    </span>
+
+                </div>
+
+                <div class="stat-value">
+                    {{ videos }}
+                </div>
+
+                <div class="stat-label">
+                    Educational Videos
+                </div>
+
+            </div>
+
+
+            <div class="stat-card">
+
+                <div class="stat-top">
+
+                    <div class="stat-icon">
+                        ✓
+                    </div>
+
+                    <span class="stat-label">
+                        Completed
+                    </span>
+
+                </div>
+
+                <div class="stat-value">
+                    {{ quizzes }}
+                </div>
+
+                <div class="stat-label">
+                    Quizzes
+                </div>
+
+            </div>
+
+
+            <div class="stat-card">
+
+                <div class="stat-top">
+
+                    <div class="stat-icon">
+                        🎮
+                    </div>
+
+                    <span class="stat-label">
+                        Played
+                    </span>
+
+                </div>
+
+                <div class="stat-value">
+                    {{ games }}
+                </div>
+
+                <div class="stat-label">
+                    Learning Games
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- QUICK ACTIONS -->
+
+        <div class="section-header">
+
+            <h2>
+                Quick Actions
+            </h2>
+
+            <p>
+                Continue learning from where you left off.
+            </p>
+
+        </div>
+
+
+        <section class="quick-actions">
+
+
+            <a href="{{ url_for('generate_video') }}"
+               class="quick-card">
+
+                <div class="quick-icon">
+                    ▶
+                </div>
+
+                <h3>
+                    Create Educational Video
+                </h3>
+
+                <p>
+                    Convert your study material into a
+                    visual learning video.
+                </p>
+
+                <span class="quick-link">
+                    Create Video →
+                </span>
+
+            </a>
+
+
+            <a href="{{ url_for('qa') }}"
+               class="quick-card">
+
+                <div class="quick-icon">
+                    ?
+                </div>
+
+                <h3>
+                    Ask AI
+                </h3>
+
+                <p>
+                    Ask questions and get simple explanations
+                    for difficult concepts.
+                </p>
+
+                <span class="quick-link">
+                    Ask Question →
+                </span>
+
+            </a>
+
+
+            <a href="{{ url_for('quiz_game') }}"
+               class="quick-card">
+
+                <div class="quick-icon">
+                    ✓
+                </div>
+
+                <h3>
+                    Take a Quiz
+                </h3>
+
+                <p>
+                    Test your understanding and earn credits
+                    through interactive questions.
+                </p>
+
+                <span class="quick-link">
+                    Start Quiz →
+                </span>
+
+            </a>
+
+
+        </section>
+
+
+        <!-- LOWER SECTION -->
+
+        <section class="lower-grid">
+
+
+            <!-- LEARNING PROGRESS -->
+
+            <div class="panel">
+
+                <div class="panel-title">
+                    Learning Progress
+                </div>
+
+
+                <div class="progress-item">
+
+                    <div class="progress-header">
+
+                        <span>
+                            Educational Videos
+                        </span>
+
+                        <span>
+                            {{ videos }}
+                        </span>
+
+                    </div>
+
+                    <div class="progress-bar">
+
+                        <div class="progress-fill"
+                             style="width: {{ 100 if videos > 0 else 0 }}%;">
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div class="progress-item">
+
+                    <div class="progress-header">
+
+                        <span>
+                            Quizzes Completed
+                        </span>
+
+                        <span>
+                            {{ quizzes }}
+                        </span>
+
+                    </div>
+
+                    <div class="progress-bar">
+
+                        <div class="progress-fill"
+                             style="width: {{ 100 if quizzes > 0 else 0 }}%;">
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div class="progress-item">
+
+                    <div class="progress-header">
+
+                        <span>
+                            Games Played
+                        </span>
+
+                        <span>
+                            {{ games }}
+                        </span>
+
+                    </div>
+
+                    <div class="progress-bar">
+
+                        <div class="progress-fill"
+                             style="width: {{ 100 if games > 0 else 0 }}%;">
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div class="progress-item"
+                     style="margin-bottom:0;">
+
+                    <div class="progress-header">
+
+                        <span>
+                            Total Learning Score
+                        </span>
+
+                        <span>
+                            {{ score }}
+                        </span>
+
+                    </div>
+
+                    <div class="progress-bar">
+
+                        <div class="progress-fill"
+                             style="width: {{ [score, 100]|min }}%;">
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- RECENT ACTIVITY -->
+
+            <div class="panel">
+
+                <div class="panel-title">
+                    Recent Activity
+                </div>
+
+
+                {% if game_results %}
+
+                    {% for activity in game_results[:5] %}
+
+                    <div class="activity">
+
+                        <div class="activity-icon">
+                            ✓
+                        </div>
+
+                        <div class="activity-info">
+
+                            <strong>
+                                {{ activity.game_name }}
+                            </strong>
+
+                            <span>
+                                {{ activity.result }}
+                            </span>
+
+                        </div>
+
+                        <div class="activity-result">
+                            +{{ activity.credits_earned }}
+                        </div>
+
+                    </div>
+
+                    {% endfor %}
+
+                {% else %}
+
+                    <div class="no-activity">
+
+                        No recent activity yet.
+
+                        <br><br>
+
+                        Start a quiz or learning activity
+                        to see your activity here.
+
+                    </div>
+
+                {% endif %}
+
+            </div>
+
+        </section>
+
+
+        <!-- INFORMATION -->
+
+        <section class="info-grid">
+
+            <div class="info-card">
+
+                <h3>
+                    🎓 Learn Visually
+                </h3>
+
+                <p>
+                    Convert difficult study materials into
+                    simple visual explanations and educational
+                    videos.
+                </p>
+
+            </div>
+
+
+            <div class="info-card">
+
+                <h3>
+                    🧠 Practice Concepts
+                </h3>
+
+                <p>
+                    Use quizzes and interactive activities
+                    to strengthen your understanding.
+                </p>
+
+            </div>
+
+
+            <div class="info-card">
+
+                <h3>
+                    ◆ Earn Credits
+                </h3>
+
+                <p>
+                    Complete learning activities, answer
+                    questions and earn credits as you learn.
+                </p>
+
+            </div>
+
+        </section>
+
+    </div>
+
+</main>
+
+
+<script>
+
+    function toggleSidebar() {
+
+        const sidebar =
+            document.getElementById("sidebar");
+
+        sidebar.classList.toggle("open");
+
+    }
+
+</script>
+
+</body>
+</html>

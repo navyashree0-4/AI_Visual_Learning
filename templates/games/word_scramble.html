@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EduVision - Word Scramble</title>
+
+<style>
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    background: #f5f7fb;
+    color: #1f2937;
+}
+
+.navbar {
+    height: 70px;
+    background: white;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 40px;
+}
+
+.logo {
+    font-size: 24px;
+    font-weight: bold;
+    color: #4f46e5;
+}
+
+.back {
+    text-decoration: none;
+    color: #4f46e5;
+    font-weight: bold;
+}
+
+.container {
+    width: 90%;
+    max-width: 700px;
+    margin: 40px auto;
+}
+
+.card {
+    background: white;
+    padding: 40px;
+    border-radius: 20px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+    text-align: center;
+}
+
+.icon {
+    font-size: 55px;
+}
+
+.subtitle {
+    color: #6b7280;
+    margin: 10px 0 25px;
+}
+
+.score {
+    display: inline-block;
+    background: #fff7d6;
+    color: #8a6200;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-weight: bold;
+}
+
+.scrambled {
+    font-size: 35px;
+    letter-spacing: 8px;
+    font-weight: bold;
+    color: #4f46e5;
+    margin: 35px 0;
+}
+
+input {
+    width: 100%;
+    padding: 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+    font-size: 16px;
+    outline: none;
+}
+
+button {
+    margin-top: 15px;
+    padding: 13px 25px;
+    border: none;
+    border-radius: 9px;
+    background: #4f46e5;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #4338ca;
+}
+
+.message {
+    margin-top: 20px;
+    padding: 14px;
+    border-radius: 10px;
+    display: none;
+    font-weight: bold;
+}
+
+.home {
+    display: inline-block;
+    margin-top: 20px;
+    padding: 12px 20px;
+    background: #111827;
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+}
+</style>
+</head>
+
+<body>
+
+<nav class="navbar">
+    <div class="logo">EduVision</div>
+    <a href="{{ url_for('dashboard') }}" class="back">← Dashboard</a>
+</nav>
+
+<div class="container">
+
+<div class="card">
+
+    <div class="icon">🔤</div>
+
+    <h1>Word Scramble</h1>
+
+    <p class="subtitle">
+        Arrange the letters and find the correct educational word.
+    </p>
+
+    <div class="score">
+        ⭐ Score: <span id="score">0</span>
+    </div>
+
+    <div class="scrambled" id="scrambled"></div>
+
+    <input
+        type="text"
+        id="answer"
+        placeholder="Enter your answer"
+    >
+
+    <button onclick="checkAnswer()">
+        Check Answer
+    </button>
+
+    <div class="message" id="message"></div>
+
+    <a href="{{ url_for('dashboard') }}" class="home">
+        Back to Dashboard
+    </a>
+
+</div>
+
+</div>
+
+<script>
+
+const words = [
+    "PYTHON",
+    "DATABASE",
+    "FLASK",
+    "ALGORITHM",
+    "COMPUTER"
+];
+
+let current = 0;
+let score = 0;
+
+function shuffle(word) {
+
+    let letters = word.split("");
+
+    for (let i = letters.length - 1; i > 0; i--) {
+
+        const j = Math.floor(Math.random() * (i + 1));
+
+        [letters[i], letters[j]] =
+            [letters[j], letters[i]];
+    }
+
+    return letters.join("");
+}
+
+function loadWord() {
+
+    document.getElementById("scrambled").textContent =
+        shuffle(words[current]);
+
+    document.getElementById("answer").value = "";
+
+    document.getElementById("message").style.display = "none";
+}
+
+function checkAnswer() {
+
+    const answer =
+        document.getElementById("answer").value
+        .trim()
+        .toUpperCase();
+
+    const message =
+        document.getElementById("message");
+
+    message.style.display = "block";
+
+    if (answer === words[current]) {
+
+        score += 2;
+
+        document.getElementById("score").textContent = score;
+
+        message.textContent =
+            "✓ Correct! +2 Credits";
+
+        message.style.background = "#dcfce7";
+        message.style.color = "#166534";
+
+        current++;
+
+        if (current < words.length) {
+
+            setTimeout(loadWord, 700);
+
+        } else {
+
+            message.textContent =
+                "🎉 Completed! Final Score: " + score;
+        }
+
+    } else {
+
+        message.textContent =
+            "✗ Try again!";
+        
+        message.style.background = "#fee2e2";
+        message.style.color = "#991b1b";
+    }
+
+}
+
+loadWord();
+
+</script>
+
+</body>
+</html>
