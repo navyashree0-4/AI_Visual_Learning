@@ -1,0 +1,115 @@
+ 
+{% extends "base.html" %}
+
+{% block title %}Aptitude Test Results | EduVision{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/aptitude.css') }}">
+{% endblock %}
+
+{% block content %}
+<main class="aptitude-page result-page">
+    <section class="result-hero">
+        <div class="result-icon" aria-hidden="true">
+            {% if percentage >= 70 %}🏆{% elif percentage >= 40 %}🎯{% else %}📚{% endif %}
+        </div>
+
+        <span class="eyebrow">APTITUDE ARENA • TEST COMPLETED</span>
+        <h1>
+            {% if percentage >= 70 %}
+                Excellent work!
+            {% elif percentage >= 40 %}
+                Good effort!
+            {% else %}
+                Keep practising!
+            {% endif %}
+        </h1>
+        <p>Your test is complete. Review your answers and keep building your placement skills.</p>
+
+        <div class="score-circle">
+            <strong>{{ percentage }}%</strong>
+            <span>Overall Score</span>
+        </div>
+    </section>
+
+    <section class="result-stats">
+        <article class="result-stat">
+            <span class="stat-icon">🏅</span>
+            <span class="stat-label">Total Score</span>
+            <strong>{{ score }} / {{ total_questions }}</strong>
+        </article>
+
+        <article class="result-stat">
+            <span class="stat-icon">✅</span>
+            <span class="stat-label">Correct Answers</span>
+            <strong>{{ correct_answers }}</strong>
+        </article>
+
+        <article class="result-stat">
+            <span class="stat-icon">❌</span>
+            <span class="stat-label">Incorrect Answers</span>
+            <strong>{{ incorrect_answers }}</strong>
+        </article>
+
+        <article class="result-stat">
+            <span class="stat-icon">⏱️</span>
+            <span class="stat-label">Time Taken</span>
+            <strong>{{ time_taken_display }}</strong>
+        </article>
+    </section>
+
+    <section class="review-section">
+        <div class="section-heading">
+            <div>
+                <h2>Answer review</h2>
+                <p>Understand your mistakes and learn the correct methods.</p>
+            </div>
+        </div>
+
+        {% for item in review %}
+        <article class="review-card">
+            <div class="review-question-heading">
+                <span class="review-number">Question {{ loop.index }}</span>
+
+                {% if item.is_correct %}
+                <span class="answer-status correct-status">Correct</span>
+                {% else %}
+                <span class="answer-status incorrect-status">Incorrect</span>
+                {% endif %}
+            </div>
+
+            <h3>{{ item.question_text }}</h3>
+
+            <p class="your-answer">
+                <strong>Your answer:</strong>
+                {{ item.selected_answer if item.selected_answer else 'Not answered' }}
+            </p>
+
+            <p class="correct-answer">
+                <strong>Correct answer:</strong>
+                {{ item.correct_answer }}
+            </p>
+
+            {% if item.explanation %}
+            <div class="explanation-box">
+                <strong>💡 Explanation</strong>
+                <p>{{ item.explanation }}</p>
+            </div>
+            {% endif %}
+        </article>
+        {% else %}
+        <p class="empty-review">No answer review is available for this test.</p>
+        {% endfor %}
+    </section>
+
+    <div class="result-actions">
+       <a href="{{ url_for('aptitude.aptitude_arena') }}" class="aptitude-button">
+    Take Another Test ↻
+</a>
+
+        <a href="{{ url_for('dashboard') }}" class="aptitude-button secondary-button">
+            Back to Dashboard
+        </a>
+    </div>
+</main>
+{% endblock %}

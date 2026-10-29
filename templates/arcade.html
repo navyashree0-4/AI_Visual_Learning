@@ -1,0 +1,93 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EduVision Arcade</title>
+    <link rel="stylesheet"
+      href="{{ url_for('static', filename='css/arcade.css') }}">
+</head>
+<body>
+<header class="arcade-topbar">
+    <a class="brand" href="{{ url_for('dashboard') }}">
+        <span class="brand-icon">E</span> EduVision
+    </a>
+    <a class="nav-link" href="{{ url_for('dashboard') }}">← Back to Dashboard</a>
+</header>
+
+<main class="arcade-container">
+    <section class="arcade-hero">
+        <div class="hero-content">
+            <span class="eyebrow">YOUR LEARNING PLAYGROUND</span>
+            <h1>EduVision <span>Arcade</span></h1>
+            <p>Play exciting games, challenge your brain, unlock levels, and learn while having fun.</p>
+            <a href="#gameLibrary" class="primary-button">🎮 Explore Games</a>
+        </div>
+        <div class="hero-art" aria-hidden="true">🎮</div>
+    </section>
+
+    <section id="gameLibrary">
+        <div class="section-heading">
+            <div>
+                <span class="eyebrow">PICK YOUR CHALLENGE</span>
+                <h2>Game Library</h2>
+                <p>Choose a game and start playing.</p>
+            </div>
+            <span class="game-count">🎯 {{ games|length }} Games</span>
+        </div>
+
+        {% set icons = {
+            'candy_match':'🍬',
+            'bubble_shooter':'🫧',
+            'mind_match':'🧠',
+            'cosmic_quiz':'🚀',
+            'daily_brain_boost':'⚡',
+            'word_wizard':'🔤',
+            'match_concept':'🧩',
+            'sprint_game':'⏱️',
+            'concept_detective':'🔎',
+            'code_builder':'💻',
+            'tech_escape_room':'🔐',
+            'listen_recall':'🎧',
+            'knowledge_league':'🏆',
+            'sequence_master':'🔢',
+            'brainy_puzzle':'🧩',
+            'falling_blocks':'🟪'
+        } %}
+
+        <div class="game-grid">
+            {% for game_key, game in games.items() %}
+            <article class="game-card game-{{ loop.index0 % 6 }}">
+                <div class="card-top">
+                    <div class="game-art">{{ game.get('icon', icons.get(game_key, '🎮')) }}</div>
+                    <span class="game-number">{{ "%02d"|format(loop.index) }}</span>
+                </div>
+                <div class="card-content">
+                    <span class="game-category">{{ game.get('category', 'Learning Game') }}</span>
+                    <h3>{{ game.get('title', game_key.replace('_', ' ').title()) }}</h3>
+                    <p>{{ game.get('description', 'Play, learn and improve your skills.') }}</p>
+                    <a class="play-button" href="{{ url_for('eduvision_game', game_key=game_key) }}">
+                        Play Now <span>→</span>
+                    </a>
+                </div>
+            </article>
+            {% else %}
+            <p>No games have been configured yet in app.py.</p>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="arcade-footer-card">
+        <span class="footer-trophy">🏆</span>
+        <div>
+            <h2>Ready for your next challenge?</h2>
+            <p>Every game is an opportunity to learn something new.</p>
+        </div>
+        <a href="#gameLibrary" class="secondary-button">Choose a Game ↑</a>
+    </section>
+</main>
+
+<footer class="arcade-footer">EduVision Arcade · Learn. Play. Grow.</footer>
+</body>
+</html>

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz | {{ video.title }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/learn.css') }}">
+</head>
+<body data-video-id="{{ video.id }}">
+
+<canvas id="confetti"></canvas>
+
+<header class="lbar">
+    <a href="/learn/video/{{ video.id }}" class="back">← Back to video</a>
+    <div class="lbrand">▶ VisualLearn</div>
+</header>
+
+<main class="lwrap narrow">
+
+    <h1 class="ltitle">🎯 Quiz: {{ video.title }}</h1>
+
+    <!-- Loading -->
+    <div class="card center" id="screen-loading">
+        <div class="spinner"></div>
+        <p>Getting your questions ready...</p>
+    </div>
+
+    <!-- Error -->
+    <div class="card center hidden" id="screen-error">
+        <div class="big-emoji">😕</div>
+        <p id="errorText"></p>
+        <button class="big-btn" onclick="loadQuiz()">Try again</button>
+    </div>
+
+    <!-- Questions -->
+    <div class="hidden" id="screen-quiz">
+        <div class="quiz-top">
+            <span class="badge" id="attemptBadge">Attempt 1</span>
+            <span class="badge" id="streakBadge">🔥 Streak: 0</span>
+        </div>
+
+        <div class="progress"><div id="progressFill"></div></div>
+        <p class="qcount" id="qCount"></p>
+
+        <div class="card question-card">
+            <h2 id="questionText"></h2>
+            <div class="options" id="options"></div>
+
+            <div class="feedback hidden" id="feedback"></div>
+            <button class="big-btn hidden" id="nextBtn" onclick="nextQuestion()">Next →</button>
+        </div>
+    </div>
+
+    <!-- Result -->
+    <div class="card center hidden" id="screen-result">
+        <div class="ring" id="ring"><span id="ringText"></span></div>
+        <h2 id="resultTitle"></h2>
+        <p id="resultText"></p>
+        <p class="reward hidden" id="rewardText"></p>
+
+        <div class="result-buttons">
+            <button class="big-btn" id="retakeBtn" onclick="loadQuiz()">🔄 Retake quiz</button>
+            <a class="ghost-btn" href="/learn/video/{{ video.id }}">▶ Watch the video again</a>
+            <a class="ghost-btn" href="/dashboard">Dashboard</a>
+        </div>
+    </div>
+
+</main>
+
+<script src="{{ url_for('static', filename='js/learn_quiz.js') }}"></script>
+</body>
+</html>

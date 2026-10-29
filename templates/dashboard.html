@@ -1,1403 +1,459 @@
+
 <!DOCTYPE html>
-<html lang="en">
-
+<html lang="en" data-theme="light">
 <head>
-
     <meta charset="UTF-8">
-
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0">
-
-    <title>EduVision | AI-Powered Visual Learning</title>
-
-    <link rel="stylesheet"
-          href="{{ url_for('static', filename='css/style.css') }}">
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EduVision | Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
 </head>
-
-
 <body>
 
+<div class="dashboard">
 
-<!-- =====================================================
-     NAVBAR
-===================================================== -->
-
-<nav class="navbar">
-
-    <div class="nav-container">
-
-        <a href="/" class="logo">
-
-            <span class="logo-box">E</span>
-
-            <span class="logo-text">
-                EduVision
-            </span>
-
-        </a>
-
-
-        <div class="nav-links">
-
-            <a href="#features">
-                Features
-            </a>
-
-            <a href="#how-it-works">
-                How It Works
-            </a>
-
-            <a href="#learning">
-                Learning
-            </a>
-
-
-            <!-- DARK MODE -->
-
-            <button
-                type="button"
-                class="theme-btn"
-                id="themeButton"
-                onclick="toggleTheme()"
-                aria-label="Toggle dark mode">
-
-                🌙
-
-            </button>
-
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+        <div class="brand">
+            <div class="brand-logo">E</div>
+            <h2>Edu<span>Vision</span></h2>
         </div>
 
-    </div>
-
-</nav>
-
-
-
-<!-- =====================================================
-     HERO SECTION
-===================================================== -->
-
-<section class="hero">
-
-    <div class="hero-container">
-
-
-        <!-- LEFT -->
-
-        <div class="hero-content">
-
-            <div class="hero-badge">
-
-                <span>✦</span>
-
-                AI-POWERED VISUAL LEARNING
-
+        <div class="profile">
+            <div class="avatar">{{ (user_name|default('Learner'))[:1]|upper }}</div>
+            <div>
+                <strong>{{ user_name|default('Learner') }}</strong>
+                <small>Active learner</small>
             </div>
-
-
-            <h1>
-
-                Learn
-                <span>Smarter.</span>
-
-                <br>
-
-                Understand
-                <span>Visually.</span>
-
-            </h1>
-
-
-            <p class="hero-description">
-
-                EduVision transforms difficult learning materials
-                into simple explanations, visual educational
-                videos, quizzes and interactive learning
-                experiences using Generative AI.
-
-            </p>
-
-
-            <!-- CTA -->
-
-            <div class="hero-action">
-
-                <a href="{{ url_for('register') }}"
-                   class="get-started-btn">
-
-                    Get Started
-
-                    <span>→</span>
-
-                </a>
-
-
-                <a href="{{ url_for('login') }}"
-                   class="login-link">
-
-                    Already have an account?
-                    <strong>Login</strong>
-
-                </a>
-
-            </div>
-
-
-            <div class="hero-note">
-
-                <span>Text</span>
-                <i>•</i>
-
-                <span>PDF</span>
-                <i>•</i>
-
-                <span>Image</span>
-                <i>•</i>
-
-                <span>AI Learning</span>
-                <i>•</i>
-
-                <span>Quizzes</span>
-                <i>•</i>
-
-                <span>Games</span>
-
-            </div>
-
         </div>
 
+        <nav class="navigation">
+            <p class="nav-title">MAIN MENU</p>
+
+            <a class="nav-link active" href="{{ url_for('dashboard') }}">⌂ <span>Dashboard</span></a>
+            <a class="nav-link" href="#create-video">✦ <span>AI Video Studio</span></a>
+            <a class="nav-link" href="#learning-workspace">▶ <span>Learning Workspace</span></a>
+            <a class="nav-link" href="{{ url_for('learning_progress') }}">↗ <span>My Progress</span></a>
+
+             
+
+<p class="nav-title">EXPLORE</p>
+
+<a class="nav-link" href="{{ url_for('games') }}">
+    <span aria-hidden="true">🎮</span>
+    <span>All Games</span>
+</a>
 
 
-        <!-- RIGHT VISUAL -->
-
-        <div class="hero-visual">
-
-
-            <div class="visual-glow"></div>
-
-
-            <div class="learning-window">
+<a class="nav-link aptitude-nav-link"
+   href="{{ url_for('aptitude.aptitude_arena') }}">
+    <span aria-hidden="true">🧠</span>
+    <span>Aptitude Arena</span>
+</a>
 
 
-                <!-- WINDOW TOP -->
+<a class="nav-link" href="#game-hub">
+    <span aria-hidden="true">★</span>
+    <span>Game Challenges</span>
+</a>
 
-                <div class="window-top">
+<a class="nav-link" href="#daily-challenge">
+    <span aria-hidden="true">🌟</span>
+    <span>Daily Challenge</span>
+</a>
 
-                    <div class="window-dots">
+<a class="nav-link" href="#my-generated-videos">
+    <span aria-hidden="true">🎬</span>
+    <span>My Generated Videos</span>
+</a>
 
-                        <span></span>
-                        <span></span>
-                        <span></span>
 
+
+        </nav>
+
+        <div class="sidebar-bottom">
+            <div class="sidebar-tip">
+                <strong>Study smart ✨</strong>
+                <p>Turn difficult topics into easy visual lessons.</p>
+            </div>
+            <a class="logout-link" href="{{ url_for('logout') }}">↪ Logout</a>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+
+        <header class="topbar">
+            <button type="button" class="menu-button" id="menuButton" aria-label="Toggle navigation">☰</button>
+
+            <div class="breadcrumb">Workspace / <strong>Dashboard</strong></div>
+
+            <div class="topbar-right">
+                <div class="credit-badge">✦ {{ credits|default(50) }} credits</div>
+                <div class="top-avatar">{{ (user_name|default('Learner'))[:1]|upper }}</div>
+            </div>
+        </header>
+
+        <div class="page-content">
+
+            <!-- FLASH MESSAGES -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% for category, message in messages %}
+                    <div class="flash-message {{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endwith %}
+
+            <!-- WELCOME -->
+            <section class="welcome-card">
+                <div class="welcome-text">
+                    <span class="eyebrow">YOUR LEARNING SPACE</span>
+                    <h1>Welcome back, {{ user_name|default('Learner') }}!</h1>
+                    <p>Create lessons, practise concepts, and make learning easier every day.</p>
+
+                    <div class="welcome-buttons">
+                        <a href="#create-video" class="button primary-button">+ Create a lesson</a>
+                        <a href="{{ url_for('learning_progress') }}" class="button light-button">View progress →</a>
                     </div>
-
-
-                    <div class="window-title">
-
-                        EduVision AI
-
-                    </div>
-
-
-                    <div class="window-status">
-
-                        <span>●</span>
-                        Learning
-
-                    </div>
-
                 </div>
 
+                <div class="welcome-decoration" aria-hidden="true">
+                    <div class="decoration-circle">📚</div>
+                    <span class="decoration-note note-one">✦ Learn</span>
+                    <span class="decoration-note note-two">★ Grow</span>
+                </div>
+            </section>
 
+            <!-- STATISTICS -->
+            <section class="section">
+                <div class="section-heading">
+                    <div>
+                        <span class="eyebrow">YOUR ACTIVITY</span>
+                        <h2>Learning overview</h2>
+                    </div>
+                </div>
 
-                <!-- WINDOW CONTENT -->
+                <div class="stats-grid">
+                    <article class="stat-card purple">
+                        <div class="stat-icon">▶</div>
+                        <strong>{{ videos|default([])|length }}</strong>
+                        <p>Videos created</p>
+                    </article>
 
-                <div class="learning-content">
+                    <article class="stat-card blue">
+                        <div class="stat-icon">✓</div>
+                        <strong>{{ quizzes_completed|default(0) }}</strong>
+                        <p>Quizzes completed</p>
+                    </article>
 
+                    <article class="stat-card orange">
+                        <div class="stat-icon">🎮</div>
+                        <strong>{{ games_played|default(0) }}</strong>
+                        <p>Games played</p>
+                    </article>
 
-                    <div class="learning-header">
+                    <article class="stat-card green">
+                        <div class="stat-icon">★</div>
+                        <strong>{{ learning_progress|default(0) }}</strong>
+                        <p>Learning progress</p>
+                    </article>
+                </div>
+            </section>
 
+            <!-- AI VIDEO CREATION -->
+            <section class="creation-grid section" id="create-video">
+
+                <article class="panel video-form-panel">
+                    <div class="section-heading">
                         <div>
-
-                            <small>
-                                YOUR LEARNING SPACE
-                            </small>
-
-                            <h3>
-
-                                Understand concepts
-
-                                <br>
-
-                                <span>
-                                    in a simpler way.
-                                </span>
-
-                            </h3>
-
+                            <span class="eyebrow">AI VIDEO STUDIO</span>
+                            <h2>Create a visual lesson</h2>
                         </div>
-
-
-                        <div class="ai-icon">
-
-                            ✦
-
-                        </div>
-
+                        <span class="heading-emoji">🎬</span>
                     </div>
 
+                    <p class="muted">Enter a topic or upload study material to create an educational video.</p>
 
+                    <form id="videoForm"
+                          action="{{ url_for('generate_video') }}"
+                          method="POST"
+                          enctype="multipart/form-data">
 
-                    <!-- MAIN CONCEPT -->
+                        <label for="topic">Topic or prompt</label>
+                        <textarea id="topic" name="topic" rows="3"
+                            placeholder="Example: Explain the OSI model with real-world examples"></textarea>
 
-                    <div class="concept-card">
-
-
-                        <div class="concept-image">
-
-                            <div class="orbit orbit-one"></div>
-
-                            <div class="orbit orbit-two"></div>
-
-                            <div class="concept-core">
-
-                                AI
-
-                            </div>
-
-                        </div>
-
-
-                        <div class="concept-info">
-
-                            <span class="concept-label">
-
-                                CURRENT TOPIC
-
-                            </span>
-
-
-                            <h4>
-
-                                Artificial Intelligence
-
-                            </h4>
-
-
-                            <p>
-
-                                Simplified explanation
-                                generated for learning.
-
-                            </p>
-
-
-                            <div class="progress-line">
-
-                                <div></div>
-
-                            </div>
-
-
-                            <small>
-
-                                Learning progress
-
-                            </small>
-
-                        </div>
-
-                    </div>
-
-
-
-                    <!-- MINI CARDS -->
-
-                    <div class="mini-cards">
-
-
-                        <div class="mini-card">
-
-                            <div class="mini-icon purple">
-
-                                ▶
-
+                        <div class="form-grid">
+                            <div>
+                                <label for="difficulty">Difficulty</label>
+                                <select id="difficulty" name="difficulty">
+                                    <option value="Beginner">Beginner</option>
+                                    <option value="Intermediate">Intermediate</option>
+                                    <option value="Advanced">Advanced</option>
+                                </select>
                             </div>
 
                             <div>
-
-                                <strong>
-                                    Visual Learning
-                                </strong>
-
-                                <small>
-                                    Educational videos
-                                </small>
-
-                            </div>
-
-                        </div>
-
-
-
-                        <div class="mini-card">
-
-                            <div class="mini-icon blue">
-
-                                ✦
-
+                                <label for="audience_level">Audience</label>
+                                <select id="audience_level" name="audience_level">
+                                    <option value="College Students" selected>College Students</option>
+                                    <option value="School Students">School Students</option>
+                                    <option value="Kids">Kids</option>
+                                    <option value="Teachers">Teachers</option>
+                                </select>
                             </div>
 
                             <div>
-
-                                <strong>
-                                    AI Explanation
-                                </strong>
-
-                                <small>
-                                    Simple concepts
-                                </small>
-
-                            </div>
-
-                        </div>
-
-
-
-                        <div class="mini-card">
-
-                            <div class="mini-icon green">
-
-                                ✓
-
+                                <label for="video_style">Video style</label>
+                                <select id="video_style" name="video_style">
+                                    <option value="Educational">Educational</option>
+                                    <option value="Animated">Animated</option>
+                                    <option value="Simple Explanation">Simple Explanation</option>
+                                    <option value="Storytelling">Storytelling</option>
+                                </select>
                             </div>
 
                             <div>
-
-                                <strong>
-                                    Quiz Practice
-                                </strong>
-
-                                <small>
-                                    Test knowledge
-                                </small>
-
+                                <label for="language">Language</label>
+                                <select id="language" name="language">
+                                    <option value="English">English</option>
+                                    <option value="Kannada">Kannada</option>
+                                    <option value="Hindi">Hindi</option>
+                                </select>
                             </div>
 
+                            <div>
+                                <label for="duration">Duration</label>
+                                <select id="duration" name="duration">
+                                    <option value="short">Short (1–2 min)</option>
+                                    <option value="medium" selected>Medium (3–5 min)</option>
+                                    <option value="long">Long (5–10 min)</option>
+                                </select>
+                            </div>
                         </div>
 
+                        <label for="learningFile">Upload PDF or image (optional)</label>
+                        <input type="file" id="learningFile" name="file" accept=".pdf,.png,.jpg,.jpeg">
+                        <small id="fileMessage">No file selected.</small>
 
+                        <div class="form-footer">
+                            <span>Cost: 10 credits</span>
+                            <button class="button primary-button" type="submit" id="generateButton">
+                                ✦ Generate Video
+                            </button>
+                        </div>
+
+                        <p id="formMessage" class="form-message" aria-live="polite"></p>
+                    </form>
+                </article>
+
+                <!-- CREDIT BALANCE -->
+                <aside class="credits-panel">
+                    <span class="eyebrow">YOUR BALANCE</span>
+                    <div class="credits-symbol">✦</div>
+                    <strong class="credits-number">{{ credits|default(50) }}</strong>
+                    <h3>Learning credits</h3>
+                    <p>Use your credits to create visual lessons and improve your learning.</p>
+
+                    {% set credit_value = credits|default(50)|int %}
+                    {% if credit_value < 0 %}
+                        {% set credit_value = 0 %}
+                    {% elif credit_value > 100 %}
+                        {% set credit_value = 100 %}
+                    {% endif %}
+
+                    <div class="credit-track">
+                        <div class="credit-fill" style="width: {{ credit_value }}%;"></div>
                     </div>
 
+                    <a href="#create-video" class="button credit-button">Create a lesson →</a>
+                </aside>
+            </section>
+
+            <!-- LEARNING WORKSPACE -->
+            <section class="section" id="learning-workspace">
+                <div class="section-heading">
+                    <div>
+                        <span class="eyebrow">WATCH AND LEARN</span>
+                        <h2>Your learning workspace</h2>
+                    </div>
                 </div>
 
-            </div>
+                {% if latest_video|default('') and latest_video_exists|default(false) %}
+                    <div class="workspace-grid">
+                        <article class="panel video-panel">
+                            <video id="learningVideo" controls playsinline>
+                                <source src="{{ url_for('generated_video', filename=latest_video) }}" type="video/mp4">
+                                Your browser does not support video playback.
+                            </video>
 
+                            <h3>{{ latest_video_topic|default('Your latest lesson') }}</h3>
+                            <p class="muted">Watch your video and revise the concepts.</p>
 
+                            <button type="button" class="button light-button" id="replayVideo">↻ Watch again</button>
+                        </article>
 
-            <!-- FLOATING AI CARD -->
+                        <article class="panel ask-panel">
+                            <div class="heading-emoji">💡</div>
+                            <h3>Ask EduAI</h3>
+                            <p class="muted">Write a question about your learning topic.</p>
 
-            <div class="floating-card floating-one">
+                            <form id="questionForm">
+                                <textarea id="questionText" rows="4" placeholder="What would you like explained?"></textarea>
+                                <button class="button primary-button" type="submit">Ask question</button>
+                            </form>
 
-                <div class="floating-icon">
+                            <div id="questionResponse" aria-live="polite"></div>
+                        </article>
+                    </div>
+                {% else %}
+                    <div class="panel empty-workspace">
+                        <div class="empty-icon">🎬</div>
+                        <h3>Your next lesson will appear here</h3>
+                        <p>Create a video using the form above to start learning.</p>
+                        <a href="#create-video" class="button primary-button">Create a video</a>
+                    </div>
+                {% endif %}
+            </section>
 
-                    ✦
-
+            <!-- GAME HUB -->
+            <section class="section game-section" id="game-hub">
+                <div class="section-heading game-heading">
+                    <div>
+                        <span class="eyebrow">LEARN BY PLAYING</span>
+                        <h2>Choose your next challenge ✨</h2>
+                        <p class="muted">Play games, test your knowledge, and practise your skills.</p>
+                    </div>
+                    <a href="{{ url_for('games') }}" class="text-link">View all games →</a>
                 </div>
 
-                <div>
+                {% set game_cards = [
+                    ('arrow_maze', 'Arrow Finder: Arrow Maze', '🏹', 'LOGIC', 'Follow arrows through a maze and find the correct route.', 'detective'),
+                    ('hologram_memory', 'Hologram Memory Challenge', '✨', 'MEMORY', 'Remember glowing patterns, colours, and sequences.', 'mind'),
+                    ('candy_match', 'Candy Match Puzzle', '🍬', 'ARCADE', 'Match three or more candies to earn points.', 'candy'),
+                    ('memory_match', 'Memory Card Matching', '🃏', 'MEMORY', 'Flip cards and find matching pairs.', 'mind'),
+                    ('bubble_shooter', 'Bubble Shooter', '🫧', 'ARCADE', 'Shoot bubbles and clear matching groups.', 'bubble'),
+                    ('endless_runner', 'Endless Runner', '🏃', 'ACTION', 'Dodge obstacles, collect rewards, and beat your score.', 'sprint'),
+                    ('neon_tic_tac_toe', 'Neon Tic-Tac-Toe', '❌', 'STRATEGY', 'Align three symbols to win against your opponent.', 'cosmic'),
+                    ('puzzle_2048', '2048 Number Puzzle', '🔢', 'PUZZLE', 'Combine matching number tiles to reach 2048.', 'league'),
+                    ('arrow_direction', 'Arrow Direction Puzzle', '➡️', 'LOGIC', 'Solve directional challenges and choose the right path.', 'detective'),
+                    ('sliding_puzzle', 'Sliding Puzzle', '🧩', 'PUZZLE', 'Slide tiles into the correct order.', 'escape'),
+                    ('quiz_battle', 'Quiz Battle Arena', '⚔️', 'QUIZ', 'Answer questions and earn points.', 'code'),
+                    ('tetris_blocks', 'Tetris Blocks', '🧱', 'PUZZLE', 'Arrange falling blocks and clear horizontal lines.', 'candy'),
+                    ('flappy_brain', 'Flappy Brain', '🧠', 'ACTION', 'Fly through gaps and avoid obstacles.', 'bubble'),
+                    ('snake_game', 'Snake Game', '🐍', 'ARCADE', 'Collect food, grow your snake, and avoid collisions.', 'daily')
+                ] %}
 
-                    <strong>
-                        AI Generated
-                    </strong>
-
-                    <span>
-                        Learning Content
-                    </span>
-
+                <div class="game-toolbar">
+                    <input type="search" id="gameSearch" placeholder="Search games..." aria-label="Search games">
+                    <span><strong id="gameCount">{{ game_cards|length }}</strong> games</span>
                 </div>
 
-            </div>
-
-
-
-            <!-- FLOATING PROGRESS CARD -->
-
-            <div class="floating-card floating-two">
-
-                <div class="score-circle">
-
-                    92%
-
+                <div class="game-grid" id="gameGrid">
+                    {% for game_key, game_title, emoji, label, description, style in game_cards %}
+                        <a class="game-card {{ style }}"
+                           data-name="{{ (game_title ~ ' ' ~ game_key ~ ' ' ~ label)|lower }}"
+                           href="{{ url_for('eduvision_game', game_key=game_key) }}">
+                            <div class="game-card-top">
+                                <span class="game-emoji">{{ emoji }}</span>
+                                <span class="game-label">{{ label }}</span>
+                            </div>
+                            <h3>{{ game_title }}</h3>
+                            <p>{{ description }}</p>
+                            <div class="game-card-footer">Play game <span>↗</span></div>
+                        </a>
+                    {% endfor %}
                 </div>
 
-                <div>
+                <p id="noGamesMessage" class="no-games" hidden>No games found. Try another search.</p>
+            </section>
 
-                    <strong>
-                        Learning Progress
-                    </strong>
+            <!-- DAILY CHALLENGE -->
+            <section class="section daily-grid" id="daily-challenge">
+                <article class="daily-card">
+                    <span class="eyebrow">TODAY'S MISSION</span>
+                    <h2>🌟 Daily Brain Boost</h2>
+                    <p>Take a short challenge and keep your learning habit going.</p>
+                    <a href="{{ url_for('eduvision_game', game_key='quiz_battle') }}" class="button primary-button">
+                        Start challenge →
+                    </a>
+                </article>
 
-                    <span>
-                        Great progress!
-                    </span>
+                <article class="streak-card">
+                    <span class="eyebrow">KEEP GOING</span>
+                    <h2>🔥 Your learning journey</h2>
+                    <p>Come back regularly and continue building your skills.</p>
+                    <a href="{{ url_for('learning_progress') }}" class="text-link">View my progress →</a>
+                </article>
+            </section>
 
+            <!-- MY GENERATED VIDEOS -->
+            <section class="section generated-videos-section" id="my-generated-videos">
+                <div class="section-heading">
+                    <div>
+                        <span class="eyebrow">YOUR LIBRARY</span>
+                        <h2>My Generated Videos</h2>
+                        <p class="muted">Your educational videos created with EduVision.</p>
+                    </div>
+
+                    <a href="{{ url_for('generate_video') }}" class="button primary-button">
+                        + Create Video
+                    </a>
                 </div>
 
-            </div>
+                {% set video_list = generated_videos|default(recent_videos|default([], true), true) %}
+
+                {% if video_list %}
+                    <div class="generated-videos-grid">
+                        {% for video in video_list %}
+                            <article class="generated-video-card">
+                                <div class="video-card-content">
+                                    <div class="generated-video-icon">🎬</div>
+
+                                    <h3>
+                                        {{ video.title|default(video.topic|default(video.prompt|default('Educational Video', true), true), true) }}
+                                    </h3>
+
+                                    <small>
+                                        {{ video.video_style|default('Educational', true) }}
+                                        ·
+                                        {{ video.language|default('English', true) }}
+                                    </small>
+                                </div>
+
+                                {% if video.filename|default('', true) %}
+                                    <a class="button light-button watch-video-button"
+                                       href="{{ url_for('generated_video', filename=video.filename) }}"
+                                       target="_blank"
+                                       rel="noopener noreferrer">
+                                        Watch video ↗
+                                    </a>
+                                {% else %}
+                                    <span class="video-unavailable">Video file unavailable</span>
+                                {% endif %}
+                            </article>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="panel empty-videos">
+                        <div class="empty-video-icon">📚</div>
+                        <h3>No videos created yet</h3>
+                        <p>Your generated videos will appear here after creation.</p>
+                        <a href="#create-video" class="button primary-button">
+                            Generate Your First Video
+                        </a>
+                    </div>
+                {% endif %}
+            </section>
+
+            <!-- FOOTER -->
+            <footer class="footer">
+                <span>© 2026 EduVision</span>
+                <span>Learn visually. Grow every day.</span>
+            </footer>
 
         </div>
+    </main>
+</div>
 
-    </div>
-
-</section>
-
-
-
-<!-- =====================================================
-     INTRODUCTION
-===================================================== -->
-
-<section class="intro-section">
-
-    <div class="intro-container">
-
-        <span class="section-label">
-
-            A NEW WAY TO LEARN
-
-        </span>
-
-
-        <h2>
-
-            From difficult material
-
-            <span>
-                to meaningful understanding.
-            </span>
-
-        </h2>
-
-
-        <p>
-
-            EduVision combines Generative AI, visual learning,
-            narration and interactive activities to make
-            academic concepts easier to understand and remember.
-
-        </p>
-
-    </div>
-
-</section>
-
-
-
-<!-- =====================================================
-     FEATURES
-===================================================== -->
-
-<section class="features-section"
-         id="features">
-
-
-    <div class="section-heading">
-
-
-        <div>
-
-            <span class="section-label">
-
-                EVERYTHING YOU NEED
-
-            </span>
-
-
-            <h2>
-
-                Learning made
-
-                <span>
-                    simple and engaging.
-                </span>
-
-            </h2>
-
-        </div>
-
-
-        <p>
-
-            One learning platform designed to help students
-            understand, practice and track their progress.
-
-        </p>
-
-    </div>
-
-
-
-    <div class="feature-grid">
-
-
-        <!-- 01 -->
-
-        <div class="feature-card">
-
-            <div class="feature-top">
-
-                <div class="feature-icon purple-icon">
-
-                    ▶
-
-                </div>
-
-                <span class="feature-number">
-
-                    01
-
-                </span>
-
-            </div>
-
-
-            <h3>
-
-                Visual Educational Videos
-
-            </h3>
-
-
-            <p>
-
-                Convert learning material into simplified
-                educational videos with visuals, narration,
-                captions, animations and transitions.
-
-            </p>
-
-
-            <div class="feature-tags">
-
-                <span>Text</span>
-                <span>PDF</span>
-                <span>Image</span>
-                <span>Video</span>
-
-            </div>
-
-        </div>
-
-
-
-        <!-- 02 -->
-
-        <div class="feature-card">
-
-            <div class="feature-top">
-
-                <div class="feature-icon blue-icon">
-
-                    ✦
-
-                </div>
-
-                <span class="feature-number">
-
-                    02
-
-                </span>
-
-            </div>
-
-
-            <h3>
-
-                AI Concept Understanding
-
-            </h3>
-
-
-            <p>
-
-                Important concepts are identified and
-                difficult theory is converted into simpler
-                explanations.
-
-            </p>
-
-        </div>
-
-
-
-        <!-- 03 -->
-
-        <div class="feature-card">
-
-            <div class="feature-top">
-
-                <div class="feature-icon green-icon">
-
-                    ✓
-
-                </div>
-
-                <span class="feature-number">
-
-                    03
-
-                </span>
-
-            </div>
-
-
-            <h3>
-
-                AI Quizzes
-
-            </h3>
-
-
-            <p>
-
-                Test your understanding with automatically
-                generated questions and receive immediate
-                feedback.
-
-            </p>
-
-        </div>
-
-
-
-        <!-- 04 -->
-
-        <div class="feature-card">
-
-            <div class="feature-top">
-
-                <div class="feature-icon orange-icon">
-
-                    ★
-
-                </div>
-
-                <span class="feature-number">
-
-                    04
-
-                </span>
-
-            </div>
-
-
-            <h3>
-
-                Games & Rewards
-
-            </h3>
-
-
-            <p>
-
-                Make learning interactive with quizzes,
-                memory games, word challenges and daily
-                learning activities.
-
-            </p>
-
-        </div>
-
-
-
-        <!-- 05 -->
-
-        <div class="feature-card">
-
-            <div class="feature-top">
-
-                <div class="feature-icon pink-icon">
-
-                    ◉
-
-                </div>
-
-                <span class="feature-number">
-
-                    05
-
-                </span>
-
-            </div>
-
-
-            <h3>
-
-                Learning Progress
-
-            </h3>
-
-
-            <p>
-
-                Track learning activities, quiz performance,
-                completed games and overall progress.
-
-            </p>
-
-        </div>
-
-
-
-        <!-- 06 -->
-
-        <div class="feature-card">
-
-            <div class="feature-top">
-
-                <div class="feature-icon cyan-icon">
-
-                    ♪
-
-                </div>
-
-                <span class="feature-number">
-
-                    06
-
-                </span>
-
-            </div>
-
-
-            <h3>
-
-                Multilingual Learning
-
-            </h3>
-
-
-            <p>
-
-                Educational content can be generated with
-                narration in supported languages including
-                English, Hindi and Kannada.
-
-            </p>
-
-
-            <div class="language-pills">
-
-                <span>English</span>
-
-                <span>हिन्दी</span>
-
-                <span>ಕನ್ನಡ</span>
-
-            </div>
-
-        </div>
-
-
-    </div>
-
-</section>
-
-
-
-<!-- =====================================================
-     HOW IT WORKS
-===================================================== -->
-
-<section class="process-section"
-         id="how-it-works">
-
-
-    <div class="process-heading">
-
-        <span class="section-label">
-
-            HOW EDUVISION WORKS
-
-        </span>
-
-
-        <h2>
-
-            Your learning material.
-
-            <span>
-                Transformed by AI.
-            </span>
-
-        </h2>
-
-
-        <p>
-
-            A simple learning process designed to turn
-            complicated material into understandable content.
-
-        </p>
-
-    </div>
-
-
-
-    <div class="process-flow">
-
-
-        <div class="process-step">
-
-            <div class="step-number">
-
-                01
-
-            </div>
-
-            <div class="step-icon">
-
-                ↑
-
-            </div>
-
-            <h3>
-
-                Add Material
-
-            </h3>
-
-            <p>
-
-                Provide text, PDF or image-based
-                learning material.
-
-            </p>
-
-        </div>
-
-
-
-        <div class="flow-line"></div>
-
-
-
-        <div class="process-step">
-
-            <div class="step-number">
-
-                02
-
-            </div>
-
-            <div class="step-icon">
-
-                ✦
-
-            </div>
-
-            <h3>
-
-                AI Understands
-
-            </h3>
-
-            <p>
-
-                Important concepts are identified
-                and simplified.
-
-            </p>
-
-        </div>
-
-
-
-        <div class="flow-line"></div>
-
-
-
-        <div class="process-step">
-
-            <div class="step-number">
-
-                03
-
-            </div>
-
-            <div class="step-icon">
-
-                ▶
-
-            </div>
-
-            <h3>
-
-                Visual Learning
-
-            </h3>
-
-            <p>
-
-                Educational explanations are transformed
-                into visual content.
-
-            </p>
-
-        </div>
-
-
-
-        <div class="flow-line"></div>
-
-
-
-        <div class="process-step">
-
-            <div class="step-number">
-
-                04
-
-            </div>
-
-            <div class="step-icon">
-
-                ✓
-
-            </div>
-
-            <h3>
-
-                Practice
-
-            </h3>
-
-            <p>
-
-                Take quizzes, play games and
-                track your learning.
-
-            </p>
-
-        </div>
-
-
-    </div>
-
-</section>
-
-
-
-<!-- =====================================================
-     LEARNING EXPERIENCE
-===================================================== -->
-
-<section class="learning-section"
-         id="learning">
-
-
-    <div class="learning-visual">
-
-        <div class="learning-panel">
-
-
-            <div class="panel-header">
-
-                <span>
-                    MY LEARNING
-                </span>
-
-                <span class="panel-dot">
-                    ●
-                </span>
-
-            </div>
-
-
-
-            <div class="learning-stat">
-
-                <div>
-
-                    <small>
-                        LEARNING STREAK
-                    </small>
-
-                    <strong>
-                        7 Days
-                    </strong>
-
-                </div>
-
-
-                <div class="streak">
-
-                    🔥
-
-                </div>
-
-            </div>
-
-
-
-            <div class="progress-item">
-
-                <div class="progress-title">
-
-                    <span>
-                        AI & Machine Learning
-                    </span>
-
-                    <strong>
-                        82%
-                    </strong>
-
-                </div>
-
-
-                <div class="bar">
-
-                    <div style="width:82%"></div>
-
-                </div>
-
-            </div>
-
-
-
-            <div class="progress-item">
-
-                <div class="progress-title">
-
-                    <span>
-                        Computer Networks
-                    </span>
-
-                    <strong>
-                        68%
-                    </strong>
-
-                </div>
-
-
-                <div class="bar">
-
-                    <div style="width:68%"></div>
-
-                </div>
-
-            </div>
-
-
-
-            <div class="progress-item">
-
-                <div class="progress-title">
-
-                    <span>
-                        Database Systems
-                    </span>
-
-                    <strong>
-                        76%
-                    </strong>
-
-                </div>
-
-
-                <div class="bar">
-
-                    <div style="width:76%"></div>
-
-                </div>
-
-            </div>
-
-
-        </div>
-
-    </div>
-
-
-
-    <div class="learning-content-side">
-
-
-        <span class="section-label">
-
-            LEARN • PRACTICE • IMPROVE
-
-        </span>
-
-
-        <h2>
-
-            Your progress,
-
-            <span>
-                all in one place.
-            </span>
-
-        </h2>
-
-
-        <p>
-
-            EduVision brings your educational videos,
-            quizzes, games, rewards and learning progress
-            together in one personalized learning environment.
-
-        </p>
-
-
-        <div class="learning-points">
-
-
-            <div>
-
-                <span>✓</span>
-
-                Track your learning progress
-
-            </div>
-
-
-            <div>
-
-                <span>✓</span>
-
-                Practice with interactive quizzes
-
-            </div>
-
-
-            <div>
-
-                <span>✓</span>
-
-                Earn credits and rewards
-
-            </div>
-
-
-            <div>
-
-                <span>✓</span>
-
-                Continue learning from your collection
-
-            </div>
-
-
-        </div>
-
-    </div>
-
-</section>
-
-
-
-<!-- =====================================================
-     FINAL SECTION
-===================================================== -->
-
-<section class="final-section">
-
-
-    <div class="final-card">
-
-
-        <div class="final-content">
-
-            <span class="section-label">
-
-                START YOUR LEARNING JOURNEY
-
-            </span>
-
-
-            <h2>
-
-                Make learning
-
-                <span>
-                    easier to understand.
-                </span>
-
-            </h2>
-
-
-            <p>
-
-                Explore a smarter way to learn with
-                AI-powered visual explanations,
-                quizzes and interactive activities.
-
-            </p>
-
-
-            <a href="{{ url_for('register') }}"
-               class="final-btn">
-
-                Get Started
-
-                <span>→</span>
-
-            </a>
-
-        </div>
-
-
-    </div>
-
-</section>
-
-
-
-<!-- =====================================================
-     FOOTER
-===================================================== -->
-
-<footer class="footer">
-
-
-    <div class="footer-container">
-
-
-        <div class="footer-brand">
-
-            <div class="footer-logo">
-
-                <span class="logo-box">
-                    E
-                </span>
-
-                <strong>
-                    EduVision
-                </strong>
-
-            </div>
-
-
-            <p>
-
-                AI-Based Multimodal Visual Learning and
-                Educational Video Generation System.
-
-            </p>
-
-        </div>
-
-
-
-        <div class="footer-links">
-
-
-            <a href="/">
-                Home
-            </a>
-
-
-            <a href="#features">
-                Features
-            </a>
-
-
-            <a href="#how-it-works">
-                How It Works
-            </a>
-
-
-            <a href="{{ url_for('login') }}">
-                Login
-            </a>
-
-        </div>
-
-
-    </div>
-
-
-    <div class="copyright">
-
-        © 2026 EduVision. All rights reserved.
-
-    </div>
-
-</footer>
-
-
-
-<!-- =====================================================
-     DARK MODE JAVASCRIPT
-===================================================== -->
-
-<script>
-
-function toggleTheme() {
-
-    document.body.classList.toggle("dark-theme");
-
-    const button =
-        document.getElementById("themeButton");
-
-
-    if (document.body.classList.contains("dark-theme")) {
-
-        button.innerHTML = "☀️";
-
-        localStorage.setItem(
-            "eduvision-theme",
-            "dark"
-        );
-
-    } else {
-
-        button.innerHTML = "🌙";
-
-        localStorage.setItem(
-            "eduvision-theme",
-            "light"
-        );
-
-    }
-
-}
-
-
-
-window.addEventListener(
-    "DOMContentLoaded",
-    function () {
-
-        const savedTheme =
-            localStorage.getItem(
-                "eduvision-theme"
-            );
-
-        const button =
-            document.getElementById(
-                "themeButton"
-            );
-
-
-        if (savedTheme === "dark") {
-
-            document.body.classList.add(
-                "dark-theme"
-            );
-
-            button.innerHTML = "☀️";
-
-        }
-
-    }
-);
-
-</script>
-
-
+<script src="{{ url_for('static', filename='js/dashboard.js') }}" defer></script>
 </body>
-
 </html>

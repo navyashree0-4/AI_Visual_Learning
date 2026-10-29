@@ -1,587 +1,418 @@
+
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
     <title>Create Account | EduVision</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 
-    <link rel="stylesheet"
-          href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .success-message {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 15px 16px;
+            margin: 18px 0;
+            background: #ecfdf3;
+            border: 1px solid #a7e3bc;
+            border-left: 5px solid #16a34a;
+            border-radius: 12px;
+            box-shadow: 0 5px 16px rgba(22, 163, 74, 0.08);
+            color: #166534;
+            animation: successAppear 0.35s ease-out;
+        }
+
+        .success-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #16a34a;
+            color: #ffffff;
+            font-size: 19px;
+            font-weight: bold;
+        }
+
+        .success-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .success-title {
+            margin: 0 0 5px;
+            color: #15803d;
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        .success-text {
+            margin: 0;
+            color: #166534;
+            font-size: 13px;
+            line-height: 1.6;
+            overflow-wrap: anywhere;
+        }
+
+        .flash-error {
+            background: #fef2f2;
+            border-color: #fecaca;
+            border-left-color: #dc2626;
+            color: #991b1b;
+        }
+
+        .flash-error .success-icon {
+            background: #dc2626;
+        }
+
+        .flash-error .success-title,
+        .flash-error .success-text {
+            color: #991b1b;
+        }
+
+        .flash-warning {
+            background: #fffbeb;
+            border-color: #fde68a;
+            border-left-color: #d97706;
+        }
+
+        .flash-warning .success-icon {
+            background: #d97706;
+        }
+
+        .flash-warning .success-title,
+        .flash-warning .success-text {
+            color: #92400e;
+        }
+
+        @keyframes successAppear {
+            from {
+                opacity: 0;
+                transform: translateY(-7px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
 </head>
-
 <body>
 
-<!-- Background -->
-<div class="background-shape shape-one"></div>
-<div class="background-shape shape-two"></div>
+    <!-- Background circles -->
+    <div class="background-shape shape-one"></div>
+    <div class="background-shape shape-two"></div>
 
-
-<!-- ================= NAVBAR ================= -->
-
-<nav class="navbar">
-
-    <a href="/" class="brand">
-        <span class="brand-icon">E</span>
-        <span>EduVision</span>
-    </a>
-
-    <div class="nav-links">
-
-        <a href="/">Home</a>
-
-        <button
-            type="button"
-            class="theme-btn"
-            id="themeButton"
-            onclick="toggleTheme()">
-            🌙
-        </button>
-
-        <a href="{{ url_for('login') }}"
-           class="login-btn">
-            Login
+    <!-- NAVBAR -->
+    <nav class="navbar">
+        <a href="/" class="brand">
+            <span class="brand-icon">E</span>
+            <span>EduVision</span>
         </a>
 
-    </div>
-
-</nav>
-
-
-<!-- ================= MAIN ================= -->
-
-<main class="register-wrapper">
-
-
-    <!-- ================= LEFT SECTION ================= -->
-
-    <section class="register-intro">
-
-        <div class="intro-content">
-
-            <div class="eyebrow">
-                AI-ASSISTED LEARNING
-            </div>
-
-            <h1>
-                Make learning
-                <span>more visual.</span>
-            </h1>
-
-            <p>
-                Create your EduVision account and turn your
-                study material into simple explanations,
-                educational videos, quizzes and interactive
-                learning content.
-            </p>
-
-
-            <div class="benefits">
-
-                <div class="benefit">
-
-                    <div class="benefit-icon">
-                        ▶
-                    </div>
-
-                    <div>
-                        <strong>Visual Learning</strong>
-
-                        <small>
-                            Learn through engaging visual content
-                        </small>
-                    </div>
-
-                </div>
-
-
-                <div class="benefit">
-
-                    <div class="benefit-icon">
-                        ✦
-                    </div>
-
-                    <div>
-                        <strong>AI Assistance</strong>
-
-                        <small>
-                            Get simplified learning material
-                        </small>
-                    </div>
-
-                </div>
-
-
-                <div class="benefit">
-
-                    <div class="benefit-icon">
-                        ✓
-                    </div>
-
-                    <div>
-                        <strong>Interactive Learning</strong>
-
-                        <small>
-                            Practice with quizzes and learning games
-                        </small>
-                    </div>
-
-                </div>
-
-            </div>
-
+        <div class="nav-links">
+            <a href="/">Home</a>
+            <button type="button" class="theme-btn" id="themeButton"
+                    onclick="toggleTheme()">🌙</button>
+            <a href="{{ url_for('login') }}" class="login-btn">Login</a>
         </div>
+    </nav>
 
-    </section>
+    <!-- MAIN -->
+    <main class="register-wrapper">
 
+        <!-- LEFT SECTION -->
+        <section class="register-intro">
+            <div class="intro-content">
+                <div class="eyebrow">AI-ASSISTED LEARNING</div>
 
-    <!-- ================= REGISTER SECTION ================= -->
-
-    <section class="register-section">
-
-        <div class="register-card">
-
-            <div class="card-header">
-
-                <div class="mobile-logo">
-                    <span class="brand-icon">E</span>
-                    <span>EduVision</span>
-                </div>
-
-                <h2>
-                    Create your account
-                </h2>
+                <h1>
+                    Make learning
+                    <span>more visual.</span>
+                </h1>
 
                 <p>
-                    Start your visual learning journey today.
+                    Create your EduVision account and turn your study material into
+                    simple explanations, educational videos, quizzes and interactive
+                    learning content.
                 </p>
 
+                <div class="benefits">
+                    <div class="benefit">
+                        <div class="benefit-icon">▶</div>
+                        <div>
+                            <strong>Visual Learning</strong>
+                            <small>Learn through engaging visual content</small>
+                        </div>
+                    </div>
+
+                    <div class="benefit">
+                        <div class="benefit-icon">✦</div>
+                        <div>
+                            <strong>AI Assistance</strong>
+                            <small>Get simplified learning material</small>
+                        </div>
+                    </div>
+
+                    <div class="benefit">
+                        <div class="benefit-icon">✓</div>
+                        <div>
+                            <strong>Interactive Learning</strong>
+                            <small>Practice with quizzes and learning games</small>
+                        </div>
+                    </div>
+                </div>
             </div>
+        </section>
 
+        <!-- REGISTER SECTION -->
+        <section class="register-section">
+            <div class="register-card">
 
-            <!-- FLASH MESSAGE -->
+                <div class="card-header">
+                    <div class="mobile-logo">
+                        <span class="brand-icon">E</span>
+                        <span>EduVision</span>
+                    </div>
 
-            {% with messages = get_flashed_messages() %}
+                    <h2>Create your account</h2>
+                    <p>Start your visual learning journey today.</p>
+                </div>
 
-                {% if messages %}
+                <!-- FLASH MESSAGES -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="success-message
+                                {% if category == 'error' or category == 'danger' %}
+                                    flash-error
+                                {% elif category == 'warning' %}
+                                    flash-warning
+                                {% endif %}"
+                                role="status">
 
-                    <div class="flash-message">
+                                <span class="success-icon" aria-hidden="true">
+                                    {% if category == 'error' or category == 'danger' %}
+                                        !
+                                    {% elif category == 'warning' %}
+                                        !
+                                    {% else %}
+                                        ✓
+                                    {% endif %}
+                                </span>
 
-                        {% for message in messages %}
-                            {{ message }}
+                                <div class="success-content">
+                                    <p class="success-title">
+                                        {% if category == 'error' or category == 'danger' %}
+                                            Please check
+                                        {% elif category == 'warning' %}
+                                            Attention
+                                        {% else %}
+                                            Success!
+                                        {% endif %}
+                                    </p>
+
+                                    <p class="success-text">{{ message }}</p>
+                                </div>
+                            </div>
                         {% endfor %}
+                    {% endif %}
+                {% endwith %}
 
-                    </div>
-
-                {% endif %}
-
-            {% endwith %}
-
-
-            <!-- ================= FORM ================= -->
-
-            <form method="POST"
-                  action="{{ url_for('register') }}"
-                  id="registerForm">
-
-
-                <!-- NAME -->
-
-                <div class="form-group">
-
-                    <label for="name">
-                        Full Name
-                    </label>
-
-                    <input
-                        type="text"
-                        id="name"
-                        name="name"
-                        placeholder="Enter your full name"
-                        minlength="3"
-                        required>
-
-                </div>
-
-
-                <!-- EMAIL -->
-
-                <div class="form-group">
-
-                    <label for="email">
-                        Email Address
-                    </label>
-
-                    <input
-                        type="email"
-                        id="email"
-                        name="email"
-                        placeholder="Enter your email"
-                        required>
-
-                </div>
-
-
-                <!-- PASSWORD -->
-
-                <div class="form-row">
+                <!-- REGISTRATION FORM -->
+                <form method="POST"
+                      action="{{ url_for('register') }}"
+                      id="registerForm">
 
                     <div class="form-group">
-
-                        <label for="password">
-                            Password
-                        </label>
-
-                        <input
-                            type="password"
-                            id="password"
-                            name="password"
-                            placeholder="Create password"
-                            minlength="6"
-                            required>
-
+                        <label for="name">Full Name</label>
+                        <input type="text" id="name" name="name"
+                               placeholder="Enter your full name"
+                               minlength="3" required>
                     </div>
-
 
                     <div class="form-group">
-
-                        <label for="confirm_password">
-                            Confirm Password
-                        </label>
-
-                        <input
-                            type="password"
-                            id="confirm_password"
-                            name="confirm_password"
-                            placeholder="Confirm password"
-                            minlength="6"
-                            required>
-
+                        <label for="email">Email Address</label>
+                        <input type="email" id="email" name="email"
+                               placeholder="Enter your email" required>
                     </div>
 
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="password">Password</label>
+                            <input type="password" id="password" name="password"
+                                   placeholder="Create password"
+                                   minlength="6" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="confirm_password">Confirm Password</label>
+                            <input type="password" id="confirm_password"
+                                   name="confirm_password"
+                                   placeholder="Confirm password"
+                                   minlength="6" required>
+                        </div>
+                    </div>
+
+                    <div class="terms">
+                        <input type="checkbox" id="terms" name="terms" required>
+                        <label for="terms">
+                            I agree to the
+                            <a href="#" onclick="showTerms(event)">
+                                Terms and Conditions
+                            </a>
+                        </label>
+                    </div>
+
+                    <button type="submit" class="register-button">
+                        Create Account <span>→</span>
+                    </button>
+                </form>
+
+                <div class="login-text">
+                    Already have an account?
+                    <a href="{{ url_for('login') }}">Login</a>
                 </div>
 
-
-                <!-- TERMS -->
-
-                <div class="terms">
-
-                    <input
-                        type="checkbox"
-                        id="terms"
-                        name="terms"
-                        required>
-
-                    <label for="terms">
-
-                        I agree to the
-
-                        <a href="#"
-                           onclick="showTerms(event)">
-                            Terms and Conditions
-                        </a>
-
-                    </label>
-
-                </div>
-
-
-                <!-- CREATE ACCOUNT -->
-
-                <button
-                    type="submit"
-                    class="register-button">
-
-                    Create Account
-
-                    <span>→</span>
-
-                </button>
-
-            </form>
-
-
-            <!-- LOGIN -->
-
-            <div class="login-text">
-
-                Already have an account?
-
-                <a href="{{ url_for('login') }}">
-                    Login
-                </a>
-
+                <a href="/" class="back-home">← Back to EduVision</a>
             </div>
+        </section>
+    </main>
 
+    <!-- TERMS POPUP -->
+    <div id="termsPopup" class="terms-popup">
+        <div class="terms-content">
+            <button type="button" class="close-terms"
+                    onclick="closeTerms()">×</button>
 
-            <!-- HOME -->
+            <h2>Terms and Conditions</h2>
 
-            <a href="/" class="back-home">
-                ← Back to EduVision
-            </a>
+            <h3>1. Account Information</h3>
+            <p>
+                Users should provide accurate information while creating an
+                EduVision account and are responsible for keeping their account
+                information secure.
+            </p>
 
+            <h3>2. Educational Purpose</h3>
+            <p>
+                EduVision supports students through visual and interactive
+                learning and should be used for educational purposes.
+            </p>
+
+            <h3>3. AI-Generated Content</h3>
+            <p>
+                EduVision may generate explanations, quizzes, summaries and other
+                learning content using AI. AI-generated information may contain
+                errors and should be verified when necessary.
+            </p>
+
+            <h3>4. Responsible Use</h3>
+            <p>
+                Users should use EduVision responsibly and should not upload
+                illegal, harmful or inappropriate content.
+            </p>
+
+            <h3>5. Privacy</h3>
+            <p>
+                User information and uploaded study materials should be handled
+                securely and used to provide EduVision learning services.
+            </p>
+
+            <h3>6. Acceptance</h3>
+            <p>
+                By clicking "I Agree", you confirm that you have read and accepted
+                these Terms and Conditions.
+            </p>
+
+            <button type="button" class="agree-terms"
+                    onclick="acceptTerms()">I Agree</button>
         </div>
-
-    </section>
-
-</main>
-
-
-<!-- ================= TERMS POPUP ================= -->
-
-<div id="termsPopup"
-     class="terms-popup">
-
-    <div class="terms-content">
-
-        <button
-            type="button"
-            class="close-terms"
-            onclick="closeTerms()">
-            ×
-        </button>
-
-        <h2>
-            Terms and Conditions
-        </h2>
-
-        <h3>
-            1. Account Information
-        </h3>
-
-        <p>
-            Users should provide accurate information while
-            creating an EduVision account and are responsible
-            for keeping their account information secure.
-        </p>
-
-        <h3>
-            2. Educational Purpose
-        </h3>
-
-        <p>
-            EduVision is designed to support students through
-            visual and interactive learning. The application
-            should be used for educational purposes.
-        </p>
-
-        <h3>
-            3. AI-Generated Content
-        </h3>
-
-        <p>
-            EduVision may generate explanations, quizzes,
-            summaries and other learning content using AI.
-            AI-generated information may contain errors and
-            should be verified when necessary.
-        </p>
-
-        <h3>
-            4. Responsible Use
-        </h3>
-
-        <p>
-            Users should use EduVision responsibly and should
-            not upload illegal, harmful or inappropriate
-            content.
-        </p>
-
-        <h3>
-            5. Privacy
-        </h3>
-
-        <p>
-            User information and uploaded study materials
-            should be handled securely and used only for
-            providing EduVision learning services.
-        </p>
-
-        <h3>
-            6. Acceptance
-        </h3>
-
-        <p>
-            By clicking "I Agree", you confirm that you have
-            read and accepted these Terms and Conditions.
-        </p>
-
-        <button
-            type="button"
-            class="agree-terms"
-            onclick="acceptTerms()">
-            I Agree
-        </button>
-
     </div>
 
-</div>
+    <!-- JAVASCRIPT -->
+    <script>
+        function showTerms(event) {
+            event.preventDefault();
+            document.getElementById("termsPopup").style.display = "flex";
+        }
 
+        function closeTerms() {
+            document.getElementById("termsPopup").style.display = "none";
+        }
 
-<!-- ================= JAVASCRIPT ================= -->
-
-<script>
-
-/* ================= TERMS ================= */
-
-function showTerms(event) {
-
-    event.preventDefault();
-
-    document.getElementById("termsPopup").style.display = "flex";
-}
-
-
-function closeTerms() {
-
-    document.getElementById("termsPopup").style.display = "none";
-}
-
-
-function acceptTerms() {
-
-    document.getElementById("terms").checked = true;
-
-    document.getElementById("termsPopup").style.display = "none";
-}
-
-
-document.getElementById("termsPopup")
-    .addEventListener("click", function(event) {
-
-        if (event.target === this) {
+        function acceptTerms() {
+            document.getElementById("terms").checked = true;
             closeTerms();
         }
 
-    });
+        document.getElementById("termsPopup").addEventListener("click", function (event) {
+            if (event.target === this) {
+                closeTerms();
+            }
+        });
 
+        document.getElementById("registerForm").addEventListener("submit", function (event) {
+            const name = document.getElementById("name").value.trim();
+            const email = document.getElementById("email").value.trim();
+            const password = document.getElementById("password").value;
+            const confirmPassword = document.getElementById("confirm_password").value;
+            const terms = document.getElementById("terms").checked;
 
-/* ================= REGISTER VALIDATION ================= */
+            const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-document.getElementById("registerForm")
-    .addEventListener("submit", function(event) {
+            if (name.length < 3) {
+                event.preventDefault();
+                alert("Please enter your full name.");
+                return;
+            }
 
-        const name =
-            document.getElementById("name").value.trim();
+            if (!emailPattern.test(email)) {
+                event.preventDefault();
+                alert("Please enter a valid email address.");
+                return;
+            }
 
-        const email =
-            document.getElementById("email").value.trim();
+            if (password.length < 6) {
+                event.preventDefault();
+                alert("Password must contain at least 6 characters.");
+                return;
+            }
 
-        const password =
-            document.getElementById("password").value;
+            if (password !== confirmPassword) {
+                event.preventDefault();
+                alert("Passwords do not match.");
+                return;
+            }
 
-        const confirmPassword =
-            document.getElementById("confirm_password").value;
+            if (!terms) {
+                event.preventDefault();
+                alert("Please agree to the Terms and Conditions.");
+            }
+        });
 
-        const terms =
-            document.getElementById("terms").checked;
+        function toggleTheme() {
+            document.body.classList.toggle("dark-theme");
 
+            const themeButton = document.getElementById("themeButton");
+            const isDark = document.body.classList.contains("dark-theme");
 
-        if (name.length < 3) {
-
-            event.preventDefault();
-
-            alert("Please enter your full name.");
-
-            return;
+            themeButton.innerHTML = isDark ? "☀️" : "🌙";
+            localStorage.setItem("theme", isDark ? "dark" : "light");
         }
 
+        window.addEventListener("DOMContentLoaded", function () {
+            const savedTheme = localStorage.getItem("theme");
+            const themeButton = document.getElementById("themeButton");
 
-       const emailPattern =
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-
-        if (!emailPattern.test(email)) {
-
-            event.preventDefault();
-
-            alert("Please enter a valid email address.");
-
-            return;
-        }
-
-
-        if (password.length < 6) {
-
-            event.preventDefault();
-
-            alert("Password must contain at least 6 characters.");
-
-            return;
-        }
-
-
-        if (password !== confirmPassword) {
-
-            event.preventDefault();
-
-            alert("Passwords do not match.");
-
-            return;
-        }
-
-
-        if (!terms) {
-
-            event.preventDefault();
-
-            alert("Please agree to the Terms and Conditions.");
-
-            return;
-        }
-
-    });
-
-
-/* ================= THEME ================= */
-
-function toggleTheme() {
-
-    document.body.classList.toggle("dark-theme");
-
-    const themeButton =
-        document.getElementById("themeButton");
-
-
-    if (document.body.classList.contains("dark-theme")) {
-
-        themeButton.innerHTML = "☀️";
-
-        localStorage.setItem("theme", "dark");
-
-    } else {
-
-        themeButton.innerHTML = "🌙";
-
-        localStorage.setItem("theme", "light");
-
-    }
-
-}
-
-
-/* ================= LOAD THEME ================= */
-
-window.addEventListener("DOMContentLoaded", function() {
-
-    const savedTheme =
-        localStorage.getItem("theme");
-
-    const themeButton =
-        document.getElementById("themeButton");
-
-
-    if (savedTheme === "dark") {
-
-        document.body.classList.add("dark-theme");
-
-        themeButton.innerHTML = "☀️";
-
-    }
-
-});
-
-</script>
-
+            if (savedTheme === "dark") {
+                document.body.classList.add("dark-theme");
+                themeButton.innerHTML = "☀️";
+            }
+        });
+    </script>
 </body>
 </html>

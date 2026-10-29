@@ -1,0 +1,819 @@
+ 
+/* =====================================================
+   EDUVISION APTITUDE ARENA
+   File: static/css/aptitude.css
+   ===================================================== */
+
+:root {
+    --apt-bg: #f5f7ff;
+    --apt-surface: #ffffff;
+    --apt-primary: #6254e8;
+    --apt-primary-dark: #4939c9;
+    --apt-text: #20243b;
+    --apt-muted: #747b91;
+    --apt-border: #e5e8f2;
+    --apt-green: #15966a;
+    --apt-red: #d94b5b;
+    --apt-shadow: 0 12px 35px rgba(40, 44, 90, 0.07);
+}
+
+.aptitude-page {
+    width: min(1180px, calc(100% - 36px));
+    margin: 32px auto 60px;
+    color: var(--apt-text);
+    font-family: inherit;
+}
+
+.aptitude-page *,
+.aptitude-page *::before,
+.aptitude-page *::after {
+    box-sizing: border-box;
+}
+
+.aptitude-page h1,
+.aptitude-page h2,
+.aptitude-page h3,
+.aptitude-page p {
+    margin-top: 0;
+}
+
+.aptitude-page p {
+    color: var(--apt-muted);
+    line-height: 1.7;
+}
+
+.eyebrow {
+    display: inline-block;
+    margin-bottom: 14px;
+    color: var(--apt-primary);
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+}
+
+.aptitude-hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 28px;
+    padding: 46px;
+    overflow: hidden;
+    border-radius: 25px;
+    background: linear-gradient(125deg, #eeecff 0%, #f8f7ff 55%, #e5f4ff 100%);
+}
+
+.hero-content {
+    max-width: 720px;
+}
+
+.aptitude-hero h1,
+.test-header h1 {
+    margin-bottom: 14px;
+    font-size: clamp(2rem, 4vw, 3.15rem);
+    font-weight: 850;
+    letter-spacing: -1.5px;
+    line-height: 1.15;
+}
+
+.aptitude-hero h1 span {
+    color: var(--apt-primary);
+}
+
+.aptitude-hero p {
+    max-width: 650px;
+    margin-bottom: 0;
+    font-size: 1rem;
+}
+
+.hero-icon {
+    display: grid;
+    width: 125px;
+    height: 125px;
+    flex-shrink: 0;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    border-radius: 30px;
+    background: rgba(255, 255, 255, 0.7);
+    font-size: 4rem;
+    transform: rotate(5deg);
+}
+
+.aptitude-section,
+.review-section {
+    margin-top: 36px;
+}
+
+.section-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.section-heading h2 {
+    margin-bottom: 7px;
+    font-size: 1.55rem;
+    font-weight: 800;
+}
+
+.section-heading p {
+    margin-bottom: 0;
+}
+
+.setup-card {
+    max-width: 800px;
+    padding: 30px;
+    border: 1px solid var(--apt-border);
+    border-radius: 22px;
+    background: var(--apt-surface);
+    box-shadow: var(--apt-shadow);
+}
+
+.setup-card > label {
+    display: block;
+    margin: 0 0 12px;
+    font-weight: 750;
+}
+
+.setup-card select {
+    width: 100%;
+    min-height: 50px;
+    margin-bottom: 27px;
+    padding: 0 14px;
+    border: 1px solid var(--apt-border);
+    border-radius: 11px;
+    outline: none;
+    background: #fff;
+    color: var(--apt-text);
+    font: inherit;
+}
+
+.setup-card select:focus {
+    border-color: var(--apt-primary);
+    box-shadow: 0 0 0 3px rgba(98, 84, 232, 0.12);
+}
+
+.question-options {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 25px;
+}
+
+.question-option {
+    position: relative;
+    cursor: pointer;
+}
+
+.question-option input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+}
+
+.question-option > span {
+    display: flex;
+    min-height: 105px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    border: 1.5px solid var(--apt-border);
+    border-radius: 15px;
+    background: #fff;
+    transition: border-color 0.2s, background 0.2s, transform 0.2s;
+}
+
+.question-option strong {
+    font-size: 1.8rem;
+}
+
+.question-option small {
+    color: var(--apt-muted);
+    font-size: 0.8rem;
+}
+
+.question-option input:checked + span {
+    border-color: var(--apt-primary);
+    background: #f1efff;
+    color: var(--apt-primary-dark);
+}
+
+.question-option input:focus-visible + span {
+    outline: 3px solid #b7b0ff;
+    outline-offset: 3px;
+}
+
+.question-option:hover > span {
+    transform: translateY(-2px);
+}
+
+.test-info {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px 25px;
+    margin-bottom: 24px;
+    color: var(--apt-muted);
+    font-size: 0.88rem;
+}
+
+.test-info strong {
+    color: var(--apt-text);
+}
+
+.aptitude-button {
+    display: inline-flex;
+    min-height: 48px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 22px;
+    border: 1px solid transparent;
+    border-radius: 11px;
+    background: var(--apt-primary);
+    color: #fff;
+    font: inherit;
+    font-weight: 750;
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.2s;
+}
+
+.aptitude-button:hover {
+    background: var(--apt-primary-dark);
+    color: #fff;
+    transform: translateY(-1px);
+}
+
+.aptitude-button:focus-visible {
+    outline: 3px solid #b7b0ff;
+    outline-offset: 3px;
+}
+
+.aptitude-button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.secondary-button {
+    border-color: var(--apt-border);
+    background: #fff;
+    color: var(--apt-text);
+}
+
+.secondary-button:hover {
+    background: #f1f2fa;
+    color: var(--apt-text);
+}
+
+.submit-button {
+    background: var(--apt-green);
+}
+
+.submit-button:hover {
+    background: #087b55;
+}
+
+/* TEST PAGE */
+
+.test-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 25px;
+    margin-bottom: 28px;
+}
+
+.test-header h1 {
+    font-size: clamp(1.8rem, 3vw, 2.5rem);
+}
+
+.test-header p {
+    margin-bottom: 0;
+}
+
+.timer-card {
+    display: flex;
+    min-width: 155px;
+    flex-direction: column;
+    align-items: center;
+    gap: 7px;
+    padding: 19px 22px;
+    border: 1px solid #e0dcff;
+    border-radius: 17px;
+    background: #f1efff;
+    color: var(--apt-primary-dark);
+}
+
+.timer-card > span {
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 1px;
+}
+
+.timer-card strong {
+    font-size: 2rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.timer-card.timer-warning {
+    border-color: #ffc5c5;
+    background: #fff0f0;
+    color: var(--apt-red);
+}
+
+.test-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 285px;
+    align-items: start;
+    gap: 24px;
+}
+
+.question-card,
+.question-sidebar {
+    min-width: 0;
+    padding: 27px;
+    border: 1px solid var(--apt-border);
+    border-radius: 20px;
+    background: var(--apt-surface);
+    box-shadow: var(--apt-shadow);
+}
+
+.question-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 15px;
+    margin-bottom: 16px;
+    color: var(--apt-muted);
+    font-size: 0.86rem;
+    font-weight: 700;
+}
+
+.question-meta span:first-child {
+    color: var(--apt-primary);
+}
+
+.progress-track {
+    height: 7px;
+    margin-bottom: 30px;
+    overflow: hidden;
+    border-radius: 20px;
+    background: #eeeff7;
+}
+
+.progress-fill {
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #6254e8, #a18cff);
+    transition: width 0.25s ease;
+}
+
+.question-panel h2 {
+    margin-bottom: 25px;
+    font-size: 1.25rem;
+    font-weight: 750;
+    line-height: 1.65;
+}
+
+.answer-options {
+    display: grid;
+    gap: 12px;
+}
+
+.answer-option {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    padding: 15px;
+    border: 1px solid var(--apt-border);
+    border-radius: 12px;
+    background: #fff;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.answer-option:hover {
+    border-color: #b8b0ff;
+    background: #faf9ff;
+}
+
+.answer-option input {
+    width: 17px;
+    height: 17px;
+    flex-shrink: 0;
+    accent-color: var(--apt-primary);
+}
+
+.option-letter {
+    display: grid;
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    place-items: center;
+    border-radius: 9px;
+    background: #f0efff;
+    color: var(--apt-primary-dark);
+    font-size: 0.84rem;
+    font-weight: 800;
+}
+
+.answer-option:has(input:checked) {
+    border-color: var(--apt-primary);
+    background: #f5f3ff;
+}
+
+.question-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 30px;
+    padding-top: 23px;
+    border-top: 1px solid var(--apt-border);
+}
+
+.question-sidebar h3 {
+    margin-bottom: 8px;
+    font-size: 1.1rem;
+}
+
+.question-sidebar > p {
+    margin-bottom: 20px;
+    font-size: 0.86rem;
+}
+
+.question-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 9px;
+}
+
+.question-number {
+    display: grid;
+    aspect-ratio: 1;
+    place-items: center;
+    border: 1px solid var(--apt-border);
+    border-radius: 9px;
+    background: #fff;
+    color: var(--apt-text);
+    font: inherit;
+    font-weight: 750;
+    cursor: pointer;
+}
+
+.question-number.active {
+    border-color: var(--apt-primary);
+    background: var(--apt-primary);
+    color: #fff;
+}
+
+.question-number.answered {
+    border-color: #a4dfc7;
+    background: #e9f9f1;
+    color: #087b55;
+}
+
+.question-number.answered.active {
+    border-color: var(--apt-primary);
+    background: var(--apt-primary);
+    color: #fff;
+}
+
+.navigator-legend {
+    display: grid;
+    gap: 11px;
+    margin-top: 22px;
+    font-size: 0.8rem;
+    color: var(--apt-muted);
+}
+
+.navigator-legend span {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #e6e8f1;
+}
+
+.legend-dot.answered {
+    background: #42b98a;
+}
+
+.test-tip {
+    margin-top: 25px;
+    padding: 15px;
+    border-radius: 12px;
+    background: #fff7e8;
+}
+
+.test-tip strong {
+    color: #936116;
+}
+
+.test-tip p {
+    margin: 7px 0 0;
+    font-size: 0.82rem;
+}
+
+/* RESULTS PAGE */
+
+.result-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 24px;
+    border: 1px solid #e7e2ff;
+    border-radius: 24px;
+    background: linear-gradient(135deg, #f1efff, #f8faff);
+    text-align: center;
+}
+
+.result-icon {
+    display: grid;
+    width: 78px;
+    height: 78px;
+    margin-bottom: 18px;
+    place-items: center;
+    border-radius: 23px;
+    background: #fff;
+    box-shadow: var(--apt-shadow);
+    font-size: 2.5rem;
+}
+
+.result-hero h1 {
+    margin-bottom: 12px;
+    font-size: clamp(2rem, 4vw, 2.8rem);
+    font-weight: 850;
+}
+
+.result-hero > p {
+    max-width: 600px;
+    margin-bottom: 25px;
+}
+
+.score-circle {
+    display: flex;
+    width: 150px;
+    height: 150px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    border: 8px solid #dcd6ff;
+    border-radius: 50%;
+    background: #fff;
+}
+
+.score-circle strong {
+    color: var(--apt-primary);
+    font-size: 2.4rem;
+    line-height: 1;
+}
+
+.score-circle span {
+    color: var(--apt-muted);
+    font-size: 0.78rem;
+}
+
+.result-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 25px;
+}
+
+.result-stat {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 22px;
+    border: 1px solid var(--apt-border);
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: var(--apt-shadow);
+}
+
+.stat-icon {
+    font-size: 1.5rem;
+}
+
+.stat-label {
+    color: var(--apt-muted);
+    font-size: 0.82rem;
+}
+
+.result-stat > strong {
+    overflow-wrap: anywhere;
+    font-size: 1.4rem;
+}
+
+.review-section {
+    margin-top: 40px;
+}
+
+.review-card {
+    margin-bottom: 16px;
+    padding: 23px;
+    border: 1px solid var(--apt-border);
+    border-radius: 16px;
+    background: #fff;
+}
+
+.review-question-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 15px;
+}
+
+.review-number {
+    color: var(--apt-primary);
+    font-size: 0.83rem;
+    font-weight: 800;
+}
+
+.answer-status {
+    padding: 6px 11px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 800;
+}
+
+.correct-status {
+    background: #e6f8ef;
+    color: #087b55;
+}
+
+.incorrect-status {
+    background: #fff0f0;
+    color: #b82f43;
+}
+
+.review-card h3 {
+    margin-bottom: 17px;
+    font-size: 1.05rem;
+    line-height: 1.6;
+}
+
+.review-card > p {
+    margin-bottom: 9px;
+    font-size: 0.91rem;
+}
+
+.your-answer strong {
+    color: var(--apt-red);
+}
+
+.correct-answer strong {
+    color: var(--apt-green);
+}
+
+.explanation-box {
+    margin-top: 18px;
+    padding: 16px;
+    border-left: 4px solid var(--apt-primary);
+    border-radius: 0 10px 10px 0;
+    background: #f5f4ff;
+}
+
+.explanation-box strong {
+    color: var(--apt-primary-dark);
+}
+
+.explanation-box p {
+    margin: 8px 0 0;
+    font-size: 0.9rem;
+}
+
+.empty-review {
+    padding: 20px;
+    border: 1px dashed var(--apt-border);
+    border-radius: 12px;
+}
+
+.result-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 13px;
+    margin-top: 32px;
+}
+
+/* RESPONSIVE LAYOUT */
+
+@media (max-width: 900px) {
+    .test-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .question-sidebar {
+        order: -1;
+    }
+
+    .question-grid {
+        grid-template-columns: repeat(10, minmax(0, 1fr));
+    }
+
+    .result-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 600px) {
+    .aptitude-page {
+        width: calc(100% - 24px);
+        margin-top: 18px;
+    }
+
+    .aptitude-hero {
+        padding: 28px 22px;
+    }
+
+    .hero-icon {
+        display: none;
+    }
+
+    .aptitude-hero h1 {
+        font-size: 2.1rem;
+    }
+
+    .setup-card,
+    .question-card,
+    .question-sidebar {
+        padding: 19px;
+    }
+
+    .question-options {
+        gap: 8px;
+    }
+
+    .question-option > span {
+        min-height: 90px;
+    }
+
+    .question-option strong {
+        font-size: 1.5rem;
+    }
+
+    .question-option small {
+        font-size: 0.68rem;
+        text-align: center;
+    }
+
+    .test-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .timer-card {
+        width: 100%;
+        min-width: 0;
+        flex-direction: row;
+        justify-content: space-between;
+    }
+
+    .timer-card strong {
+        font-size: 1.5rem;
+    }
+
+    .question-grid {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
+    .question-actions > .aptitude-button {
+        flex: 1 1 130px;
+    }
+
+    .result-stats {
+        gap: 10px;
+    }
+
+    .result-stat {
+        padding: 16px;
+    }
+
+    .result-stat > strong {
+        font-size: 1.15rem;
+    }
+
+    .result-actions {
+        flex-direction: column;
+    }
+
+    .result-actions .aptitude-button {
+        width: 100%;
+    }
+}

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ video.title }} | Visual Learning</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/learn.css') }}">
+</head>
+<body data-video-id="{{ video.id }}">
+
+<header class="lbar">
+    <a href="/dashboard" class="back">← Dashboard</a>
+    <div class="lbrand">▶ VisualLearn</div>
+</header>
+
+<main class="lwrap">
+
+    <h1 class="ltitle">{{ video.title }}</h1>
+
+    <div class="lgrid">
+
+        <!-- LEFT: video, summary and quiz button -->
+        <section>
+            <div class="player-card">
+                {% if video_url %}
+                    <video controls src="{{ video_url }}"></video>
+                {% else %}
+                    <div class="no-video">🎬 The video file was not found.</div>
+                {% endif %}
+            </div>
+
+            {% if about %}
+            <div class="card">
+                <h3>📝 About this video</h3>
+                <p class="about">{{ about }}{% if about|length >= 500 %}...{% endif %}</p>
+            </div>
+            {% endif %}
+
+            <div class="card quiz-cta">
+                <div>
+                    <h3>🎯 Ready to test yourself?</h3>
+                    <p>Answer 5 questions about this video. Score {{ pass_percent }}% or more to pass and earn credits.</p>
+                    {% if stats and stats.tries %}
+                        <p class="best">
+                            Attempts: <b>{{ stats.tries }}</b> &nbsp;|&nbsp; Best score: <b>{{ stats.best }}%</b>
+                            {% if stats.passed %}&nbsp;✅ Passed{% endif %}
+                        </p>
+                    {% endif %}
+                </div>
+                <a class="big-btn" href="/learn/video/{{ video.id }}/quiz">
+                    {% if stats and stats.tries %}Try again{% else %}Start quiz{% endif %} →
+                </a>
+            </div>
+
+            <div class="card quiz-cta">
+                <div>
+                    <h3>🎮 Play games</h3>
+                    <p>Memory cards, true or false, word scramble and more. Earn credits while you revise.</p>
+                </div>
+                <a class="big-btn" href="/learn/video/{{ video.id }}/games">Play now →</a>
+            </div>
+        </section>
+
+        <!-- RIGHT: ask a question -->
+        <section>
+            <div class="card chat" id="ask">
+                <h3>💬 Ask about this video</h3>
+                <p class="hint">Did not understand something? Ask your question.</p>
+
+                <div class="chat-box" id="chatBox">
+                    {% for h in history %}
+                        <div class="bubble me">{{ h.question }}</div>
+                        <div class="bubble ai">{{ h.answer }}</div>
+                    {% else %}
+                        <div class="chat-empty" id="chatEmpty">No questions yet. Try one of the ideas below 👇</div>
+                    {% endfor %}
+                </div>
+
+                <div class="suggest">
+                    <button type="button" onclick="useIdea('Explain this in simpler words')">Explain simpler</button>
+                    <button type="button" onclick="useIdea('Give me a real-life example')">Give an example</button>
+                    <button type="button" onclick="useIdea('What is the main idea of this video?')">Main idea</button>
+                </div>
+
+                <div class="chat-input">
+                    <input type="text" id="questionInput" maxlength="300" placeholder="Type your question...">
+                    <button type="button" id="askBtn" onclick="askQuestion()">Ask</button>
+                </div>
+            </div>
+        </section>
+
+    </div>
+</main>
+
+<script src="{{ url_for('static', filename='js/learn_video.js') }}"></script>
+</body>
+</html>

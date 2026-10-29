@@ -1,0 +1,421 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Profile | EduVision</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "Segoe UI", Arial, sans-serif;
+            background: #f4f6fb;
+            color: #1e293b;
+            min-height: 100vh;
+        }
+
+        .navbar {
+            background: #172554;
+            color: white;
+            padding: 18px 7%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+            flex-wrap: wrap;
+            box-shadow: 0 4px 18px rgba(15, 23, 42, 0.12);
+        }
+
+        .brand {
+            font-size: 25px;
+            font-weight: 800;
+            letter-spacing: 0.3px;
+        }
+
+        .brand span {
+            color: #67e8f9;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            flex-wrap: wrap;
+        }
+
+        .nav-links a {
+            color: #e2e8f0;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: #67e8f9;
+        }
+
+        .page {
+            width: min(1050px, 92%);
+            margin: 38px auto;
+        }
+
+        .welcome {
+            margin-bottom: 26px;
+        }
+
+        .welcome h1 {
+            font-size: clamp(26px, 4vw, 35px);
+            margin-bottom: 8px;
+            color: #172554;
+        }
+
+        .welcome p {
+            color: #64748b;
+            line-height: 1.6;
+        }
+
+        .profile-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.8fr);
+            gap: 24px;
+            align-items: stretch;
+        }
+
+        .card {
+            background: #ffffff;
+            border: 1px solid #e5eaf3;
+            border-radius: 22px;
+            padding: 28px;
+            box-shadow: 0 8px 30px rgba(30, 41, 59, 0.05);
+        }
+
+        .profile-heading {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            margin-bottom: 28px;
+        }
+
+        .avatar {
+            width: 78px;
+            height: 78px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 24px;
+            background: linear-gradient(135deg, #dbeafe, #c4b5fd);
+            color: #312e81;
+            font-size: 31px;
+            font-weight: 800;
+        }
+
+        .profile-heading h2 {
+            font-size: 23px;
+            overflow-wrap: anywhere;
+            margin-bottom: 6px;
+        }
+
+        .profile-heading p {
+            color: #64748b;
+            font-size: 14px;
+            overflow-wrap: anywhere;
+        }
+
+        .section-title {
+            color: #172554;
+            font-size: 18px;
+            margin-bottom: 18px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+            padding: 16px 0;
+            border-bottom: 1px solid #edf0f6;
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .info-label {
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        .info-value {
+            color: #1e293b;
+            font-size: 14px;
+            font-weight: 700;
+            text-align: right;
+            overflow-wrap: anywhere;
+        }
+
+        .credit-card {
+            position: relative;
+            overflow: hidden;
+            padding: 28px;
+            border-radius: 22px;
+            background: linear-gradient(145deg, #172554, #3730a3 65%, #6d28d9);
+            color: #ffffff;
+            box-shadow: 0 12px 30px rgba(55, 48, 163, 0.2);
+        }
+
+        .credit-card::before,
+        .credit-card::after {
+            content: "";
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.07);
+            pointer-events: none;
+        }
+
+        .credit-card::before {
+            width: 190px;
+            height: 190px;
+            top: -75px;
+            right: -45px;
+        }
+
+        .credit-card::after {
+            width: 120px;
+            height: 120px;
+            bottom: -55px;
+            right: 55px;
+        }
+
+        .credit-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .credit-label {
+            font-size: 15px;
+            color: #e0e7ff;
+            font-weight: 600;
+        }
+
+        .credit-icon {
+            font-size: 36px;
+            margin: 20px 0 8px;
+        }
+
+        .credit-number {
+            font-size: clamp(38px, 5vw, 50px);
+            font-weight: 850;
+            line-height: 1.2;
+            overflow-wrap: anywhere;
+        }
+
+        .credit-description {
+            color: #ddd6fe;
+            font-size: 13px;
+            margin-top: 10px;
+            line-height: 1.6;
+        }
+
+        .credit-note {
+            margin-top: 25px;
+            padding: 13px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: #f8fafc;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 45px;
+            padding: 12px 18px;
+            border-radius: 12px;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 700;
+            transition: transform 0.2s, background 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn-primary {
+            background: #4f46e5;
+            color: #ffffff;
+        }
+
+        .btn-primary:hover {
+            background: #4338ca;
+        }
+
+        .btn-secondary {
+            background: #eef2ff;
+            color: #3730a3;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e7ff;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 25px 15px;
+            margin-top: 40px;
+            color: #94a3b8;
+            font-size: 13px;
+        }
+
+        @media (max-width: 720px) {
+            .navbar {
+                padding: 17px 5%;
+            }
+
+            .nav-links {
+                gap: 12px;
+            }
+
+            .profile-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .page {
+                margin-top: 26px;
+            }
+
+            .card,
+            .credit-card {
+                padding: 22px;
+            }
+        }
+
+        @media (max-width: 400px) {
+            .profile-heading {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .info-row {
+                flex-direction: column;
+                gap: 7px;
+            }
+
+            .info-value {
+                text-align: left;
+            }
+
+            .actions .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <header class="navbar">
+        <div class="brand">Edu<span>Vision</span></div>
+
+        <nav class="nav-links">
+            <a href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('profile') }}">My Profile</a>
+            <a href="{{ url_for('logout') }}">Logout</a>
+        </nav>
+    </header>
+
+    <main class="page">
+
+        <section class="welcome">
+            <h1>My Profile 👋</h1>
+            <p>Manage your learning journey and keep track of your earned credits.</p>
+        </section>
+
+        <div class="profile-layout">
+
+            <section class="card">
+                <div class="profile-heading">
+                    <div class="avatar">
+                        {{ (user.name or 'U')[0]|upper }}
+                    </div>
+
+                    <div>
+                        <h2>{{ user.name or 'Student' }}</h2>
+                        <p>EduVision Learner</p>
+                    </div>
+                </div>
+
+                <h3 class="section-title">Account Information</h3>
+
+                <div class="info-row">
+                    <span class="info-label">Full Name</span>
+                    <span class="info-value">{{ user.name or 'Not provided' }}</span>
+                </div>
+
+                <div class="info-row">
+                    <span class="info-label">Email Address</span>
+                    <span class="info-value">{{ user.email or 'Not provided' }}</span>
+                </div>
+
+                <div class="info-row">
+                    <span class="info-label">Account ID</span>
+                    <span class="info-value">{{ user.id }}</span>
+                </div>
+
+                <div class="actions">
+                    <a class="btn btn-primary"
+                       href="{{ url_for('dashboard') }}">
+                        ← Back to Dashboard
+                    </a>
+                </div>
+            </section>
+
+            <aside class="credit-card">
+                <div class="credit-content">
+                    <div class="credit-label">Your Credit Wallet</div>
+
+                    <div class="credit-icon">⭐</div>
+
+                    <div class="credit-number">
+                        {{ user.credits or 0 }}
+                    </div>
+
+                    <p class="credit-description">
+                        Total credits earned through your EduVision learning games.
+                    </p>
+
+                    <div class="credit-note">
+                        🎮 Complete game levels to earn credits. Your balance is
+                        retrieved from your account in the database.
+                    </div>
+                </div>
+            </aside>
+
+        </div>
+    </main>
+
+    <footer class="footer">
+        © 2026 EduVision · Learn, Play and Grow
+    </footer>
+
+</body>
+</html>

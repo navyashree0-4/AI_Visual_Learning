@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leaderboard | Visual Learning</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/learn.css') }}">
+</head>
+<body>
+
+<header class="lbar">
+    <a href="/dashboard" class="back">← Dashboard</a>
+    <div class="lbrand">▶ VisualLearn</div>
+</header>
+
+<main class="lwrap narrow">
+
+    <h1 class="ltitle">🏅 Leaderboard</h1>
+
+    <div class="card lb-how">
+        <h3>How to earn points</h3>
+        <p>🎬 <b>+{{ p_video }}</b> for every video you create &nbsp; 🎯 <b>+{{ p_quiz }}</b> for every video quiz you pass
+           &nbsp; 🎮 <b>+{{ p_level }}</b> for every game level you clear</p>
+    </div>
+
+    {% if me %}
+    <div class="card lb-me">
+        <div class="lb-rank">#{{ me.rank }}</div>
+        <div>
+            <b>Your rank</b>
+            <p>{{ me.points }} points · {{ me.videos }} videos · {{ me.quizzes }} quizzes passed · {{ me.levels }} levels</p>
+        </div>
+        <a class="big-btn" href="/learn/arcade">Play to climb 🎮</a>
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <h3>Top learners</h3>
+        {% if rows %}
+        <table class="lb-table">
+            <tr><th>Rank</th><th>Learner</th><th class="lb-hide">Videos</th><th class="lb-hide">Quizzes</th><th class="lb-hide">Levels</th><th>Points</th></tr>
+            {% for r in rows %}
+            <tr class="{{ 'me' if r.id == my_id else '' }}">
+                <td class="medal">{% if r.rank == 1 %}🥇{% elif r.rank == 2 %}🥈{% elif r.rank == 3 %}🥉{% else %}{{ r.rank }}{% endif %}</td>
+                <td>{{ r.name }}{% if r.id == my_id %} <small>(you)</small>{% endif %}</td>
+                <td class="lb-hide">{{ r.videos }}</td>
+                <td class="lb-hide">{{ r.quizzes }}</td>
+                <td class="lb-hide">{{ r.levels }}</td>
+                <td class="lb-points">{{ r.points }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% else %}
+            <p class="lb-empty">Nobody has points yet. Create a video, pass its quiz or clear a game level to be the first!</p>
+        {% endif %}
+    </div>
+
+</main>
+</body>
+</html>

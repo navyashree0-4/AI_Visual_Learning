@@ -1,0 +1,74 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EduVision - Learning Quiz</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/quiz.css') }}">
+</head>
+<body>
+
+<div class="quiz-container">
+
+    <a href="{{ url_for('dashboard') }}" class="back-link">
+        ← Back to Dashboard
+    </a>
+
+    <header>
+        <div class="badge">EDUVISION LEARNING</div>
+        <h1>Test Your Knowledge</h1>
+        <p>Answer the questions and check your understanding.</p>
+    </header>
+
+    {% if questions %}
+    <form method="POST">
+
+        {% for question in questions %}
+        <section class="question-card">
+            <h3>{{ loop.index }}. {{ question.question }}</h3>
+
+            <div class="options">
+                {% for option in question.options %}
+                <label class="option">
+                    <input
+                        type="radio"
+                        name="answer_{{ loop.index0 }}"
+                        value="{{ option }}"
+                        required>
+                    <span>{{ option }}</span>
+                </label>
+                {% endfor %}
+            </div>
+        </section>
+        {% endfor %}
+
+        <button type="submit" class="submit-btn">
+            Submit Quiz
+        </button>
+    </form>
+
+    {% else %}
+    <div class="empty-state">
+        <h2>No questions available</h2>
+        <p>Generate a quiz from your learning content to begin.</p>
+        <a href="{{ url_for('dashboard') }}" class="dashboard-btn">
+            Return to Dashboard
+        </a>
+    </div>
+    {% endif %}
+
+    {% if score is defined %}
+    <div class="result-card">
+        <h2>Quiz Result</h2>
+        <p>Your score: <strong>{{ score }}</strong></p>
+    </div>
+    {% endif %}
+
+</div>
+
+</body>
+</html>
+```

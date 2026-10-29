@@ -1,0 +1,159 @@
+
+{% extends "base.html" %}
+
+{% block title %}Take Aptitude Test | EduVision{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/aptitude.css') }}">
+{% endblock %}
+
+{% block content %}
+<main class="aptitude-page test-page">
+
+    <header class="test-header">
+        <div>
+            <span class="eyebrow">EDUVISION • APTITUDE ARENA</span>
+            <h1>{{ category_name | default('Quantitative Aptitude') }}</h1>
+            <p>Read each question carefully and choose the best answer.</p>
+        </div>
+
+        <div class="timer-card" id="timerCard">
+            <span>TIME REMAINING</span>
+            <strong id="countdown">30:00</strong>
+        </div>
+    </header>
+
+    <section class="test-layout">
+
+        <div class="question-card">
+
+            <div class="question-meta">
+                <span id="questionNumber">Question 1</span>
+                <span>{{ questions|length }} Questions</span>
+            </div>
+
+            <div class="progress-track">
+                <div class="progress-fill"
+                     id="questionProgress"
+                     style="width: 0%">
+                </div>
+            </div>
+
+            <form id="aptitudeTestForm"
+                  method="POST"
+                  action="{{ url_for('aptitude.aptitude_submit', test_id=test_id) }}">
+
+                {% for question in questions %}
+                <article class="question-panel"
+                         data-question-index="{{ loop.index0 }}"
+                         {% if not loop.first %}hidden{% endif %}>
+
+                    <h2>{{ loop.index }}. {{ question.question_text }}</h2>
+
+                    <div class="answer-options">
+                        {% for option in question.options %}
+                        <label class="answer-option">
+
+                            <input type="radio"
+                                   name="answer_{{ question.id }}"
+                                   value="{{ loop.index0 }}">
+
+                            <span class="option-letter">
+                                {{ ['A', 'B', 'C', 'D'][loop.index0] }}
+                            </span>
+
+                            <span>{{ option }}</span>
+
+                        </label>
+                        {% endfor %}
+                    </div>
+
+                </article>
+                {% endfor %}
+
+                <input type="hidden"
+                       name="time_taken"
+                       id="timeTaken"
+                       value="0">
+
+                <div class="question-actions">
+
+                    <button type="button"
+                            class="aptitude-button secondary-button"
+                            id="previousQuestion"
+                            disabled>
+                        ← Previous
+                    </button>
+
+                    <button type="button"
+                            class="aptitude-button"
+                            id="nextQuestion">
+                        Next Question →
+                    </button>
+
+                    <button type="submit"
+                            class="aptitude-button submit-button"
+                            id="submitTest"
+                            hidden>
+                        Submit Test ✓
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+
+        <aside class="question-sidebar">
+
+            <h3>Question Navigator</h3>
+            <p>Select a number to move to that question.</p>
+
+            <div class="question-grid" id="questionGrid">
+                {% for question in questions %}
+                <button type="button"
+                        class="question-number{% if loop.first %} active{% endif %}"
+                        data-go-to="{{ loop.index0 }}"
+                        aria-label="Go to question {{ loop.index }}">
+                    {{ loop.index }}
+                </button>
+                {% endfor %}
+            </div>
+
+            <div class="navigator-legend">
+                <span>
+                    <i class="legend-dot answered"></i>
+                    Answered
+                </span>
+
+                <span>
+                    <i class="legend-dot unanswered"></i>
+                    Not answered
+                </span>
+            </div>
+
+            <div class="test-tip">
+                <strong>💡 Tip</strong>
+                <p>
+                    Keep an eye on the timer. You can revisit questions
+                    before submitting.
+                </p>
+            </div>
+
+        </aside>
+
+    </section>
+
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script id="aptitude-config" type="application/json">
+{
+    "durationSeconds": {{ duration_seconds | default(1800, true) | int | tojson }},
+    "questionCount": {{ questions | length | tojson }}
+}
+</script>
+
+<script src="{{ url_for('static', filename='js/aptitude.js') }}" defer></script>
+{% endblock %}

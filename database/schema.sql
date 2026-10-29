@@ -1,149 +1,46 @@
-CREATE DATABASE IF NOT EXISTS ai_visual_learning;
+-- Run once in MySQL (database: ai_visual_learning).
+-- Safe to re-run: every statement checks before creating.
 
-USE ai_visual_learning;
-
-
--- =========================================================
--- USERS
--- =========================================================
-
-CREATE TABLE IF NOT EXISTS users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    email VARCHAR(150) NOT NULL UNIQUE,
-    password VARCHAR(255) NOT NULL,
-    credits INT DEFAULT 50,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-- Dates the user was active (feeds the learning streak).
+CREATE TABLE IF NOT EXISTS user_activity (
+    id            INT AUTO_INCREMENT PRIMARY KEY,
+    user_id       INT NOT NULL,
+    activity_date DATE NOT NULL,
+    activity_type VARCHAR(30) NOT NULL,
+    UNIQUE KEY one_per_day_type (user_id, activity_date, activity_type)
 );
 
-
--- =========================================================
--- GENERATED VIDEOS
--- =========================================================
-
+-- Only needed if you do NOT already have this table.
 CREATE TABLE IF NOT EXISTS generated_videos (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    prompt TEXT,
-    file_name VARCHAR(255),
-    difficulty VARCHAR(50),
-    video_style VARCHAR(100),
-    language VARCHAR(50),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-    FOREIGN KEY (user_id)
-        REFERENCES users(id)
-        ON DELETE CASCADE
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    user_id     INT NOT NULL,
+    title       VARCHAR(150),
+    description VARCHAR(255),
+    video_style VARCHAR(40),
+    language    VARCHAR(30),
+    filename    VARCHAR(255),
+    video_url   VARCHAR(500),
+    thumbnail   VARCHAR(500),
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX (user_id)
 );
 
+-- If generated_videos ALREADY exists with other columns, add the missing ones.
+-- Run only the lines for columns you do not have (MySQL will say "Duplicate column" if you do):
+-- ALTER TABLE generated_videos ADD COLUMN title VARCHAR(150);
+-- ALTER TABLE generated_videos ADD COLUMN description VARCHAR(255);
+-- ALTER TABLE generated_videos ADD COLUMN video_style VARCHAR(40);
+-- ALTER TABLE generated_videos ADD COLUMN language VARCHAR(30);
+-- ALTER TABLE generated_videos ADD COLUMN filename VARCHAR(255);
 
--- =========================================================
--- AI NOTES
--- =========================================================
-
-CREATE TABLE IF NOT EXISTS ai_notes (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    topic TEXT,
-    notes LONGTEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-    FOREIGN KEY (user_id)
-        REFERENCES users(id)
-        ON DELETE CASCADE
-);
-
-
--- =========================================================
--- KEY CONCEPTS
--- =========================================================
-
-CREATE TABLE IF NOT EXISTS key_concepts (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    topic VARCHAR(255) NOT NULL,
-    concepts LONGTEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-    FOREIGN KEY (user_id)
-        REFERENCES users(id)
-        ON DELETE CASCADE
-);
-
-
--- =========================================================
--- BOOKMARKS
--- =========================================================
-
-CREATE TABLE IF NOT EXISTS bookmarks (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    content LONGTEXT,
-    source_type VARCHAR(50),
-    source_id INT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-    FOREIGN KEY (user_id)
-        REFERENCES users(id)
-        ON DELETE CASCADE
-);
-
-
--- =========================================================
--- QUIZ RESULTS
--- =========================================================
-
-CREATE TABLE IF NOT EXISTS quiz_results (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    topic VARCHAR(255),
-    total_questions INT DEFAULT 0,
-    correct_answers INT DEFAULT 0,
-    score INT DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-    FOREIGN KEY (user_id)
-        REFERENCES users(id)
-        ON DELETE CASCADE
-);
-
-
--- =========================================================
--- GAME RESULTS
--- =========================================================
-
-CREATE TABLE IF NOT EXISTS game_results (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    game_name VARCHAR(100) NOT NULL,
-    score INT DEFAULT 0,
-    credits_earned INT DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-    FOREIGN KEY (user_id)
-        REFERENCES users(id)
-        ON DELETE CASCADE
-);
-
-
--- =========================================================
--- LEARNING PROGRESS
--- =========================================================
-
-CREATE TABLE IF NOT EXISTS learning_progress (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    topic VARCHAR(255),
-    videos_completed INT DEFAULT 0,
-    quizzes_completed INT DEFAULT 0,
-    games_completed INT DEFAULT 0,
-    total_score INT DEFAULT 0,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        ON UPDATE CURRENT_TIMESTAMP,
-
-    FOREIGN KEY (user_id)
-        REFERENCES users(id)
-        ON DELETE CASCADE
+-- Every finished game (used for daily limits and the profile page).
+CREATE TABLE IF NOT EXISTS game_plays (
+    id             INT AUTO_INCREMENT PRIMARY KEY,
+    user_id        INT NOT NULL,
+    game_key       VARCHAR(40) NOT NULL,
+    score_pct      INT NOT NULL,
+    seconds        INT NOT NULL,
+    credits_earned INT NOT NULL DEFAULT 0,
+    played_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX (user_id, played_at)
 );

@@ -1,0 +1,842 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Generate Video | EduVision</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "Segoe UI", Arial, sans-serif;
+            background: #f4f7ff;
+            color: #1e293b;
+            line-height: 1.6;
+        }
+
+        a {
+            text-decoration: none;
+            color: inherit;
+        }
+
+        button, input, textarea, select {
+            font: inherit;
+        }
+
+        button:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        /* Navigation bar */
+
+        .navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+            padding: 16px 5%;
+            background: #ffffff;
+            border-bottom: 1px solid #e2e8f0;
+            box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: 800;
+            color: #4f46e5;
+            white-space: nowrap;
+        }
+
+        .logo span {
+            color: #0ea5e9;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .nav-links a {
+            font-size: 14px;
+            font-weight: 600;
+            color: #475569;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: #4f46e5;
+        }
+
+        /* Main container */
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 35px 20px 55px;
+        }
+
+        .hero {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+
+        .hero-icon {
+            display: inline-grid;
+            place-items: center;
+            width: 65px;
+            height: 65px;
+            margin-bottom: 12px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, #e0e7ff, #cffafe);
+            font-size: 32px;
+        }
+
+        .hero h1 {
+            margin-bottom: 10px;
+            color: #1e1b4b;
+            font-size: clamp(25px, 4vw, 35px);
+            line-height: 1.3;
+        }
+
+        .hero h1 span {
+            color: #6366f1;
+        }
+
+        .hero p {
+            color: #64748b;
+            font-size: 15px;
+        }
+
+        /* Main form card */
+
+        .form-card {
+            padding: 30px;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 20px;
+            box-shadow: 0 12px 35px rgba(99, 102, 241, 0.09);
+        }
+
+        .card-heading {
+            margin-bottom: 24px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .card-heading h2 {
+            margin-bottom: 5px;
+            color: #1e1b4b;
+            font-size: 23px;
+        }
+
+        .card-heading p {
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        /* Flash messages */
+
+        .message {
+            margin-bottom: 16px;
+            padding: 12px 15px;
+            color: #166534;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 10px;
+            font-size: 14px;
+        }
+
+        .message.error {
+            color: #991b1b;
+            background: #fef2f2;
+            border-color: #fecaca;
+        }
+
+        /* Form elements */
+
+        .form-group {
+            margin-bottom: 23px;
+        }
+
+        .form-group > label:not(.upload-box) {
+            display: block;
+            margin-bottom: 9px;
+            color: #1e293b;
+            font-weight: 700;
+            font-size: 15px;
+        }
+
+        .optional {
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 400;
+        }
+
+        textarea,
+        select {
+            width: 100%;
+            padding: 13px 14px;
+            color: #1e293b;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        textarea {
+            min-height: 125px;
+            resize: vertical;
+        }
+
+        textarea::placeholder {
+            color: #94a3b8;
+        }
+
+        textarea:focus,
+        select:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+        }
+
+        .hint {
+            margin-top: 7px;
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        /* Separator */
+
+        .separator {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin: 27px 0;
+            color: #94a3b8;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        .separator::before,
+        .separator::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: #e2e8f0;
+        }
+
+        /* File upload */
+
+        .upload-title {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .upload-description {
+            margin-bottom: 15px;
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        .upload-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 9px;
+            padding: 27px 15px;
+            text-align: center;
+            background: #f8faff;
+            border: 2px dashed #a5b4fc;
+            border-radius: 14px;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+        }
+
+        .upload-box:hover,
+        .upload-box:focus-within {
+            background: #eef2ff;
+            border-color: #6366f1;
+        }
+
+        .upload-icon {
+            font-size: 37px;
+        }
+
+        .upload-box strong {
+            color: #4338ca;
+            overflow-wrap: anywhere;
+        }
+
+        .upload-box small {
+            color: #64748b;
+        }
+
+        #file {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            clip-path: inset(50%);
+        }
+
+        #file:focus-visible + .upload-focus-helper {
+            outline: 2px solid #6366f1;
+        }
+
+        .supported-formats {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 7px;
+            margin-top: 7px;
+        }
+
+        .supported-formats span {
+            padding: 4px 10px;
+            color: #475569;
+            background: #e2e8f0;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        /* Two-column settings */
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+        }
+
+        /* Generate button */
+
+        .generate-btn {
+            width: 100%;
+            padding: 15px 20px;
+            color: #ffffff;
+            background: linear-gradient(135deg, #6366f1, #0ea5e9);
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 7px 18px rgba(99, 102, 241, 0.22);
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .generate-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 23px rgba(99, 102, 241, 0.3);
+        }
+
+        .credit-note {
+            margin-top: 12px;
+            text-align: center;
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        /* Processing indicator */
+
+        .loading-area {
+            display: none;
+            margin-top: 20px;
+            padding: 20px;
+            text-align: center;
+            background: #eef2ff;
+            border-radius: 12px;
+        }
+
+        .loading-area.show {
+            display: block;
+        }
+
+        .spinner {
+            width: 38px;
+            height: 38px;
+            margin: 0 auto 12px;
+            border: 4px solid #c7d2fe;
+            border-top-color: #4f46e5;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        .loading-area p {
+            color: #4338ca;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Generated video */
+
+        .result-card {
+            margin-top: 28px;
+            padding: 22px;
+            background: #f8fafc;
+            border: 1px solid #c7d2fe;
+            border-radius: 15px;
+        }
+
+        .result-card h2 {
+            margin-bottom: 15px;
+            color: #1e1b4b;
+            font-size: 22px;
+        }
+
+        .result-card video {
+            display: block;
+            width: 100%;
+            max-height: 450px;
+            background: #0f172a;
+            border-radius: 12px;
+        }
+
+        .download-btn {
+            display: inline-block;
+            margin-top: 15px;
+            padding: 11px 20px;
+            color: #ffffff;
+            background: #4f46e5;
+            border-radius: 9px;
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        .download-btn:hover {
+            background: #4338ca;
+        }
+
+        /* Back link and footer */
+
+        .back-link {
+            display: block;
+            width: fit-content;
+            margin: 25px auto 0;
+            color: #4f46e5;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
+
+        footer {
+            padding: 20px;
+            text-align: center;
+            color: #64748b;
+            background: #ffffff;
+            border-top: 1px solid #e2e8f0;
+            font-size: 13px;
+        }
+
+        /* Mobile responsive design */
+
+        @media (max-width: 600px) {
+            .navbar {
+                flex-direction: column;
+                padding: 14px 16px;
+            }
+
+            .nav-links {
+                justify-content: center;
+                flex-wrap: wrap;
+                gap: 14px;
+            }
+
+            .nav-links a {
+                font-size: 12px;
+            }
+
+            .container {
+                padding: 25px 13px 40px;
+            }
+
+            .form-card {
+                padding: 20px 16px;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+                gap: 0;
+            }
+
+            .hero p {
+                font-size: 14px;
+            }
+
+            .upload-box {
+                padding: 22px 10px;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Navigation -->
+    <header class="navbar">
+
+        <a href="{{ url_for('dashboard') }}" class="logo">
+            🎓 Edu<span>Vision</span>
+        </a>
+
+        <nav class="nav-links">
+            <a href="{{ url_for('dashboard') }}">🏠 Dashboard</a>
+            <a href="{{ url_for('videos') }}">🎬 My Videos</a>
+            <a href="{{ url_for('logout') }}">Logout ↗</a>
+        </nav>
+
+    </header>
+
+    <!-- Main content -->
+    <main class="container">
+
+        <!-- Hero section -->
+        <section class="hero">
+
+            <div class="hero-icon">✨</div>
+
+            <h1>
+                Create Your <span>Educational Video</span>
+            </h1>
+
+            <p>
+                Transform your study materials into visual learning experiences.
+                <br>
+                Enter a topic or upload your learning material to get started.
+            </p>
+
+        </section>
+
+        <!-- Video generation form -->
+        <section class="form-card">
+
+            <div class="card-heading">
+
+                <h2>🎬 Video Generator</h2>
+
+                <p>
+                    Welcome, {{ user_name|default('Student', true) }}!
+                    Customize your video and start learning visually.
+                </p>
+
+            </div>
+
+            <!-- Flask flash messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% for category, message in messages %}
+                    <div
+                        class="message {% if category == 'error' %}error{% endif %}"
+                        role="status"
+                    >
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endwith %}
+
+            <form
+                id="videoForm"
+                action="{{ url_for('generate_video') }}"
+                method="POST"
+                enctype="multipart/form-data"
+            >
+
+                <!-- Topic -->
+                <div class="form-group">
+
+                    <label for="topic">
+                        📝 Enter Your Topic or Prompt
+                        <span class="optional">
+                            (Optional if uploading a file)
+                        </span>
+                    </label>
+
+                    <textarea
+                        id="topic"
+                        name="topic"
+                        placeholder="Example: Explain the seven layers of the OSI model with simple examples."
+                    ></textarea>
+
+                    <p class="hint">
+                        Describe the subject or concept you want the AI to explain.
+                    </p>
+
+                </div>
+
+                <div class="separator">OR UPLOAD A FILE</div>
+
+                <!-- File upload -->
+                <div class="form-group">
+
+                    <label for="file" class="upload-title">
+                        📂 Upload Your Learning Material
+                    </label>
+
+                    <p class="upload-description">
+                        Upload a PDF, image, video, or text document.
+                    </p>
+
+                    <label class="upload-box" for="file">
+
+                        <span class="upload-icon">☁️</span>
+
+                        <strong id="fileName">
+                            Click here to choose a file
+                        </strong>
+
+                        <small>Select a file from your device</small>
+
+                        <div class="supported-formats">
+                            <span>PDF</span>
+                            <span>PNG</span>
+                            <span>JPG</span>
+                            <span>JPEG</span>
+                            <span>MP4</span>
+                            <span>MOV</span>
+                            <span>AVI</span>
+                            <span>TXT</span>
+                        </div>
+
+                    </label>
+
+                    <input
+                        type="file"
+                        id="file"
+                        name="file"
+                        accept=".pdf,.png,.jpg,.jpeg,.mp4,.mov,.avi,.txt"
+                        aria-describedby="fileHint"
+                    >
+
+                    <p class="hint" id="fileHint">
+                        You can enter a prompt, upload a file, or provide both.
+                        Maximum file size depends on your Flask configuration.
+                    </p>
+
+                </div>
+
+                <!-- Video style and language -->
+                <div class="form-row">
+
+                    <div class="form-group">
+
+                        <label for="video_style">
+                            🎨 Video Style
+                        </label>
+
+                        <select id="video_style" name="video_style">
+
+                            <option value="Educational">
+                                Educational
+                            </option>
+
+                            <option value="Animated">
+                                Animated
+                            </option>
+
+                            <option value="Simple Explanation">
+                                Simple Explanation
+                            </option>
+
+                            <option value="Storytelling">
+                                Storytelling
+                            </option>
+
+                        </select>
+
+                    </div>
+
+                    <div class="form-group">
+
+                        <label for="language">
+                            🗣️ Narration Language
+                        </label>
+
+                        <select id="language" name="language">
+
+                            <option value="English">English</option>
+                            <option value="Kannada">Kannada</option>
+                            <option value="Hindi">Hindi</option>
+
+                        </select>
+
+                    </div>
+
+                </div>
+
+                <!-- Explanation level -->
+                <div class="form-group">
+
+                    <label for="difficulty">
+                        📚 Explanation Level
+                    </label>
+
+                    <select id="difficulty" name="difficulty">
+
+                        <option value="Beginner">
+                            Beginner — Very simple
+                        </option>
+
+                        <option value="Intermediate">
+                            Intermediate — School level
+                        </option>
+
+                        <option value="Advanced">
+                            Advanced — College level
+                        </option>
+
+                    </select>
+
+                </div>
+
+                <!-- Submit -->
+                <button
+                    type="submit"
+                    class="generate-btn"
+                    id="generateBtn"
+                >
+                    ✨ Generate Educational Video →
+                </button>
+
+                <p class="credit-note">
+                    🪙 Video generation uses credits according to your application rules.
+                </p>
+
+                <!-- Processing message -->
+                <div
+                    class="loading-area"
+                    id="loadingArea"
+                    role="status"
+                    aria-live="polite"
+                >
+                    <div class="spinner"></div>
+
+                    <p>
+                        Processing your learning material...
+                        Please wait while your video is generated.
+                    </p>
+                </div>
+
+            </form>
+
+            <!-- Generated video preview -->
+            {% if video_url %}
+
+                <section class="result-card">
+
+                    <h2>🎉 Your Educational Video Is Ready!</h2>
+
+                    <video controls preload="metadata">
+                        <source
+                            src="{{ video_url }}"
+                            type="video/mp4"
+                        >
+
+                        Your browser does not support video playback.
+                    </video>
+
+                    <a
+                        class="download-btn"
+                        href="{{ video_url }}"
+                        download
+                    >
+                        ⬇ Download Video
+                    </a>
+
+                </section>
+
+            {% endif %}
+
+            
+
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer>
+        © 2026 EduVision | Learn Visually, Learn Better 💜
+    </footer>
+
+    <!-- JavaScript -->
+    <script>
+        const form = document.getElementById("videoForm");
+        const topic = document.getElementById("topic");
+        const fileInput = document.getElementById("file");
+        const fileName = document.getElementById("fileName");
+        const generateBtn = document.getElementById("generateBtn");
+        const loadingArea = document.getElementById("loadingArea");
+
+        // Display the selected filename.
+        fileInput.addEventListener("change", function () {
+
+            if (this.files.length > 0) {
+                fileName.textContent = "📄 " + this.files[0].name;
+            } else {
+                fileName.textContent = "Click here to choose a file";
+            }
+
+        });
+
+        // Validate the form before submitting.
+        form.addEventListener("submit", function (event) {
+
+            const hasTopic = topic.value.trim() !== "";
+            const hasFile = fileInput.files.length > 0;
+
+            if (!hasTopic && !hasFile) {
+
+                event.preventDefault();
+
+                alert("Please enter a topic or upload a file.");
+
+                topic.focus();
+
+                return;
+            }
+
+            // Prevent accidental repeated submissions.
+            generateBtn.disabled = true;
+
+            generateBtn.textContent = "⏳ Processing...";
+
+            loadingArea.classList.add("show");
+
+        });
+
+    </script>
+
+</body>
+</html>
+

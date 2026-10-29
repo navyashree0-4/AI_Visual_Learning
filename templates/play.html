@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ game.name }} | EduVision</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <script>try{var t=localStorage.getItem('ev-theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+</head>
+<body>
+<header class="topbar">
+    <a href="/dashboard#games" class="text-link">← All games</a>
+    <div class="topbar-actions">
+        <a href="/profile" class="credit-pill" title="Open your profile">
+            <span>◈</span><strong id="creditBalance">{{ credits }}</strong><small>credits</small>
+        </a>
+        <a href="/profile" class="avatar" aria-label="Profile">{{ (user_name|default('S'))[:1]|upper }}</a>
+    </div>
+</header>
+
+<main class="play-wrap">
+    <section class="game-head">
+        <div class="game-head-icon">{{ game.icon }}</div>
+        <div>
+            <h1>{{ game.name }}</h1>
+            <p class="muted-text">Earn up to <strong>{{ game.reward }}</strong> credits{% if game.timed %}, against the clock{% endif %}.</p>
+        </div>
+        <div class="game-chips">
+            <span class="chip" id="timer" {% if not game.timed %}hidden{% endif %}>⏱</span>
+            <span class="chip" id="chip"></span>
+        </div>
+    </section>
+
+    <section class="intro-card" id="intro">
+        <p>{{ game.how }}</p>
+        <ul class="intro-list">
+            <li>Credits go straight to your balance. Making a video costs {{ video_cost }}.</li>
+            {% if game.once_a_day %}<li>You can earn credits from this challenge once per day.</li>{% endif %}
+            <li>You can earn up to {{ daily_cap }} credits a day from games.</li>
+        </ul>
+        <button type="button" class="primary-button" id="startBtn">Start game</button>
+    </section>
+
+    <section class="stage" id="stage" hidden></section>
+    <section class="result-card" id="result" hidden aria-live="polite"></section>
+</main>
+
+<script>window.GAME = {{ {'key': game_key, 'timed': game.timed, 'videoCost': video_cost}|tojson }};</script>
+<script src="{{ url_for('static', filename='js/games.js') }}"></script>
+</body>
+</html>
