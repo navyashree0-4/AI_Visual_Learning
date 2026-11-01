@@ -1,115 +1,164 @@
- 
-{% extends "base.html" %}
 
-{% block title %}Aptitude Test Results | EduVision{% endblock %}
+{% extends "index.html" %}
 
-{% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/aptitude.css') }}">
-{% endblock %}
+{% block title %}Aptitude Result | EduVision{% endblock %}
 
 {% block content %}
-<main class="aptitude-page result-page">
-    <section class="result-hero">
-        <div class="result-icon" aria-hidden="true">
-            {% if percentage >= 70 %}🏆{% elif percentage >= 40 %}🎯{% else %}📚{% endif %}
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/aptitude.css') }}">
+
+<section class="apt-shell">
+
+    <!-- RESULT HERO -->
+    <div class="apt-result-hero">
+
+        <span class="apt-eyebrow">APTITUDE ARENA • TEST COMPLETED</span>
+
+        <h1>Your result is ready!</h1>
+
+        <p>
+            {{ category_label }} ·
+            {{ attempt.question_count }} questions
+        </p>
+
+        <div class="apt-score-ring">
+
+            <strong>{{ attempt.percentage|round|int }}%</strong>
+
+            <span>Overall score</span>
+
         </div>
 
-        <span class="eyebrow">APTITUDE ARENA • TEST COMPLETED</span>
-        <h1>
-            {% if percentage >= 70 %}
-                Excellent work!
-            {% elif percentage >= 40 %}
-                Good effort!
-            {% else %}
-                Keep practising!
-            {% endif %}
-        </h1>
-        <p>Your test is complete. Review your answers and keep building your placement skills.</p>
+    </div>
 
-        <div class="score-circle">
-            <strong>{{ percentage }}%</strong>
-            <span>Overall Score</span>
+
+    <!-- RESULT STATISTICS -->
+    <div class="apt-stats-grid">
+
+        <div class="apt-stat">
+            <strong>
+                {{ attempt.score }}/{{ attempt.question_count }}
+            </strong>
+            <span>Correct answers</span>
         </div>
-    </section>
 
-    <section class="result-stats">
-        <article class="result-stat">
-            <span class="stat-icon">🏅</span>
-            <span class="stat-label">Total Score</span>
-            <strong>{{ score }} / {{ total_questions }}</strong>
-        </article>
+        <div class="apt-stat">
+            <strong>
+                {{ attempt.question_count - attempt.score }}
+            </strong>
+            <span>Incorrect / skipped</span>
+        </div>
 
-        <article class="result-stat">
-            <span class="stat-icon">✅</span>
-            <span class="stat-label">Correct Answers</span>
-            <strong>{{ correct_answers }}</strong>
-        </article>
+        <div class="apt-stat">
+            <strong>
+                {{ attempt.time_taken_seconds // 60 }}m
+                {{ attempt.time_taken_seconds % 60 }}s
+            </strong>
+            <span>Time taken</span>
+        </div>
 
-        <article class="result-stat">
-            <span class="stat-icon">❌</span>
-            <span class="stat-label">Incorrect Answers</span>
-            <strong>{{ incorrect_answers }}</strong>
-        </article>
+        <div class="apt-stat">
+            <strong>{{ progress.total_tests }}</strong>
+            <span>Tests completed</span>
+        </div>
 
-        <article class="result-stat">
-            <span class="stat-icon">⏱️</span>
-            <span class="stat-label">Time Taken</span>
-            <strong>{{ time_taken_display }}</strong>
-        </article>
-    </section>
+    </div>
 
-    <section class="review-section">
-        <div class="section-heading">
+
+    <!-- ANSWER REVIEW -->
+    <div class="apt-panel apt-review">
+
+        <div class="apt-review-heading">
+
             <div>
                 <h2>Answer review</h2>
-                <p>Understand your mistakes and learn the correct methods.</p>
+
+                <p class="apt-muted">
+                    Learn from each answer and understand the explanations.
+                </p>
             </div>
+
+            <a class="apt-secondary-link"
+               href="{{ url_for('aptitude.aptitude_progress') }}">
+                My progress →
+            </a>
+
         </div>
 
+
         {% for item in review %}
-        <article class="review-card">
-            <div class="review-question-heading">
-                <span class="review-number">Question {{ loop.index }}</span>
+
+        <article class="apt-review-item">
+
+            <div class="apt-review-title">
+
+                <span>Question {{ loop.index }}</span>
 
                 {% if item.is_correct %}
-                <span class="answer-status correct-status">Correct</span>
+
+                    <b class="apt-correct">✓ Correct</b>
+
                 {% else %}
-                <span class="answer-status incorrect-status">Incorrect</span>
+
+                    <b class="apt-wrong">✕ Review</b>
+
                 {% endif %}
+
             </div>
 
-            <h3>{{ item.question_text }}</h3>
 
-            <p class="your-answer">
+            <h3>{{ item.question }}</h3>
+
+
+            <p>
                 <strong>Your answer:</strong>
-                {{ item.selected_answer if item.selected_answer else 'Not answered' }}
+                {{ item.selected_text }}
             </p>
 
-            <p class="correct-answer">
+            <p>
                 <strong>Correct answer:</strong>
-                {{ item.correct_answer }}
+                {{ item.correct_text }}
             </p>
 
-            {% if item.explanation %}
-            <div class="explanation-box">
-                <strong>💡 Explanation</strong>
-                <p>{{ item.explanation }}</p>
+
+            <div class="apt-explanation">
+
+                <strong>Explanation</strong>
+
+                <p>
+                    {{ item.explanation or "No explanation is available for this question." }}
+                </p>
+
             </div>
-            {% endif %}
+
         </article>
+
         {% else %}
-        <p class="empty-review">No answer review is available for this test.</p>
+
+        <div class="apt-empty">
+            <p>No answer review is available.</p>
+        </div>
+
         {% endfor %}
-    </section>
 
-    <div class="result-actions">
-       <a href="{{ url_for('aptitude.aptitude_arena') }}" class="aptitude-button">
-    Take Another Test ↻
-</a>
-
-        <a href="{{ url_for('dashboard') }}" class="aptitude-button secondary-button">
-            Back to Dashboard
-        </a>
     </div>
-</main>
+
+
+    <!-- ACTION BUTTONS -->
+    <div class="apt-bottom-actions">
+
+        <a class="apt-primary-btn apt-anchor-btn"
+           href="{{ url_for('aptitude.aptitude_home') }}">
+            Take another test →
+        </a>
+
+        <a class="apt-secondary-link"
+           href="{{ url_for('aptitude.aptitude_progress') }}">
+            View all progress
+        </a>
+
+    </div>
+
+</section>
+
 {% endblock %}

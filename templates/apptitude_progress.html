@@ -1,0 +1,145 @@
+
+{% extends "index.html" %}
+
+{% block title %}Aptitude Progress | EduVision{% endblock %}
+
+{% block content %}
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/aptitude.css') }}">
+
+<section class="apt-shell">
+
+    <!-- PAGE HEADER -->
+    <div class="apt-hero">
+
+        <div>
+            <span class="apt-eyebrow">YOUR LEARNING JOURNEY</span>
+
+            <h1>Aptitude Progress</h1>
+
+            <p>
+                Review your previous tests, monitor your scores,
+                and keep improving.
+            </p>
+
+            <a class="apt-text-link"
+               href="{{ url_for('aptitude.aptitude_home') }}">
+                ← Back to Aptitude Arena
+            </a>
+        </div>
+
+        <div class="apt-hero-mark" aria-hidden="true">
+            ↗
+        </div>
+
+    </div>
+
+
+    <!-- TEST HISTORY -->
+    <div class="apt-panel apt-history">
+
+        <div class="apt-review-heading">
+
+            <div>
+                <h2>Test history</h2>
+
+                <p class="apt-muted">
+                    Your completed Aptitude Arena tests.
+                </p>
+            </div>
+
+            <span class="apt-history-count">
+                {{ attempts|length }} tests
+            </span>
+
+        </div>
+
+
+        {% if attempts %}
+
+        <div class="apt-table-wrap">
+
+            <table class="apt-table">
+
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Category</th>
+                        <th>Questions</th>
+                        <th>Score</th>
+                        <th>Percentage</th>
+                        <th>Result</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+
+                    {% for item in attempts %}
+
+                    <tr>
+
+                        <td>
+                            {{ item.submitted_at.strftime("%d %b %Y") if item.submitted_at else "—" }}
+                        </td>
+
+                        <td>
+                            {{ categories.get(item.category, item.category|title) }}
+                        </td>
+
+                        <td>
+                            {{ item.question_count }}
+                        </td>
+
+                        <td>
+                            {{ item.score }}/{{ item.question_count }}
+                        </td>
+
+                        <td>
+                            <strong>{{ item.percentage }}%</strong>
+                        </td>
+
+                        <td>
+                            <a class="apt-review-link"
+                               href="{{ url_for('aptitude.aptitude_result', test_id=item.id) }}">
+                                Review →
+                            </a>
+                        </td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+        {% else %}
+
+        <!-- EMPTY STATE -->
+        <div class="apt-empty">
+
+            <div class="apt-empty-icon">📊</div>
+
+            <h3>No completed tests yet</h3>
+
+            <p>
+                Your completed Aptitude Arena tests will appear here.
+                Start your first test to begin tracking your progress.
+            </p>
+
+            <a class="apt-primary-btn apt-anchor-btn"
+               href="{{ url_for('aptitude.aptitude_home') }}">
+                Start your first test →
+            </a>
+
+        </div>
+
+        {% endif %}
+
+    </div>
+
+</section>
+
+{% endblock %}

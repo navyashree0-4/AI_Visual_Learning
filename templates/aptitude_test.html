@@ -1,159 +1,218 @@
 
-{% extends "base.html" %}
+{% extends "index.html" %}
 
-{% block title %}Take Aptitude Test | EduVision{% endblock %}
-
-{% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/aptitude.css') }}">
-{% endblock %}
+{% block title %}Aptitude Test | EduVision{% endblock %}
 
 {% block content %}
-<main class="aptitude-page test-page">
 
-    <header class="test-header">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/aptitude.css') }}">
+<script defer src="{{ url_for('static', filename='js/aptitude.js') }}"></script>
+
+<section class="apt-shell apt-test-shell"
+         data-duration="{{ duration_seconds }}">
+
+    <!-- TEST HEADER -->
+    <div class="apt-test-top">
+
         <div>
-            <span class="eyebrow">EDUVISION • APTITUDE ARENA</span>
-            <h1>{{ category_name | default('Quantitative Aptitude') }}</h1>
-            <p>Read each question carefully and choose the best answer.</p>
+            <span class="apt-eyebrow">EDUVISION • APTITUDE ARENA</span>
+
+            <h1>{{ category_label }}</h1>
+
+            <p class="apt-muted">
+                {{ questions|length }} questions · 30-minute time limit
+            </p>
         </div>
 
-        <div class="timer-card" id="timerCard">
-            <span>TIME REMAINING</span>
-            <strong id="countdown">30:00</strong>
+        <div class="apt-timer" id="aptTimer" aria-live="polite">
+            --:--
         </div>
-    </header>
 
-    <section class="test-layout">
+    </div>
 
-        <div class="question-card">
 
-            <div class="question-meta">
-                <span id="questionNumber">Question 1</span>
-                <span>{{ questions|length }} Questions</span>
-            </div>
+    <!-- PROGRESS BAR -->
+    <div class="apt-progress-track">
+        <div id="aptProgressBar" class="apt-progress-fill"></div>
+    </div>
 
-            <div class="progress-track">
-                <div class="progress-fill"
-                     id="questionProgress"
-                     style="width: 0%">
+
+    <!-- TEST FORM -->
+    <form id="aptitudeTestForm"
+          method="POST"
+          action="{{ url_for('aptitude.aptitude_submit', test_id=test_id) }}">
+
+        <div class="apt-question-layout">
+
+            <!-- QUESTION NAVIGATION -->
+            <nav class="apt-question-nav" aria-label="Question navigation">
+
+                <strong>Questions</strong>
+
+                <div id="aptQuestionDots">
+
+                    {% for question in questions %}
+
+                    <button
+                        type="button"
+                        class="apt-dot {% if loop.first %}active{% endif %}"
+                        data-go="{{ loop.index0 }}"
+                        aria-label="Go to question {{ loop.index }}">
+                        {{ loop.index }}
+                    </button>
+
+                    {% endfor %}
+
                 </div>
-            </div>
 
-            <form id="aptitudeTestForm"
-                  method="POST"
-                  action="{{ url_for('aptitude.aptitude_submit', test_id=test_id) }}">
+                <div class="apt-legend">
+                    <small>
+                        <span class="apt-dot-legend answered"></span>
+                        Answered
+                    </small>
+
+                    <small>
+                        <span class="apt-dot-legend"></span>
+                        Not answered
+                    </small>
+                </div>
+
+            </nav>
+
+
+            <!-- QUESTION CARD -->
+            <div class="apt-question-card">
 
                 {% for question in questions %}
-                <article class="question-panel"
-                         data-question-index="{{ loop.index0 }}"
-                         {% if not loop.first %}hidden{% endif %}>
 
-                    <h2>{{ loop.index }}. {{ question.question_text }}</h2>
+                <article
+                    class="apt-question {% if not loop.first %}hidden{% endif %}"
+                    data-question="{{ loop.index0 }}">
 
-                    <div class="answer-options">
+                    <div class="apt-question-meta">
+
+                        <span>
+                            QUESTION {{ loop.index }} OF {{ questions|length }}
+                        </span>
+
+                        <span>
+                            {{ question.category|title }}
+                        </span>
+
+                    </div>
+
+
+                    <h2>{{ question.question }}</h2>
+
+
+                    <!-- ANSWER OPTIONS -->
+                    <div class="apt-options">
+
                         {% for option in question.options %}
-                        <label class="answer-option">
 
-                            <input type="radio"
-                                   name="answer_{{ question.id }}"
-                                   value="{{ loop.index0 }}">
+                        <label class="apt-option">
 
-                            <span class="option-letter">
-                                {{ ['A', 'B', 'C', 'D'][loop.index0] }}
+                            <input
+                                type="radio"
+                                name="answer_{{ question.id }}"
+                                value="{{ loop.index0 }}"
+                            >
+
+                            <span class="apt-option-letter">
+                                {{ "ABCD"[loop.index0] if loop.index0 < 4 else loop.index }}
                             </span>
 
-                            <span>{{ option }}</span>
+                            <span class="apt-option-text">
+                                {{ option }}
+                            </span>
 
                         </label>
+
                         {% endfor %}
+
                     </div>
 
                 </article>
+
                 {% endfor %}
 
-                <input type="hidden"
-                       name="time_taken"
-                       id="timeTaken"
-                       value="0">
 
-                <div class="question-actions">
+                <!-- QUESTION BUTTONS -->
+                <div class="apt-question-actions">
 
-                    <button type="button"
-                            class="aptitude-button secondary-button"
-                            id="previousQuestion"
-                            disabled>
+                    <button
+                        type="button"
+                        class="apt-secondary-btn"
+                        id="aptPrev">
                         ← Previous
                     </button>
 
-                    <button type="button"
-                            class="aptitude-button"
-                            id="nextQuestion">
-                        Next Question →
+                    <span id="aptQuestionCounter">
+                        Question 1 of {{ questions|length }}
+                    </span>
+
+                    <button
+                        type="button"
+                        class="apt-primary-btn apt-next-btn"
+                        id="aptNext">
+                        Next question →
                     </button>
 
-                    <button type="submit"
-                            class="aptitude-button submit-button"
-                            id="submitTest"
-                            hidden>
-                        Submit Test ✓
+                    <button
+                        type="button"
+                        class="apt-submit-btn hidden"
+                        id="aptSubmit">
+                        Submit test
                     </button>
 
                 </div>
 
-            </form>
+            </div>
 
         </div>
 
-        <aside class="question-sidebar">
+    </form>
 
-            <h3>Question Navigator</h3>
-            <p>Select a number to move to that question.</p>
+</section>
 
-            <div class="question-grid" id="questionGrid">
-                {% for question in questions %}
-                <button type="button"
-                        class="question-number{% if loop.first %} active{% endif %}"
-                        data-go-to="{{ loop.index0 }}"
-                        aria-label="Go to question {{ loop.index }}">
-                    {{ loop.index }}
-                </button>
-                {% endfor %}
-            </div>
 
-            <div class="navigator-legend">
-                <span>
-                    <i class="legend-dot answered"></i>
-                    Answered
-                </span>
+<!-- SUBMIT CONFIRMATION MODAL -->
+<div class="apt-modal hidden"
+     id="aptSubmitModal"
+     role="dialog"
+     aria-modal="true"
+     aria-labelledby="aptModalTitle">
 
-                <span>
-                    <i class="legend-dot unanswered"></i>
-                    Not answered
-                </span>
-            </div>
+    <div class="apt-modal-card">
 
-            <div class="test-tip">
-                <strong>💡 Tip</strong>
-                <p>
-                    Keep an eye on the timer. You can revisit questions
-                    before submitting.
-                </p>
-            </div>
+        <h2 id="aptModalTitle">
+            Submit your test?
+        </h2>
 
-        </aside>
+        <p id="aptModalMessage">
+            You cannot change your answers after submitting.
+        </p>
 
-    </section>
+        <div class="apt-modal-actions">
 
-</main>
-{% endblock %}
+            <button
+                type="button"
+                class="apt-secondary-btn"
+                id="aptCancelSubmit">
+                Continue test
+            </button>
 
-{% block extra_js %}
-<script id="aptitude-config" type="application/json">
-{
-    "durationSeconds": {{ duration_seconds | default(1800, true) | int | tojson }},
-    "questionCount": {{ questions | length | tojson }}
-}
-</script>
+            <button
+                type="button"
+                class="apt-primary-btn"
+                id="aptConfirmSubmit">
+                Submit now
+            </button>
 
-<script src="{{ url_for('static', filename='js/aptitude.js') }}" defer></script>
+        </div>
+
+    </div>
+
+</div>
+
 {% endblock %}

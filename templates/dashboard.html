@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
 <head>
@@ -34,40 +33,31 @@
             <a class="nav-link" href="#learning-workspace">▶ <span>Learning Workspace</span></a>
             <a class="nav-link" href="{{ url_for('learning_progress') }}">↗ <span>My Progress</span></a>
 
-             
+            <p class="nav-title">EXPLORE</p>
 
-<p class="nav-title">EXPLORE</p>
-
-<a class="nav-link" href="{{ url_for('games') }}">
-    <span aria-hidden="true">🎮</span>
-    <span>All Games</span>
-</a>
-
-
+            <a class="nav-link" href="{{ url_for('games') }}">
+                <span aria-hidden="true">🎮</span>
+                <span>All Games</span>
+            </a>
 <a class="nav-link aptitude-nav-link"
-   href="{{ url_for('aptitude.aptitude_arena') }}">
+   href="{{ url_for('aptitude.aptitude_home') }}">
     <span aria-hidden="true">🧠</span>
     <span>Aptitude Arena</span>
 </a>
+            <a class="nav-link" href="#game-hub">
+                <span aria-hidden="true">★</span>
+                <span>Game Challenges</span>
+            </a>
 
+            <a class="nav-link" href="#daily-challenge">
+                <span aria-hidden="true">🌟</span>
+                <span>Daily Challenge</span>
+            </a>
 
-<a class="nav-link" href="#game-hub">
-    <span aria-hidden="true">★</span>
-    <span>Game Challenges</span>
-</a>
-
-<a class="nav-link" href="#daily-challenge">
-    <span aria-hidden="true">🌟</span>
-    <span>Daily Challenge</span>
-</a>
-
-<a class="nav-link" href="#my-generated-videos">
-    <span aria-hidden="true">🎬</span>
-    <span>My Generated Videos</span>
-</a>
-
-
-
+            <a class="nav-link" href="#my-generated-videos">
+                <span aria-hidden="true">🎬</span>
+                <span>My Generated Videos</span>
+            </a>
         </nav>
 
         <div class="sidebar-bottom">

@@ -1,132 +1,619 @@
 
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aptitude Arena | EduVision</title>
 
-{% block title %}Aptitude Arena | EduVision{% endblock %}
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-{% block extra_css %}
-<link rel="stylesheet"
-      href="{{ url_for('static', filename='css/aptitude.css') }}">
-{% endblock %}
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            background: #f5f3ff;
+            color: #252044;
+            min-height: 100vh;
+        }
 
-{% block content %}
-<main class="aptitude-page">
+        .navbar {
+            height: 72px;
+            background: #ffffff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 7%;
+            box-shadow: 0 3px 15px rgba(40, 25, 90, 0.06);
+        }
 
-    <section class="aptitude-hero">
-        <div class="hero-content">
-            <span class="eyebrow">
-                EDUVISION • PLACEMENT PREPARATION
-            </span>
+        .logo {
+            font-size: 23px;
+            font-weight: 800;
+            color: #6c4ce6;
+        }
 
-            <h1>Welcome to <span>Aptitude Arena</span></h1>
+        .logo span {
+            color: #252044;
+        }
 
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 25px;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            color: #514b68;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .nav-links a:hover {
+            color: #7655ed;
+        }
+
+        .container {
+            max-width: 1150px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+
+        .hero {
+            background: linear-gradient(120deg, #6848df, #9875f5);
+            color: white;
+            border-radius: 22px;
+            padding: 48px;
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+
+        .hero h1 {
+            font-size: 38px;
+            margin-bottom: 15px;
+        }
+
+        .hero p {
+            font-size: 16px;
+            line-height: 1.7;
+            max-width: 650px;
+            color: #f0eaff;
+        }
+
+        .hero-tag {
+            display: inline-block;
+            background: rgba(255,255,255,0.18);
+            padding: 8px 14px;
+            border-radius: 30px;
+            font-size: 12px;
+            font-weight: 700;
+            margin-bottom: 18px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 18px;
+            margin-bottom: 35px;
+        }
+
+        .stat-card {
+            background: white;
+            border: 1px solid #eee9ff;
+            border-radius: 16px;
+            padding: 22px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 5px 18px rgba(40, 25, 90, 0.04);
+        }
+
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 13px;
+            background: #eee9ff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 23px;
+        }
+
+        .stat-card h3 {
+            font-size: 21px;
+            margin-bottom: 4px;
+        }
+
+        .stat-card p {
+            color: #817b96;
+            font-size: 13px;
+        }
+
+        .section-title {
+            font-size: 23px;
+            margin-bottom: 8px;
+        }
+
+        .section-description {
+            color: #827d96;
+            font-size: 14px;
+            margin-bottom: 22px;
+        }
+
+        .categories {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 18px;
+            margin-bottom: 35px;
+        }
+
+        .category-card {
+            background: white;
+            border: 2px solid transparent;
+            border-radius: 17px;
+            padding: 24px;
+            cursor: pointer;
+            transition: 0.2s ease;
+            box-shadow: 0 5px 18px rgba(40, 25, 90, 0.04);
+        }
+
+        .category-card:hover {
+            transform: translateY(-4px);
+            border-color: #b8a5ff;
+        }
+
+        .category-card.active {
+            border-color: #7655ed;
+            background: #faf8ff;
+        }
+
+        .category-icon {
+            width: 52px;
+            height: 52px;
+            border-radius: 14px;
+            background: #eee9ff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 25px;
+            margin-bottom: 17px;
+        }
+
+        .category-card h3 {
+            font-size: 17px;
+            margin-bottom: 9px;
+        }
+
+        .category-card p {
+            color: #827d96;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .category-card .choose {
+            display: inline-block;
+            margin-top: 16px;
+            color: #7655ed;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .setup-card {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 5px 18px rgba(40, 25, 90, 0.05);
+            margin-bottom: 30px;
+        }
+
+        .setup-card h2 {
+            font-size: 22px;
+            margin-bottom: 8px;
+        }
+
+        .setup-card > p {
+            color: #827d96;
+            font-size: 14px;
+            margin-bottom: 25px;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 700;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+
+        .count-options {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px;
+            margin-bottom: 25px;
+        }
+
+        .count-option {
+            border: 2px solid #eee9f8;
+            border-radius: 13px;
+            padding: 18px;
+            text-align: center;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .count-option:hover {
+            border-color: #b8a5ff;
+        }
+
+        .count-option.active {
+            border-color: #7655ed;
+            background: #f8f5ff;
+        }
+
+        .count-option input {
+            display: none;
+        }
+
+        .count-option strong {
+            display: block;
+            font-size: 23px;
+            color: #6c4ce6;
+            margin-bottom: 5px;
+        }
+
+        .count-option span {
+            color: #827d96;
+            font-size: 12px;
+        }
+
+        .test-info {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 14px;
+            margin-bottom: 25px;
+        }
+
+        .info-box {
+            background: #f8f6ff;
+            border-radius: 12px;
+            padding: 16px;
+            font-size: 13px;
+            color: #615b78;
+        }
+
+        .info-box strong {
+            display: block;
+            color: #30294d;
+            margin-bottom: 5px;
+        }
+
+        .start-btn {
+            width: 100%;
+            border: none;
+            border-radius: 12px;
+            padding: 16px;
+            background: linear-gradient(120deg, #704ee8, #9672f4);
+            color: white;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .start-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 7px 18px rgba(112, 78, 232, 0.25);
+        }
+
+        .start-btn:disabled {
+            opacity: 0.65;
+            cursor: not-allowed;
+        }
+
+        .instructions {
+            background: #fff;
+            border: 1px solid #eee9ff;
+            border-radius: 18px;
+            padding: 25px;
+            margin-bottom: 40px;
+        }
+
+        .instructions h3 {
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .instructions ul {
+            padding-left: 20px;
+            color: #716b86;
+            font-size: 14px;
+            line-height: 2;
+        }
+
+        .footer {
+            text-align: center;
+            color: #928ba5;
+            font-size: 12px;
+            padding: 25px;
+        }
+
+        @media (max-width: 750px) {
+            .navbar {
+                padding: 0 5%;
+            }
+
+            .nav-links {
+                gap: 12px;
+            }
+
+            .nav-links a {
+                font-size: 12px;
+            }
+
+            .hero {
+                padding: 30px 23px;
+            }
+
+            .hero h1 {
+                font-size: 29px;
+            }
+
+            .stats,
+            .categories {
+                grid-template-columns: 1fr;
+            }
+
+            .count-options {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 450px) {
+            .logo {
+                font-size: 18px;
+            }
+
+            .nav-links {
+                gap: 8px;
+            }
+
+            .nav-links a {
+                font-size: 11px;
+            }
+
+            .test-info {
+                grid-template-columns: 1fr;
+            }
+
+            .setup-card {
+                padding: 22px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <nav class="navbar">
+        <div class="logo">Edu<span>Vision</span></div>
+
+        <div class="nav-links">
+            <a href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('aptitude.aptitude_home') }}">Aptitude</a>
+            <a href="{{ url_for('aptitude.aptitude_progress') }}">My Progress</a>
+        </div>
+    </nav>
+
+    <main class="container">
+
+        <section class="hero">
+            <div class="hero-tag">EDUVISION PLACEMENT PREPARATION</div>
+            <h1>Aptitude Arena</h1>
             <p>
-                Practice smarter, improve your speed, and prepare for
-                placement tests with timed aptitude challenges.
+                Improve your problem-solving skills and prepare for placement
+                examinations. Practice quantitative aptitude, logical reasoning,
+                and verbal ability with timed tests and detailed explanations.
             </p>
+        </section>
 
-            <p class="guest-notice">
-                🎯 No login required — start practicing anytime!
-            </p>
-        </div>
-
-        <div class="hero-icon" aria-hidden="true">🎯</div>
-    </section>
-
-    <section class="aptitude-section">
-        <div class="section-heading">
-            <div>
-                <h2>Choose your challenge</h2>
-                <p>Select your category and test length to get started.</p>
-            </div>
-        </div>
-
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <div class="aptitude-messages" role="alert">
-                    {% for category, message in messages %}
-                        <p class="message {{ category }}">{{ message }}</p>
-                    {% endfor %}
+        <section class="stats">
+            <div class="stat-card">
+                <div class="stat-icon">🧠</div>
+                <div>
+                    <h3>3</h3>
+                    <p>Practice Categories</p>
                 </div>
-            {% endif %}
-        {% endwith %}
+            </div>
 
-        <form
-            action="{{ url_for('aptitude.aptitude_start') }}"
-            method="POST"
-            class="setup-card"
-        >
-            <label for="category">Aptitude category</label>
+            <div class="stat-card">
+                <div class="stat-icon">⏱️</div>
+                <div>
+                    <h3>30 min</h3>
+                    <p>Test Duration</p>
+                </div>
+            </div>
 
-            <select id="category" name="category" required>
-                <option value="quantitative" selected>
-                    Quantitative Aptitude
-                </option>
-                <option value="logical" disabled>
-                    Logical Reasoning — Coming soon
-                </option>
-                <option value="verbal" disabled>
-                    Verbal Ability — Coming soon
-                </option>
-            </select>
+            <div class="stat-card">
+                <div class="stat-icon">📊</div>
+                <div>
+                    <h3>Progress</h3>
+                    <p>Track Your Performance</p>
+                </div>
+            </div>
+        </section>
 
-            <label>Number of questions</label>
+        <section>
+            <h2 class="section-title">Choose Your Category</h2>
+            <p class="section-description">
+                Select a subject to begin your aptitude practice.
+            </p>
 
-            <div class="question-options">
-                <label class="question-option">
-                    <input
-                        type="radio"
-                        name="question_count"
-                        value="10"
-                    >
-                    <span>
+            <div class="categories">
+
+                <div class="category-card active" data-category="quantitative">
+                    <div class="category-icon">🔢</div>
+                    <h3>Quantitative Aptitude</h3>
+                    <p>
+                        Practice percentages, profit and loss, time and work,
+                        number systems, and mathematical problems.
+                    </p>
+                    <span class="choose">Select Category →</span>
+                </div>
+
+                <div class="category-card" data-category="logical">
+                    <div class="category-icon">🧩</div>
+                    <h3>Logical Reasoning</h3>
+                    <p>
+                        Improve analytical thinking through puzzles,
+                        series, coding-decoding, and patterns.
+                    </p>
+                    <span class="choose">Select Category →</span>
+                </div>
+
+                <div class="category-card" data-category="verbal">
+                    <div class="category-icon">📖</div>
+                    <h3>Verbal Ability</h3>
+                    <p>
+                        Improve grammar, vocabulary, sentence correction,
+                        and reading comprehension.
+                    </p>
+                    <span class="choose">Select Category →</span>
+                </div>
+
+            </div>
+        </section>
+
+        <section class="setup-card">
+            <h2>Configure Your Test</h2>
+            <p>Choose the number of questions before starting.</p>
+
+            <form method="POST"
+                  action="{{ url_for('aptitude.aptitude_start') }}"
+                  id="aptitudeForm">
+
+                <input type="hidden"
+                       name="category"
+                       id="selectedCategory"
+                       value="quantitative">
+
+                {% if csrf_token is defined %}
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                {% endif %}
+
+                <label class="form-label">Number of Questions</label>
+
+                <div class="count-options">
+
+                    <label class="count-option">
+                        <input type="radio" name="question_count" value="10">
                         <strong>10</strong>
-                        <small>Quick practice</small>
-                    </span>
-                </label>
+                        <span>Quick Practice</span>
+                    </label>
 
-                <label class="question-option">
-                    <input
-                        type="radio"
-                        name="question_count"
-                        value="20"
-                    >
-                    <span>
+                    <label class="count-option">
+                        <input type="radio" name="question_count" value="20">
                         <strong>20</strong>
-                        <small>Skill builder</small>
-                    </span>
-                </label>
+                        <span>Standard Practice</span>
+                    </label>
 
-                <label class="question-option">
-                    <input
-                        type="radio"
-                        name="question_count"
-                        value="30"
-                        checked
-                    >
-                    <span>
+                    <label class="count-option active">
+                        <input type="radio"
+                               name="question_count"
+                               value="30"
+                               checked>
                         <strong>30</strong>
-                        <small>Full challenge</small>
-                    </span>
-                </label>
-            </div>
+                        <span>Full Test</span>
+                    </label>
 
-            <div class="test-info">
-                <span>⏱️ <strong>30 minutes</strong> per test</span>
-                <span>📊 Results saved for your attempt</span>
-            </div>
+                </div>
 
-            <button type="submit" class="aptitude-button">
-                Start Aptitude Test →
-            </button>
-        </form>
-    </section>
+                <div class="test-info">
+                    <div class="info-box">
+                        <strong>⏱️ Test Duration</strong>
+                        30 Minutes
+                    </div>
 
-</main>
-{% endblock %}
+                    <div class="info-box">
+                        <strong>📋 Test Type</strong>
+                        Multiple Choice Questions
+                    </div>
+                </div>
 
-{% block extra_js %}
-<script
-    src="{{ url_for('static', filename='js/aptitude.js') }}"
-    defer
-></script>
-{% endblock %}
+                <button type="submit" class="start-btn" id="startButton">
+                    Start Aptitude Test →
+                </button>
+
+            </form>
+        </section>
+
+        <section class="instructions">
+            <h3>📌 Test Instructions</h3>
+            <ul>
+                <li>Choose your preferred aptitude category.</li>
+                <li>Select 10, 20, or 30 questions.</li>
+                <li>You will have 30 minutes to complete the test.</li>
+                <li>Read each question carefully before selecting an answer.</li>
+                <li>Submit your answers to view your score and explanations.</li>
+                <li>Your test performance will be saved in your progress.</li>
+            </ul>
+        </section>
+
+    </main>
+
+    <footer class="footer">
+        © 2026 EduVision | Aptitude Arena
+    </footer>
+
+    <script>
+        const categoryCards = document.querySelectorAll(".category-card");
+        const selectedCategory = document.getElementById("selectedCategory");
+
+        categoryCards.forEach(card => {
+            card.addEventListener("click", () => {
+                categoryCards.forEach(item => {
+                    item.classList.remove("active");
+                });
+
+                card.classList.add("active");
+
+                selectedCategory.value = card.dataset.category;
+            });
+        });
+
+        const countOptions = document.querySelectorAll(".count-option");
+
+        countOptions.forEach(option => {
+            option.addEventListener("click", () => {
+                countOptions.forEach(item => {
+                    item.classList.remove("active");
+                });
+
+                option.classList.add("active");
+                option.querySelector("input").checked = true;
+            });
+        });
+
+        document.getElementById("aptitudeForm").addEventListener("submit", function(event) {
+            const category = selectedCategory.value;
+            const count = document.querySelector(
+                'input[name="question_count"]:checked'
+            );
+
+            if (!category || !count) {
+                event.preventDefault();
+                alert("Please select a category and question count.");
+                return;
+            }
+
+            const button = document.getElementById("startButton");
+            button.disabled = true;
+            button.textContent = "Preparing Your Test...";
+        });
+    </script>
+
+</body>
+</html>

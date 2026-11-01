@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()  # Load .env before importing routes
+
 from datetime import date, datetime, timedelta
 import re
 import secrets
@@ -7,6 +10,7 @@ from functools import wraps
 from pathlib import Path
 import os
 import uuid
+
 try:
     from game_data import GAMES as DATA_GAMES, build_payload as data_build_payload
 except ImportError:
@@ -14,27 +18,27 @@ except ImportError:
 
     def data_build_payload(game_key, game):
         return dict(game or {}, key=game_key, game_id=game_key)
-from dotenv import load_dotenv
 from flask import (
     Flask, abort, flash, jsonify, redirect, render_template,
     render_template_string, request, send_from_directory, session, url_for,
 )
 import mysql.connector
 from mysql.connector import Error
+from werkzeug.routing import BuildError
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-from routes.aptitude_backend import aptitude_bp     
 
-from learning import learning_bp
+try:
+    from learning import learning_bp
+except ImportError:
+    from routes.learning import learning_bp  # if learning.py lives in routes/
 from services.video_generator import (
     extract_text,
     generate_video as build_educational_video,
 )
 
-load_dotenv()
-
 app = Flask(__name__)
-app.register_blueprint(aptitude_bp)
+
 app.secret_key = os.getenv("FLASK_SECRET_KEY") or secrets.token_hex(32)
 if not os.getenv("FLASK_SECRET_KEY"):
     app.logger.warning("FLASK_SECRET_KEY is not set. Set it in .env for stable sessions.")
@@ -64,6 +68,19 @@ INITIAL_CREDITS = max(0, int(os.getenv("INITIAL_CREDITS", "50")))
 
 
 # ============================================================
+# TEMPLATE HELPERS
+# ============================================================
+@app.context_processor
+def inject_aptitude_link():
+    """Use `{{ aptitude_url }}` in templates for the Aptitude Arena link."""
+    try:
+        url = url_for("aptitude.aptitude_home")  # -> /aptitude/
+    except BuildError:
+        url = "/aptitude/"
+    return {"aptitude_url": url}
+
+
+# ============================================================
 # DATABASE HELPERS
 # ============================================================
 
@@ -77,6 +94,15 @@ def get_db_connection():
     except Error as exc:
         app.logger.error("Database connection failed: %s", exc)
     return None
+
+
+# Blueprints (e.g. aptitude_backend) use this instead of importing from app.py
+app.config["GET_DB_CONNECTION"] = get_db_connection
+
+from routes.aptitude_backend import aptitude_bp
+
+if aptitude_bp.name not in app.blueprints:
+    app.register_blueprint(aptitude_bp)
 
 
 def login_required(view):
@@ -469,7 +495,7 @@ def eduvision_game(game_key):
         payload=payload,
         game_title=game["name"],
         game_type=game["mode"],
-        credits=session.get("credits", 0),
+        credits=get_user_credits(session["user_id"]),
         daily_cap=DAILY_CREDIT_CAP,
         video_cost=VIDEO_COST,
     )
@@ -596,8 +622,8 @@ def send_otp_email(email, otp, purpose):
 
 def otp_page(title, action, message, include_password=False, include_email=False):
     password_fields = """
-      <label>New password</label><input type="password" name="new_password" minlength="6" required>
-      <label>Confirm new password</label><input type="password" name="confirm_password" minlength="6" required>
+      <label>New password</label><input type="password" name="new_password" minlength="8" required>
+      <label>Confirm new password</label><input type="password" name="confirm_password" minlength="8" required>
     """ if include_password else ""
     email_field = '<label>Email address</label><input type="email" name="email" required>' if include_email else ""
     return render_template_string("""
@@ -621,37 +647,84 @@ def otp_page(title, action, message, include_password=False, include_email=False
 
 
 def _verify_otp(table_name, email, otp):
-    # table_name is an internal constant, never supplied by the request.
+    # Only internal table names are allowed.
+    allowed_tables = {
+        "registration_otp_pending",
+        "login_otp_pending",
+        "password_reset_pending",
+    }
+
+    if table_name not in allowed_tables:
+        app.logger.error("Invalid OTP table name.")
+        return False, "Unable to verify the code."
+
     connection = get_db_connection()
     if connection is None:
         return False, "Database connection error."
+
     cursor = None
+
     try:
         cursor = connection.cursor(dictionary=True)
-        cursor.execute(f"SELECT otp_hash, expires_at, attempts FROM {table_name} WHERE email=%s", (email,))
+
+        cursor.execute(
+            f"""
+            SELECT otp_hash, expires_at, attempts
+            FROM {table_name}
+            WHERE email = %s
+            FOR UPDATE
+            """,
+            (email,),
+        )
+
         row = cursor.fetchone()
+
         if not row:
+            connection.rollback()
             return False, "No verification request was found. Request a new code."
+
         if int(row.get("attempts") or 0) >= OTP_MAX_ATTEMPTS:
-            cursor.execute(f"DELETE FROM {table_name} WHERE email=%s", (email,))
+            cursor.execute(
+                f"DELETE FROM {table_name} WHERE email = %s",
+                (email,),
+            )
             connection.commit()
             return False, "Too many attempts. Request a new code."
+
         expiry = row["expires_at"]
+
         if expiry is None or expiry < datetime.now():
-            cursor.execute(f"DELETE FROM {table_name} WHERE email=%s", (email,))
+            cursor.execute(
+                f"DELETE FROM {table_name} WHERE email = %s",
+                (email,),
+            )
             connection.commit()
             return False, "The code expired. Request a new one."
+
         if not check_password_hash(row["otp_hash"], otp):
-            cursor.execute(f"UPDATE {table_name} SET attempts=attempts+1 WHERE email=%s", (email,))
+            cursor.execute(
+                f"""
+                UPDATE {table_name}
+                SET attempts = attempts + 1
+                WHERE email = %s
+                """,
+                (email,),
+            )
             connection.commit()
             return False, "Incorrect verification code. Please try again."
+
+        connection.commit()
         return True, "Verified."
+
     except Error:
+        connection.rollback()
         app.logger.exception("OTP verification database error")
         return False, "Unable to verify the code. Please try again."
+
     finally:
-        if cursor:
+        if cursor is not None:
             cursor.close()
+
         connection.close()
 
 
@@ -741,7 +814,6 @@ def verify_otp():
         return redirect(url_for("register"))
 
     if request.method == "GET":
-        # FIX: use the real template (it needs `email`).
         return render_template("verify_otp.html", email=email)
 
     otp = request.form.get("otp", "").strip()
@@ -796,7 +868,6 @@ def verify_otp():
         connection.close()
 
 
-# FIX: this route was missing, but verify_otp.html calls url_for('resend_otp').
 @app.route("/resend-otp", methods=["POST"])
 def resend_otp():
     email = session.get("registration_otp_email", "")
@@ -854,10 +925,24 @@ def resend_otp():
     return redirect(url_for("verify_otp"))
 
 
+def _safe_next(target):
+    """Only allow local paths as post-login destinations."""
+    target = target or ""
+    if target.startswith("/") and not target.startswith("//"):
+        return target
+    return ""
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "GET":
-        return render_template("login.html")
+        # Remember where the user wanted to go, even if the login form
+        # does not send ?next=... back to the server.
+        next_url = _safe_next(request.args.get("next"))
+        if next_url:
+            session["login_next_hint"] = next_url
+        return render_template("login.html", next_url=next_url)
+
     email = request.form.get("email", "").strip().lower()
     password = request.form.get("password", "")
     if not email or not password:
@@ -883,11 +968,18 @@ def login():
         )
         connection.commit()
         send_otp_email(email, otp, "login")
+
+        # Read the destination BEFORE clearing the session, then restore it.
+        target = _safe_next(
+            request.args.get("next")
+            or request.form.get("next")
+            or session.get("login_next_hint")
+        )
         session.clear()
         session["login_otp_email"] = email
-        target = request.args.get("next", "")
-        if target.startswith("/") and not target.startswith("//"):
+        if target:
             session["login_next"] = target
+
         flash("A login verification code has been sent to your email.", "success")
         return redirect(url_for("verify_login_otp"))
     except (Error, RuntimeError, OSError, smtplib.SMTPException):
@@ -1000,7 +1092,7 @@ def verify_login_otp():
         connection.commit()
 
         # Preserve the intended destination before clearing the session.
-        target = session.get("login_next", "")
+        target = _safe_next(session.get("login_next", ""))
 
         session.clear()
         session["user_id"] = user["id"]
@@ -1008,9 +1100,18 @@ def verify_login_otp():
         session["user_email"] = user["email"]
         session["credits"] = int(user["credits"] or 0)
 
+        # Aliases so other modules written with different key names still
+        # recognise the logged-in user.
+        session["logged_in"] = True
+        session["id"] = user["id"]
+        session["name"] = user["name"]
+        session["user"] = user["name"]
+        session["username"] = user["name"]
+        session["email"] = user["email"]
+
         log_activity(user["id"], "login")
 
-        if target.startswith("/") and not target.startswith("//"):
+        if target:
             return redirect(target)
 
         return redirect(url_for("dashboard"))
@@ -1279,6 +1380,18 @@ def dashboard():
             latest_video_exists = True
             break
 
+    # Cards for the "My Generated Videos" section. The template needs
+    # `filename` and `video_style`, so the Watch button works.
+    generated_videos = [
+        {
+            "title": video["title"],
+            "video_style": video["style"],
+            "language": video["language"],
+            "filename": Path(video["filename"] or "").name,
+        }
+        for video in data["videos"][:12]
+    ]
+
     recent_videos = [
         {
             "prompt": video["title"],
@@ -1294,6 +1407,7 @@ def dashboard():
         user_email=session.get("user_email", ""),
         credits=data["credits"],
         videos=data["videos"],
+        generated_videos=generated_videos,
         recent_videos=recent_videos,
         latest_video=latest_video,
         latest_video_topic=latest_video_topic,
@@ -1807,7 +1921,7 @@ def complete_game_level():
     except (TypeError, ValueError):
         return jsonify({"success": False, "message": "Invalid level or score."}), 400
 
-    if game_key not in GAMES or level < 1:
+    if game_key not in GAMES or level < 1 or level > MAX_GAME_LEVEL:
         return jsonify({"success": False, "message": "Invalid game or level."}), 400
 
     connection = get_db_connection()
@@ -1906,12 +2020,25 @@ def page_not_found(error):
 
 @app.errorhandler(500)
 def internal_server_error(error):
-    app.logger.error("HTTP 500 error: %s", error)
-    return (
-        "EduVision encountered an error. "
-        "Check the VS Code terminal for the traceback.",
-        500,
+    import traceback
+    from markupsafe import escape
+
+    original = getattr(error, "original_exception", None) or error
+    details = "".join(
+        traceback.format_exception(type(original), original, original.__traceback__)
     )
+    app.logger.error("HTTP 500 error:\n%s", details)
+
+    # Show the real error in the browser when developing (debug mode or localhost).
+    is_local = request.remote_addr in ("127.0.0.1", "::1")
+    if os.getenv("FLASK_DEBUG", "0") == "1" or is_local:
+        return (
+            "<h2>EduVision error (development view)</h2>"
+            f"<p>URL: {escape(request.path)}</p>"
+            f"<pre style='white-space:pre-wrap;font-size:14px'>{escape(details)}</pre>",
+            500,
+        )
+    return "EduVision encountered an error. Please try again later.", 500
 
 
 # ============================================================
@@ -1923,6 +2050,8 @@ def initialize_database():
 
     Existing tables/data are preserved. CREATE TABLE IF NOT EXISTS does not
     alter old schemas, so existing tables must already match these columns.
+    (The aptitude_attempts table is also upgraded automatically by
+    routes/aptitude_backend.py if an older version exists.)
     """
     connection = None
     cursor = None
@@ -2035,11 +2164,14 @@ def initialize_database():
         connection.close()
 
 
-# Run schema checks for both `python app.py` and `flask run`.
-initialize_database()
+# ============================================================
+# APPLICATION STARTUP
+# ============================================================
 
 if __name__ == "__main__":
-    print("=" * 60)
-    print("EDUVISION - AI-Based Multimodal Visual Learning")
-    print("=" * 60)
+    if initialize_database():
+        print("Database initialization successful.")
+    else:
+        print("WARNING: Database initialization failed.")
+
     app.run(debug=os.getenv("FLASK_DEBUG", "0") == "1")
