@@ -1,842 +1,370 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>Generate Video | EduVision</title>
-
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: "Segoe UI", Arial, sans-serif;
-            background: #f4f7ff;
-            color: #1e293b;
-            line-height: 1.6;
-        }
-
-        a {
-            text-decoration: none;
-            color: inherit;
-        }
-
-        button, input, textarea, select {
-            font: inherit;
-        }
-
-        button:disabled {
-            opacity: 0.7;
-            cursor: not-allowed;
-        }
-
-        /* Navigation bar */
-
-        .navbar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 20px;
-            padding: 16px 5%;
-            background: #ffffff;
-            border-bottom: 1px solid #e2e8f0;
-            box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
-        }
-
-        .logo {
-            font-size: 24px;
-            font-weight: 800;
-            color: #4f46e5;
-            white-space: nowrap;
-        }
-
-        .logo span {
-            color: #0ea5e9;
-        }
-
-        .nav-links {
-            display: flex;
-            align-items: center;
-            gap: 24px;
-        }
-
-        .nav-links a {
-            font-size: 14px;
-            font-weight: 600;
-            color: #475569;
-            transition: color 0.2s;
-        }
-
-        .nav-links a:hover {
-            color: #4f46e5;
-        }
-
-        /* Main container */
-
-        .container {
-            width: 100%;
-            max-width: 900px;
-            margin: 0 auto;
-            padding: 35px 20px 55px;
-        }
-
-        .hero {
-            text-align: center;
-            margin-bottom: 28px;
-        }
-
-        .hero-icon {
-            display: inline-grid;
-            place-items: center;
-            width: 65px;
-            height: 65px;
-            margin-bottom: 12px;
-            border-radius: 20px;
-            background: linear-gradient(135deg, #e0e7ff, #cffafe);
-            font-size: 32px;
-        }
-
-        .hero h1 {
-            margin-bottom: 10px;
-            color: #1e1b4b;
-            font-size: clamp(25px, 4vw, 35px);
-            line-height: 1.3;
-        }
-
-        .hero h1 span {
-            color: #6366f1;
-        }
-
-        .hero p {
-            color: #64748b;
-            font-size: 15px;
-        }
-
-        /* Main form card */
-
-        .form-card {
-            padding: 30px;
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 20px;
-            box-shadow: 0 12px 35px rgba(99, 102, 241, 0.09);
-        }
-
-        .card-heading {
-            margin-bottom: 24px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid #e2e8f0;
-        }
-
-        .card-heading h2 {
-            margin-bottom: 5px;
-            color: #1e1b4b;
-            font-size: 23px;
-        }
-
-        .card-heading p {
-            color: #64748b;
-            font-size: 14px;
-        }
-
-        /* Flash messages */
-
-        .message {
-            margin-bottom: 16px;
-            padding: 12px 15px;
-            color: #166534;
-            background: #f0fdf4;
-            border: 1px solid #bbf7d0;
-            border-radius: 10px;
-            font-size: 14px;
-        }
-
-        .message.error {
-            color: #991b1b;
-            background: #fef2f2;
-            border-color: #fecaca;
-        }
-
-        /* Form elements */
-
-        .form-group {
-            margin-bottom: 23px;
-        }
-
-        .form-group > label:not(.upload-box) {
-            display: block;
-            margin-bottom: 9px;
-            color: #1e293b;
-            font-weight: 700;
-            font-size: 15px;
-        }
-
-        .optional {
-            color: #64748b;
-            font-size: 12px;
-            font-weight: 400;
-        }
-
-        textarea,
-        select {
-            width: 100%;
-            padding: 13px 14px;
-            color: #1e293b;
-            background: #ffffff;
-            border: 1px solid #cbd5e1;
-            border-radius: 10px;
-            outline: none;
-            transition: border-color 0.2s, box-shadow 0.2s;
-        }
-
-        textarea {
-            min-height: 125px;
-            resize: vertical;
-        }
-
-        textarea::placeholder {
-            color: #94a3b8;
-        }
-
-        textarea:focus,
-        select:focus {
-            border-color: #6366f1;
-            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
-        }
-
-        .hint {
-            margin-top: 7px;
-            color: #64748b;
-            font-size: 12px;
-        }
-
-        /* Separator */
-
-        .separator {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            margin: 27px 0;
-            color: #94a3b8;
-            font-size: 12px;
-            font-weight: 700;
-            letter-spacing: 1px;
-        }
-
-        .separator::before,
-        .separator::after {
-            content: "";
-            flex: 1;
-            height: 1px;
-            background: #e2e8f0;
-        }
-
-        /* File upload */
-
-        .upload-title {
-            display: block;
-            margin-bottom: 5px;
-            font-size: 16px;
-            font-weight: 700;
-        }
-
-        .upload-description {
-            margin-bottom: 15px;
-            color: #64748b;
-            font-size: 14px;
-        }
-
-        .upload-box {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 9px;
-            padding: 27px 15px;
-            text-align: center;
-            background: #f8faff;
-            border: 2px dashed #a5b4fc;
-            border-radius: 14px;
-            cursor: pointer;
-            transition: background 0.2s, border-color 0.2s;
-        }
-
-        .upload-box:hover,
-        .upload-box:focus-within {
-            background: #eef2ff;
-            border-color: #6366f1;
-        }
-
-        .upload-icon {
-            font-size: 37px;
-        }
-
-        .upload-box strong {
-            color: #4338ca;
-            overflow-wrap: anywhere;
-        }
-
-        .upload-box small {
-            color: #64748b;
-        }
-
-        #file {
-            position: absolute;
-            width: 1px;
-            height: 1px;
-            overflow: hidden;
-            clip: rect(0, 0, 0, 0);
-            white-space: nowrap;
-            clip-path: inset(50%);
-        }
-
-        #file:focus-visible + .upload-focus-helper {
-            outline: 2px solid #6366f1;
-        }
-
-        .supported-formats {
-            display: flex;
-            justify-content: center;
-            flex-wrap: wrap;
-            gap: 7px;
-            margin-top: 7px;
-        }
-
-        .supported-formats span {
-            padding: 4px 10px;
-            color: #475569;
-            background: #e2e8f0;
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: 700;
-        }
-
-        /* Two-column settings */
-
-        .form-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 18px;
-        }
-
-        /* Generate button */
-
-        .generate-btn {
-            width: 100%;
-            padding: 15px 20px;
-            color: #ffffff;
-            background: linear-gradient(135deg, #6366f1, #0ea5e9);
-            border: none;
-            border-radius: 12px;
-            box-shadow: 0 7px 18px rgba(99, 102, 241, 0.22);
-            font-size: 16px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .generate-btn:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 23px rgba(99, 102, 241, 0.3);
-        }
-
-        .credit-note {
-            margin-top: 12px;
-            text-align: center;
-            color: #64748b;
-            font-size: 12px;
-        }
-
-        /* Processing indicator */
-
-        .loading-area {
-            display: none;
-            margin-top: 20px;
-            padding: 20px;
-            text-align: center;
-            background: #eef2ff;
-            border-radius: 12px;
-        }
-
-        .loading-area.show {
-            display: block;
-        }
-
-        .spinner {
-            width: 38px;
-            height: 38px;
-            margin: 0 auto 12px;
-            border: 4px solid #c7d2fe;
-            border-top-color: #4f46e5;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-
-        .loading-area p {
-            color: #4338ca;
-            font-weight: 600;
-            font-size: 14px;
-        }
-
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
-        }
-
-        /* Generated video */
-
-        .result-card {
-            margin-top: 28px;
-            padding: 22px;
-            background: #f8fafc;
-            border: 1px solid #c7d2fe;
-            border-radius: 15px;
-        }
-
-        .result-card h2 {
-            margin-bottom: 15px;
-            color: #1e1b4b;
-            font-size: 22px;
-        }
-
-        .result-card video {
-            display: block;
-            width: 100%;
-            max-height: 450px;
-            background: #0f172a;
-            border-radius: 12px;
-        }
-
-        .download-btn {
-            display: inline-block;
-            margin-top: 15px;
-            padding: 11px 20px;
-            color: #ffffff;
-            background: #4f46e5;
-            border-radius: 9px;
-            font-weight: 700;
-            font-size: 14px;
-        }
-
-        .download-btn:hover {
-            background: #4338ca;
-        }
-
-        /* Back link and footer */
-
-        .back-link {
-            display: block;
-            width: fit-content;
-            margin: 25px auto 0;
-            color: #4f46e5;
-            font-size: 14px;
-            font-weight: 700;
-        }
-
-        .back-link:hover {
-            text-decoration: underline;
-        }
-
-        footer {
-            padding: 20px;
-            text-align: center;
-            color: #64748b;
-            background: #ffffff;
-            border-top: 1px solid #e2e8f0;
-            font-size: 13px;
-        }
-
-        /* Mobile responsive design */
-
-        @media (max-width: 600px) {
-            .navbar {
-                flex-direction: column;
-                padding: 14px 16px;
-            }
-
-            .nav-links {
-                justify-content: center;
-                flex-wrap: wrap;
-                gap: 14px;
-            }
-
-            .nav-links a {
-                font-size: 12px;
-            }
-
-            .container {
-                padding: 25px 13px 40px;
-            }
-
-            .form-card {
-                padding: 20px 16px;
-            }
-
-            .form-row {
-                grid-template-columns: 1fr;
-                gap: 0;
-            }
-
-            .hero p {
-                font-size: 14px;
-            }
-
-            .upload-box {
-                padding: 22px 10px;
-            }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-            *,
-            *::before,
-            *::after {
-                animation-duration: 0.01ms !important;
-                transition-duration: 0.01ms !important;
-            }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Generate Video | EduVision</title>
+<style>
+:root{--paper:#f2f5fb;--card:#fff;--ink:#101a3a;--muted:#64748b;--line:#dde3f0;--indigo:#4338ca;--indigo-l:#eef2ff;--aqua:#0891b2;--rose:#e11d48;--green:#059669}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Segoe UI","Noto Sans Kannada","Nirmala UI",Arial,sans-serif;background:radial-gradient(circle at 10% 10%,#e0e7ff 0,transparent 35%),radial-gradient(circle at 90% 25%,#cffafe 0,transparent 35%),var(--paper);color:var(--ink);min-height:100vh;line-height:1.6}
+a{text-decoration:none}
+.navbar{position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;align-items:center;gap:20px;padding:15px 5%;background:rgba(255,255,255,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.logo{font-size:23px;font-weight:800;color:var(--indigo)}.logo span{color:var(--aqua)}
+.nav-links{display:flex;gap:22px;flex-wrap:wrap}
+.nav-links a{color:var(--muted);font-size:14px;font-weight:600}.nav-links a:hover{color:var(--indigo)}
+.wrap{max-width:900px;margin:0 auto;padding:36px 18px 70px}
+h1{font-size:clamp(25px,4vw,34px)}
+.sub{color:var(--muted);margin:6px 0 24px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:26px;margin-bottom:20px;box-shadow:0 10px 30px rgba(49,46,129,.07)}
+.card h2{font-size:17px;margin-bottom:4px}
+.hint{font-size:13px;color:var(--muted);margin-bottom:12px}
+textarea{width:100%;min-height:110px;padding:13px;border:1px solid var(--line);border-radius:12px;font:inherit;resize:vertical}
+textarea:focus,select:focus{outline:3px solid #c7d2fe;border-color:var(--indigo)}
+.uploads{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.drop{display:block;padding:18px;border:2px dashed #b6c0e0;border-radius:14px;background:#f8faff;cursor:pointer;text-align:center}
+.drop:hover,.drop:focus-within{border-color:var(--indigo);background:var(--indigo-l)}
+.drop strong{display:block;font-size:15px}
+.drop small{color:var(--muted)}
+.drop input{position:absolute;opacity:0;width:1px;height:1px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;justify-content:center}
+.chip{font-size:12px;background:#fff;border:1px solid var(--line);border-radius:99px;padding:3px 10px;overflow-wrap:anywhere}
+.chip.bad{border-color:#fecaca;color:#991b1b;background:#fef2f2}
+fieldset{border:0;margin-bottom:18px}
+legend{font-weight:700;font-size:14px;margin-bottom:8px}
+.seg{display:flex;flex-wrap:wrap;gap:8px}
+.seg label{cursor:pointer}
+.seg input{position:absolute;opacity:0;width:1px;height:1px}
+.seg span{display:block;padding:9px 16px;border:2px solid var(--line);border-radius:10px;font-size:14px;font-weight:600;background:#fff;color:#334155}
+.seg input:checked+span{border-color:var(--indigo);background:var(--indigo-l);color:var(--indigo)}
+.seg input:focus-visible+span{outline:3px solid #a5b4fc;outline-offset:2px}
+.seg label:hover span{border-color:#a5b4fc}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}
+select{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;font:inherit;background:#fff}
+.toggles{display:flex;flex-wrap:wrap;gap:20px;margin-top:6px}
+.toggles label{display:flex;gap:8px;align-items:center;font-size:14px;cursor:pointer}
+.go{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:14px 26px;border-radius:12px;background:var(--indigo);color:#fff;font-size:16px;font-weight:800;border:none;cursor:pointer}
+.btn:hover:not(:disabled){background:#3730a3}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.secondary{background:var(--indigo-l);color:var(--indigo);font-size:14px;padding:11px 18px}
+.cost{font-size:13px;color:var(--muted)}
+.msg{padding:12px 15px;margin-bottom:12px;border-radius:10px;font-size:14px;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534}
+.msg.error{background:#fef2f2;border-color:#fecaca;color:#991b1b}
+.msg.warning{background:#fffbeb;border-color:#fde68a;color:#92400e}
+.hidden{display:none}
+/* progress */
+.pbar{height:14px;background:#e5e9f5;border-radius:99px;overflow:hidden;margin:14px 0}
+.pbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--indigo),var(--aqua));transition:width .5s}
+.steps{list-style:none;display:grid;gap:6px;margin-top:12px}
+.steps li{font-size:14px;color:var(--muted);display:flex;gap:10px;align-items:center}
+.steps li::before{content:"○";font-weight:800}
+.steps li.active{color:var(--indigo);font-weight:700}
+.steps li.active::before{content:"◔"}
+.steps li.done{color:var(--green)}
+.steps li.done::before{content:"●"}
+.pmsg{font-weight:700}
+.errbox{border:1px solid #fecaca;background:#fef2f2;color:#991b1b;border-radius:12px;padding:16px;margin-top:12px}
+.errbox strong{display:block;margin-bottom:4px}
+/* result */
+video{width:100%;max-height:70vh;border-radius:14px;background:#000}
+.meta{display:flex;flex-wrap:wrap;gap:8px 18px;margin:12px 0;font-size:13px;color:var(--muted)}
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+.actions .btn{font-size:14px;padding:12px 20px}
+@media(max-width:600px){.card{padding:18px}.navbar{flex-direction:column;padding:12px}.nav-links{gap:14px;justify-content:center}}
+@media (prefers-reduced-motion:reduce){.pbar i{transition:none}}
+</style>
 </head>
-
 <body>
-
-    <!-- Navigation -->
-    <header class="navbar">
-
-        <a href="{{ url_for('dashboard') }}" class="logo">
-            🎓 Edu<span>Vision</span>
-        </a>
-
-        <nav class="nav-links">
-            <a href="{{ url_for('dashboard') }}">🏠 Dashboard</a>
-            <a href="{{ url_for('videos') }}">🎬 My Videos</a>
-            <a href="{{ url_for('logout') }}">Logout ↗</a>
-        </nav>
-
-    </header>
-
-    <!-- Main content -->
-    <main class="container">
-
-        <!-- Hero section -->
-        <section class="hero">
-
-            <div class="hero-icon">✨</div>
-
-            <h1>
-                Create Your <span>Educational Video</span>
-            </h1>
-
-            <p>
-                Transform your study materials into visual learning experiences.
-                <br>
-                Enter a topic or upload your learning material to get started.
-            </p>
-
-        </section>
-
-        <!-- Video generation form -->
-        <section class="form-card">
-
-            <div class="card-heading">
-
-                <h2>🎬 Video Generator</h2>
-
-                <p>
-                    Welcome, {{ user_name|default('Student', true) }}!
-                    Customize your video and start learning visually.
-                </p>
-
-            </div>
-
-            <!-- Flask flash messages -->
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% for category, message in messages %}
-                    <div
-                        class="message {% if category == 'error' %}error{% endif %}"
-                        role="status"
-                    >
-                        {{ message }}
-                    </div>
-                {% endfor %}
-            {% endwith %}
-
-            <form
-                id="videoForm"
-                action="{{ url_for('generate_video') }}"
-                method="POST"
-                enctype="multipart/form-data"
-            >
-
-                <!-- Topic -->
-                <div class="form-group">
-
-                    <label for="topic">
-                        📝 Enter Your Topic or Prompt
-                        <span class="optional">
-                            (Optional if uploading a file)
-                        </span>
-                    </label>
-
-                    <textarea
-                        id="topic"
-                        name="topic"
-                        placeholder="Example: Explain the seven layers of the OSI model with simple examples."
-                    ></textarea>
-
-                    <p class="hint">
-                        Describe the subject or concept you want the AI to explain.
-                    </p>
-
-                </div>
-
-                <div class="separator">OR UPLOAD A FILE</div>
-
-                <!-- File upload -->
-                <div class="form-group">
-
-                    <label for="file" class="upload-title">
-                        📂 Upload Your Learning Material
-                    </label>
-
-                    <p class="upload-description">
-                        Upload a PDF, image, video, or text document.
-                    </p>
-
-                    <label class="upload-box" for="file">
-
-                        <span class="upload-icon">☁️</span>
-
-                        <strong id="fileName">
-                            Click here to choose a file
-                        </strong>
-
-                        <small>Select a file from your device</small>
-
-                        <div class="supported-formats">
-                            <span>PDF</span>
-                            <span>PNG</span>
-                            <span>JPG</span>
-                            <span>JPEG</span>
-                            <span>MP4</span>
-                            <span>MOV</span>
-                            <span>AVI</span>
-                            <span>TXT</span>
-                        </div>
-
-                    </label>
-
-                    <input
-                        type="file"
-                        id="file"
-                        name="file"
-                        accept=".pdf,.png,.jpg,.jpeg,.mp4,.mov,.avi,.txt"
-                        aria-describedby="fileHint"
-                    >
-
-                    <p class="hint" id="fileHint">
-                        You can enter a prompt, upload a file, or provide both.
-                        Maximum file size depends on your Flask configuration.
-                    </p>
-
-                </div>
-
-                <!-- Video style and language -->
-                <div class="form-row">
-
-                    <div class="form-group">
-
-                        <label for="video_style">
-                            🎨 Video Style
-                        </label>
-
-                        <select id="video_style" name="video_style">
-
-                            <option value="Educational">
-                                Educational
-                            </option>
-
-                            <option value="Animated">
-                                Animated
-                            </option>
-
-                            <option value="Simple Explanation">
-                                Simple Explanation
-                            </option>
-
-                            <option value="Storytelling">
-                                Storytelling
-                            </option>
-
-                        </select>
-
-                    </div>
-
-                    <div class="form-group">
-
-                        <label for="language">
-                            🗣️ Narration Language
-                        </label>
-
-                        <select id="language" name="language">
-
-                            <option value="English">English</option>
-                            <option value="Kannada">Kannada</option>
-                            <option value="Hindi">Hindi</option>
-
-                        </select>
-
-                    </div>
-
-                </div>
-
-                <!-- Explanation level -->
-                <div class="form-group">
-
-                    <label for="difficulty">
-                        📚 Explanation Level
-                    </label>
-
-                    <select id="difficulty" name="difficulty">
-
-                        <option value="Beginner">
-                            Beginner — Very simple
-                        </option>
-
-                        <option value="Intermediate">
-                            Intermediate — School level
-                        </option>
-
-                        <option value="Advanced">
-                            Advanced — College level
-                        </option>
-
-                    </select>
-
-                </div>
-
-                <!-- Submit -->
-                <button
-                    type="submit"
-                    class="generate-btn"
-                    id="generateBtn"
-                >
-                    ✨ Generate Educational Video →
-                </button>
-
-                <p class="credit-note">
-                    🪙 Video generation uses credits according to your application rules.
-                </p>
-
-                <!-- Processing message -->
-                <div
-                    class="loading-area"
-                    id="loadingArea"
-                    role="status"
-                    aria-live="polite"
-                >
-                    <div class="spinner"></div>
-
-                    <p>
-                        Processing your learning material...
-                        Please wait while your video is generated.
-                    </p>
-                </div>
-
-            </form>
-
-            <!-- Generated video preview -->
-            {% if video_url %}
-
-                <section class="result-card">
-
-                    <h2>🎉 Your Educational Video Is Ready!</h2>
-
-                    <video controls preload="metadata">
-                        <source
-                            src="{{ video_url }}"
-                            type="video/mp4"
-                        >
-
-                        Your browser does not support video playback.
-                    </video>
-
-                    <a
-                        class="download-btn"
-                        href="{{ video_url }}"
-                        download
-                    >
-                        ⬇ Download Video
-                    </a>
-
-                </section>
-
-            {% endif %}
-
-            
-
-        </section>
-
-    </main>
-
-    <!-- Footer -->
-    <footer>
-        © 2026 EduVision | Learn Visually, Learn Better 💜
-    </footer>
-
-    <!-- JavaScript -->
-    <script>
-        const form = document.getElementById("videoForm");
-        const topic = document.getElementById("topic");
-        const fileInput = document.getElementById("file");
-        const fileName = document.getElementById("fileName");
-        const generateBtn = document.getElementById("generateBtn");
-        const loadingArea = document.getElementById("loadingArea");
-
-        // Display the selected filename.
-        fileInput.addEventListener("change", function () {
-
-            if (this.files.length > 0) {
-                fileName.textContent = "📄 " + this.files[0].name;
-            } else {
-                fileName.textContent = "Click here to choose a file";
-            }
-
-        });
-
-        // Validate the form before submitting.
-        form.addEventListener("submit", function (event) {
-
-            const hasTopic = topic.value.trim() !== "";
-            const hasFile = fileInput.files.length > 0;
-
-            if (!hasTopic && !hasFile) {
-
-                event.preventDefault();
-
-                alert("Please enter a topic or upload a file.");
-
-                topic.focus();
-
-                return;
-            }
-
-            // Prevent accidental repeated submissions.
-            generateBtn.disabled = true;
-
-            generateBtn.textContent = "⏳ Processing...";
-
-            loadingArea.classList.add("show");
-
-        });
-
-    </script>
-
+<header class="navbar">
+  <a href="{{ url_for('dashboard') }}" class="logo">🎓 Edu<span>Vision</span></a>
+  <nav class="nav-links">
+    <a href="{{ url_for('dashboard') }}">Dashboard</a>
+    <a href="{{ url_for('my_generated_videos') }}">My Videos</a>
+    <a href="{{ url_for('logout') }}">Logout</a>
+  </nav>
+</header>
+
+<main class="wrap">
+  <h1>✨ Generate a lesson video</h1>
+  <p class="sub">Type a topic, upload your notes or pictures, pick a style, and EduVision builds a narrated video with a quiz.</p>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="msg {{ category if category in ('error','warning') else '' }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <form id="gen-form" method="post" action="{{ url_for('generate_video') }}" enctype="multipart/form-data" novalidate>
+
+    <section class="card">
+      <h2>1. What should the video teach?</h2>
+      <p class="hint">Type a topic, or upload material below, or both.</p>
+      <textarea id="topic" name="topic" maxlength="1000" placeholder="Example: How photosynthesis works"></textarea>
+    </section>
+
+    <section class="card">
+      <h2>2. Upload material (optional)</h2>
+      <p class="hint">Up to 5 files, 10 MB each.</p>
+      <div class="uploads">
+        <label class="drop">
+          <input type="file" id="pdfs" name="files" accept=".pdf,application/pdf" multiple>
+          <strong>📄 Upload PDF documents</strong>
+          <small>Scanned PDFs are read with OCR</small>
+          <div class="chips" id="pdf-chips"></div>
+        </label>
+        <label class="drop">
+          <input type="file" id="imgs" name="files" accept=".jpg,.jpeg,.png,image/jpeg,image/png" multiple>
+          <strong>🖼️ Upload images</strong>
+          <small>JPG, JPEG or PNG. The first image is shown in the video</small>
+          <div class="chips" id="img-chips"></div>
+        </label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>3. Choose how it should look and sound</h2>
+      <p class="hint">&nbsp;</p>
+
+      <fieldset>
+        <legend>Difficulty</legend>
+        <div class="seg">
+          <label><input type="radio" name="difficulty" value="Beginner" checked><span>Beginner</span></label>
+          <label><input type="radio" name="difficulty" value="Intermediate"><span>Intermediate</span></label>
+          <label><input type="radio" name="difficulty" value="Advanced"><span>Advanced</span></label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Audience</legend>
+        <div class="seg">
+          <label><input type="radio" name="audience_level" value="Kids"><span>Kids</span></label>
+          <label><input type="radio" name="audience_level" value="School Students" checked><span>School</span></label>
+          <label><input type="radio" name="audience_level" value="College Students"><span>College</span></label>
+          <label><input type="radio" name="audience_level" value="Teachers"><span>Teachers</span></label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Video style</legend>
+        <div class="seg">
+          <label><input type="radio" name="video_style" value="Educational" checked><span>Educational</span></label>
+          <label><input type="radio" name="video_style" value="Animated"><span>Animated</span></label>
+          <label><input type="radio" name="video_style" value="Storytelling"><span>Storytelling</span></label>
+          <label><input type="radio" name="video_style" value="Simple Explanation"><span>Simple Explanation</span></label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Narration language</legend>
+        <div class="seg">
+          <label><input type="radio" name="language" value="English" checked><span>English</span></label>
+          <label><input type="radio" name="language" value="Kannada"><span>ಕನ್ನಡ Kannada</span></label>
+          <label><input type="radio" name="language" value="Hindi"><span>हिन्दी Hindi</span></label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Duration</legend>
+        <div class="seg">
+          <label><input type="radio" name="duration" value="Short"><span>Short · about 1 min</span></label>
+          <label><input type="radio" name="duration" value="Medium" checked><span>Medium · about 3 min</span></label>
+          <label><input type="radio" name="duration" value="Long"><span>Long · 5 to 6 min</span></label>
+        </div>
+      </fieldset>
+
+      <div class="grid2">
+        <div>
+          <legend style="font-weight:700;font-size:14px;margin-bottom:8px">Screen shape</legend>
+          <select name="aspect_ratio" aria-label="Screen shape">
+            <option value="16:9" selected>Landscape 16:9 (computer, TV)</option>
+            <option value="9:16">Portrait 9:16 (phone)</option>
+          </select>
+        </div>
+        <div>
+          <legend style="font-weight:700;font-size:14px;margin-bottom:8px">Extras</legend>
+          <div class="toggles">
+            <label><input type="checkbox" name="subtitles" checked> Subtitles</label>
+            <label><input type="checkbox" name="highlight_concepts" checked> Key terms</label>
+            <label><input type="checkbox" name="background_music"> Music</label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="go">
+        <button class="btn" id="go" type="submit">🎬 Generate Video</button>
+        <span class="cost">Costs {{ video_cost }} credits{% if credits is not none %} · You have <strong id="credits">{{ credits }}</strong>{% endif %}. Credits are refunded if generation fails.</span>
+      </div>
+    </section>
+  </form>
+
+  <!-- live progress -->
+  <section class="card hidden" id="progress-card" aria-live="polite">
+    <h2>Building your video</h2>
+    <div class="pmsg" id="pmsg">Starting…</div>
+    <div class="pbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="pbar"><i id="pfill"></i></div>
+    <ul class="steps" id="steps">
+      <li data-at="0">Reading your material</li>
+      <li data-at="12">Writing the lesson script</li>
+      <li data-at="30">Recording the voice and finding pictures</li>
+      <li data-at="50">Drawing and rendering scenes</li>
+      <li data-at="92">Putting the video together</li>
+    </ul>
+    <p class="hint" style="margin-top:12px">Keep this page open. Medium videos usually take a few minutes.</p>
+    <div class="errbox hidden" id="errbox" role="alert">
+      <strong>The video could not be generated</strong>
+      <span id="errtext"></span>
+      <div class="actions"><button class="btn secondary" type="button" id="again">Back to the form</button></div>
+    </div>
+  </section>
+
+  <!-- result -->
+  <section class="card {% if not video_url %}hidden{% endif %}" id="result-card">
+    <h2 id="r-title">{{ video_info.title if video_info else '' }}</h2>
+    <video id="r-video" controls preload="metadata" {% if video_url %}src="{{ video_url }}"{% endif %}></video>
+    <div class="meta" id="r-meta">
+      {% if video_info %}
+        <span>🗣️ {{ video_info.language }}</span><span>🎨 {{ video_info.style }}</span>
+        <span>📊 {{ video_info.difficulty }}</span><span>⏱️ {{ video_info.duration }}</span>
+      {% endif %}
+    </div>
+    <div class="actions">
+      <a class="btn" id="r-quiz" href="{{ quiz_url or '#' }}">📝 Take Quiz</a>
+      <a class="btn secondary" id="r-download" href="{{ download_url or '#' }}">⬇ Download</a>
+      <a class="btn secondary" href="{{ url_for('my_generated_videos') }}">My videos</a>
+      <button class="btn secondary" type="button" id="make-another">Make another</button>
+    </div>
+  </section>
+</main>
+
+<script>
+(function(){
+  var MAX_MB = 10, MAX_FILES = 5;
+  var form = document.getElementById('gen-form');
+  var go = document.getElementById('go');
+  var pcard = document.getElementById('progress-card');
+  var rcard = document.getElementById('result-card');
+  var pmsg = document.getElementById('pmsg'), pfill = document.getElementById('pfill'), pbar = document.getElementById('pbar');
+  var errbox = document.getElementById('errbox'), errtext = document.getElementById('errtext');
+  var steps = Array.prototype.slice.call(document.querySelectorAll('#steps li'));
+  var pdfs = document.getElementById('pdfs'), imgs = document.getElementById('imgs');
+  var timer = null, netFails = 0;
+
+  function chips(input, box){
+    box.textContent = '';
+    Array.prototype.forEach.call(input.files, function(f){
+      var c = document.createElement('span');
+      var tooBig = f.size > MAX_MB * 1024 * 1024;
+      c.className = 'chip' + (tooBig ? ' bad' : '');
+      c.textContent = f.name + (tooBig ? ' (over ' + MAX_MB + ' MB)' : '');
+      box.appendChild(c);
+    });
+  }
+  pdfs.addEventListener('change', function(){ chips(pdfs, document.getElementById('pdf-chips')); });
+  imgs.addEventListener('change', function(){ chips(imgs, document.getElementById('img-chips')); });
+
+  function setProgress(p, msg){
+    p = Math.max(0, Math.min(100, p));
+    pfill.style.width = p + '%';
+    pbar.setAttribute('aria-valuenow', Math.round(p));
+    if (msg) pmsg.textContent = msg + ' (' + Math.round(p) + '%)';
+    var activeIdx = 0;
+    steps.forEach(function(li, i){ if (p >= +li.dataset.at) activeIdx = i; });
+    steps.forEach(function(li, i){
+      li.className = p >= 100 || i < activeIdx ? 'done' : (i === activeIdx ? 'active' : '');
+    });
+  }
+
+  function showError(text){
+    clearInterval(timer);
+    errtext.textContent = text;
+    errbox.classList.remove('hidden');
+    pcard.classList.remove('hidden');
+    pcard.scrollIntoView({behavior:'smooth', block:'center'});
+    go.disabled = false;
+  }
+
+  function validate(){
+    var files = Array.prototype.slice.call(pdfs.files).concat(Array.prototype.slice.call(imgs.files));
+    var topic = document.getElementById('topic').value.trim();
+    if (!topic && files.length === 0) return 'Type a topic or upload a PDF or image first.';
+    if (files.length > MAX_FILES) return 'Please upload at most ' + MAX_FILES + ' files.';
+    for (var i = 0; i < files.length; i++) {
+      if (files[i].size > MAX_MB * 1024 * 1024) return files[i].name + ' is larger than ' + MAX_MB + ' MB.';
+    }
+    return '';
+  }
+
+  form.addEventListener('submit', function(ev){
+    ev.preventDefault();
+    var problem = validate();
+    errbox.classList.add('hidden');
+    rcard.classList.add('hidden');
+    if (problem) { pcard.classList.remove('hidden'); showError(problem); return; }
+
+    go.disabled = true;
+    pcard.classList.remove('hidden');
+    setProgress(1, 'Uploading');
+    pcard.scrollIntoView({behavior:'smooth', block:'center'});
+
+    fetch('{{ url_for("generate_video_start") }}', {method:'POST', body:new FormData(form), credentials:'same-origin'})
+      .then(function(r){ return r.json().catch(function(){ return {ok:false, error:'The server sent an unexpected reply.'}; }); })
+      .then(function(d){
+        if (!d.ok) { showError(d.error || 'Could not start the video.'); return; }
+        netFails = 0;
+        timer = setInterval(function(){ poll(d.job_id); }, 1500);
+      })
+      .catch(function(){ showError('Could not reach the server. Check your connection and try again.'); });
+  });
+
+  function poll(jobId){
+    fetch('/generate_video/status/' + encodeURIComponent(jobId), {credentials:'same-origin'})
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        netFails = 0;
+        if (!d.ok) { showError(d.error || 'Lost track of the video job.'); return; }
+        if (d.status === 'failed') { showError(d.error || 'Video generation failed.'); return; }
+        setProgress(d.percent, d.message);
+        if (d.status === 'done') {
+          clearInterval(timer);
+          setProgress(100, 'Done');
+          showResult(d.result);
+        }
+      })
+      .catch(function(){
+        netFails++;
+        if (netFails >= 6) showError('Lost connection to the server. Your video may still finish: check My Videos in a minute.');
+      });
+  }
+
+  function showResult(r){
+    pcard.classList.add('hidden');
+    document.getElementById('r-title').textContent = r.info.title;
+    var v = document.getElementById('r-video');
+    v.src = r.video_url; v.load();
+    var meta = document.getElementById('r-meta'); meta.textContent = '';
+    ['🗣️ ' + r.info.language, '🎨 ' + r.info.style, '📊 ' + r.info.difficulty, '⏱️ ' + r.info.duration].forEach(function(t){
+      var s = document.createElement('span'); s.textContent = t; meta.appendChild(s);
+    });
+    document.getElementById('r-quiz').href = r.quiz_url;
+    document.getElementById('r-download').href = r.download_url;
+    if (r.credits !== undefined && document.getElementById('credits')) document.getElementById('credits').textContent = r.credits;
+    rcard.classList.remove('hidden');
+    rcard.scrollIntoView({behavior:'smooth', block:'start'});
+    go.disabled = false;
+  }
+
+  document.getElementById('again').addEventListener('click', function(){
+    pcard.classList.add('hidden'); errbox.classList.add('hidden');
+    form.scrollIntoView({behavior:'smooth'});
+  });
+  document.getElementById('make-another').addEventListener('click', function(){
+    rcard.classList.add('hidden');
+    form.scrollIntoView({behavior:'smooth'});
+  });
+})();
+</script>
 </body>
 </html>
-

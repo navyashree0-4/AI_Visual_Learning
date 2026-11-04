@@ -1,0 +1,4 @@
+ffconcat version 1.0
+file 'C:/Users/Prashanthi Udupa/OneDrive/Documents/navyashree/AJIET/3sem project/AI_Visual_Learning/static/generated/temp/bf3a5b65b065/scene_7_0.png'
+duration 12.970
+file 'C:/Users/Prashanthi Udupa/OneDrive/Documents/navyashree/AJIET/3sem project/AI_Visual_Learning/static/generated/temp/bf3a5b65b065/scene_7_0.png'

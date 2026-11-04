@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiz | EduVision</title>
+<style>
+:root{--paper:#f2f5fb;--card:#fff;--ink:#101a3a;--muted:#64748b;--line:#dde3f0;--indigo:#4338ca;--indigo-l:#eef2ff;--aqua:#0891b2;--rose:#e11d48;--green:#059669;--green-l:#ecfdf5;--rose-l:#fff1f2}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Segoe UI","Noto Sans Kannada","Nirmala UI",Arial,sans-serif;background:radial-gradient(circle at 10% 10%,#e0e7ff 0,transparent 35%),radial-gradient(circle at 90% 25%,#cffafe 0,transparent 35%),var(--paper);color:var(--ink);min-height:100vh;line-height:1.6}
+a{text-decoration:none}
+.navbar{position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;align-items:center;gap:20px;padding:15px 5%;background:rgba(255,255,255,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.logo{font-size:23px;font-weight:800;color:var(--indigo)}.logo span{color:var(--aqua)}
+.nav-links{display:flex;gap:22px;flex-wrap:wrap}
+.nav-links a{color:var(--muted);font-size:14px;font-weight:600}.nav-links a:hover{color:var(--indigo)}
+.wrap{max-width:780px;margin:0 auto;padding:36px 18px 70px}
+h1{font-size:clamp(24px,4vw,32px)}
+.sub{color:var(--muted);margin:6px 0 24px;overflow-wrap:anywhere}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:26px;box-shadow:0 10px 30px rgba(49,46,129,.07)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:12px 20px;border-radius:10px;background:var(--indigo);color:#fff;font-size:14px;font-weight:700;border:none;cursor:pointer}
+.btn:hover:not(:disabled){background:#3730a3}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.secondary{background:var(--indigo-l);color:var(--indigo)}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}
+.bar{height:8px;background:#e5e9f5;border-radius:99px;overflow:hidden;margin-bottom:20px}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--indigo),var(--aqua));transition:width .3s}
+.qcount{font-size:13px;color:var(--muted);font-weight:600;margin-bottom:8px}
+.question{font-size:clamp(18px,3vw,22px);font-weight:700;margin-bottom:18px;overflow-wrap:anywhere}
+.opt{display:flex;gap:12px;align-items:flex-start;width:100%;text-align:left;padding:14px 16px;margin-bottom:10px;background:#fff;border:2px solid var(--line);border-radius:12px;font:inherit;color:inherit;cursor:pointer}
+.opt:hover{border-color:#a5b4fc}
+.opt:focus-visible{outline:3px solid #a5b4fc;outline-offset:2px}
+.opt.sel{border-color:var(--indigo);background:var(--indigo-l)}
+.opt .key{flex:none;width:28px;height:28px;border-radius:50%;background:var(--indigo-l);color:var(--indigo);display:grid;place-items:center;font-weight:800;font-size:13px}
+.opt.sel .key{background:var(--indigo);color:#fff}
+.loading,.error{text-align:center;padding:40px 10px}
+.spin{width:44px;height:44px;border:5px solid #e0e7ff;border-top-color:var(--indigo);border-radius:50%;margin:0 auto 16px;animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:3s}}
+.error{color:#991b1b}.error p{margin-bottom:16px}
+.score{text-align:center;padding:6px 0 22px}
+.score .big{font-size:56px;font-weight:800;color:var(--indigo);line-height:1.1}
+.score .msg{font-size:18px;font-weight:700;margin-top:4px}
+.earn{display:inline-block;margin-top:10px;padding:6px 14px;border-radius:99px;background:var(--green-l);color:var(--green);font-weight:700;font-size:14px}
+.review{border-top:1px solid var(--line);padding:18px 0}
+.review h3{font-size:16px;margin-bottom:10px;overflow-wrap:anywhere}
+.ans{padding:9px 13px;border-radius:9px;margin:6px 0;font-size:14px;overflow-wrap:anywhere}
+.ans.good{background:var(--green-l);color:#065f46;border:1px solid #a7f3d0}
+.ans.bad{background:var(--rose-l);color:#9f1239;border:1px solid #fecdd3}
+.why{font-size:13px;color:var(--muted);margin-top:8px}
+.hidden{display:none}
+.best{font-size:13px;color:var(--muted);margin-bottom:14px}
+</style>
+</head>
+<body>
+<header class="navbar">
+  <a href="{{ url_for('dashboard') }}" class="logo">🎓 Edu<span>Vision</span></a>
+  <nav class="nav-links">
+    <a href="{{ url_for('dashboard') }}">Dashboard</a>
+    <a href="{{ url_for('my_generated_videos') }}">My Videos</a>
+    <a href="{{ url_for('generate_video') }}">Generate Video</a>
+    <a href="{{ url_for('logout') }}">Logout</a>
+  </nav>
+</header>
+
+<main class="wrap">
+  <h1>📝 Quiz: {{ video_title }}</h1>
+  <p class="sub">Questions are based on what the video taught. Earn {{ credits_per_correct }} credits per correct answer on your first try.</p>
+
+  <section class="card" id="box" aria-live="polite">
+    <div class="loading" id="loading">
+      <div class="spin"></div>
+      <strong>Creating your quiz…</strong>
+      <p class="sub">The first time this can take up to a minute.</p>
+    </div>
+    <div class="error hidden" id="error">
+      <p id="error-text"></p>
+      <button class="btn" id="retry-load" type="button">Try again</button>
+    </div>
+    <div class="hidden" id="quiz"></div>
+  </section>
+</main>
+
+<script>
+(function(){
+  var VIDEO_ID = {{ video_id|tojson }};
+  var loading = document.getElementById('loading');
+  var errorBox = document.getElementById('error');
+  var errorText = document.getElementById('error-text');
+  var quizBox = document.getElementById('quiz');
+  var questions = [], answers = [], current = 0;
+  var LETTERS = ['A','B','C','D'];
+
+  function show(which){
+    loading.classList.toggle('hidden', which !== 'loading');
+    errorBox.classList.toggle('hidden', which !== 'error');
+    quizBox.classList.toggle('hidden', which !== 'quiz');
+  }
+  function fail(msg){ errorText.textContent = msg; show('error'); }
+  function el(tag, cls, text){
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  function load(){
+    show('loading');
+    fetch('/api/video-quiz/' + VIDEO_ID, {credentials:'same-origin'})
+      .then(function(r){ return r.json().catch(function(){ return {ok:false,error:'Unexpected server reply.'}; }); })
+      .then(function(d){
+        if (!d.ok) { fail(d.error || 'The quiz could not be loaded.'); return; }
+        questions = d.questions; best = d.best;
+        start();
+      })
+      .catch(function(){ fail('Could not reach the server. Check your connection and try again.'); });
+  }
+  var best = null;
+
+  function start(){
+    answers = new Array(questions.length).fill(-1);
+    current = 0;
+    renderQuestion();
+    show('quiz');
+  }
+
+  function renderQuestion(){
+    quizBox.textContent = '';
+    if (best && current === 0) {
+      quizBox.appendChild(el('p','best','Your best score so far: ' + best.score + ' / ' + best.total_questions + ' (' + best.percentage + '%)'));
+    }
+    var bar = el('div','bar'); var fill = document.createElement('i');
+    fill.style.width = (current / questions.length * 100) + '%';
+    bar.appendChild(fill); quizBox.appendChild(bar);
+    quizBox.appendChild(el('div','qcount','Question ' + (current+1) + ' of ' + questions.length));
+    var q = questions[current];
+    quizBox.appendChild(el('div','question',q.question));
+    q.options.forEach(function(text, i){
+      var b = el('button','opt'); b.type = 'button';
+      b.appendChild(el('span','key',LETTERS[i]));
+      b.appendChild(el('span','',text));
+      if (answers[current] === i) b.classList.add('sel');
+      b.addEventListener('click', function(){
+        answers[current] = i;
+        renderQuestion();
+      });
+      quizBox.appendChild(b);
+    });
+    var row = el('div','row');
+    if (current > 0) {
+      var back = el('button','btn secondary','Back'); back.type='button';
+      back.addEventListener('click', function(){ current--; renderQuestion(); });
+      row.appendChild(back);
+    }
+    var last = current === questions.length - 1;
+    var next = el('button','btn', last ? 'Submit answers' : 'Next'); next.type='button';
+    next.disabled = answers[current] < 0;
+    next.addEventListener('click', function(){ if (last) submit(next); else { current++; renderQuestion(); } });
+    row.appendChild(next);
+    quizBox.appendChild(row);
+  }
+
+  function submit(btn){
+    btn.disabled = true; btn.textContent = 'Checking…';
+    fetch('/api/video-quiz/' + VIDEO_ID + '/submit', {
+      method:'POST', credentials:'same-origin',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({answers: answers})
+    })
+    .then(function(r){ return r.json().catch(function(){ return {ok:false,error:'Unexpected server reply.'}; }); })
+    .then(function(d){
+      if (!d.ok) { btn.disabled=false; btn.textContent='Submit answers'; alert(d.error || 'Could not submit.'); return; }
+      best = {score:Math.max(d.score, best ? best.score : 0), total_questions:d.total,
+              percentage:Math.max(d.percentage, best ? best.percentage : 0)};
+      renderResult(d);
+    })
+    .catch(function(){ btn.disabled=false; btn.textContent='Submit answers'; alert('Could not reach the server. Try again.'); });
+  }
+
+  function renderResult(d){
+    quizBox.textContent = '';
+    var s = el('div','score');
+    s.appendChild(el('div','big', d.score + ' / ' + d.total));
+    var msg = d.percentage === 100 ? 'Perfect score! 🎉' : d.percentage >= 70 ? 'Great job! 👏' : d.percentage >= 40 ? 'Good effort. Watch the video again and retry.' : 'Keep learning. Rewatch the video and try again.';
+    s.appendChild(el('div','msg', msg));
+    if (d.credits_earned > 0) s.appendChild(el('span','earn','+' + d.credits_earned + ' credits earned'));
+    else if (!d.first_attempt) s.appendChild(el('span','best','Credits are awarded on the first attempt only.'));
+    quizBox.appendChild(s);
+
+    d.results.forEach(function(r, i){
+      var q = questions[i];
+      var block = el('div','review');
+      block.appendChild(el('h3','', (i+1) + '. ' + q.question));
+      var mine = el('div','ans ' + (r.is_correct ? 'good' : 'bad'),
+        (r.is_correct ? '✓ Your answer: ' : '✗ Your answer: ') + q.options[r.chosen]);
+      block.appendChild(mine);
+      if (!r.is_correct) block.appendChild(el('div','ans good','✓ Correct answer: ' + q.options[r.correct_index]));
+      if (r.explanation) block.appendChild(el('p','why',r.explanation));
+      quizBox.appendChild(block);
+    });
+
+    var row = el('div','row');
+    var again = el('button','btn','Retake quiz'); again.type='button';
+    again.addEventListener('click', start);
+    var vids = el('a','btn secondary','My videos'); vids.href = {{ url_for('my_generated_videos')|tojson }};
+    var dash = el('a','btn secondary','Dashboard'); dash.href = {{ url_for('dashboard')|tojson }};
+    row.appendChild(again); row.appendChild(vids); row.appendChild(dash);
+    quizBox.appendChild(row);
+    window.scrollTo({top:0});
+  }
+
+  document.getElementById('retry-load').addEventListener('click', load);
+  load();
+})();
+</script>
+</body>
+</html>

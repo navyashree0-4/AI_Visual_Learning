@@ -1,23 +1,22 @@
+import os
+from pathlib import Path
+
 from dotenv import load_dotenv
-load_dotenv()  # Load .env before importing routes
+
+# Load .env from the same folder as app.py (not the terminal's current folder).
+# utf-8-sig also handles .env files saved with a BOM by Windows Notepad.
+_ENV_FILE = Path(__file__).resolve().parent / ".env"
+load_dotenv(_ENV_FILE, override=True, encoding="utf-8-sig")  # Load before importing routes/services
 
 from datetime import date, datetime, timedelta
+import json
 import re
 import secrets
 import smtplib
 from email.message import EmailMessage
 from functools import wraps
-from pathlib import Path
-import os
 import uuid
 
-try:
-    from game_data import GAMES as DATA_GAMES, build_payload as data_build_payload
-except ImportError:
-    DATA_GAMES = {}
-
-    def data_build_payload(game_key, game):
-        return dict(game or {}, key=game_key, game_id=game_key)
 from flask import (
     Flask, abort, flash, jsonify, redirect, render_template,
     render_template_string, request, send_from_directory, session, url_for,
@@ -28,14 +27,20 @@ from werkzeug.routing import BuildError
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
+from services.video_generator import extract_text, generate_video_package
+
+try:
+    from game_data import GAMES as DATA_GAMES, build_payload as data_build_payload
+except ImportError:
+    DATA_GAMES = {}
+
+    def data_build_payload(game_key, game):
+        return dict(game or {}, key=game_key, game_id=game_key)
+
 try:
     from learning import learning_bp
 except ImportError:
     from routes.learning import learning_bp  # if learning.py lives in routes/
-from services.video_generator import (
-    extract_text,
-    generate_video as build_educational_video,
-)
 
 app = Flask(__name__)
 
@@ -65,6 +70,11 @@ MAIL_FROM = os.getenv("MAIL_FROM", MAIL_USERNAME).strip()
 OTP_EXPIRY_MINUTES = max(2, int(os.getenv("OTP_EXPIRY_MINUTES", "5")))
 OTP_MAX_ATTEMPTS = max(3, int(os.getenv("OTP_MAX_ATTEMPTS", "5")))
 INITIAL_CREDITS = max(0, int(os.getenv("INITIAL_CREDITS", "50")))
+
+MAX_UPLOAD_MB = 10
+
+GENERATED_DIR = Path(app.root_path) / "static" / "generated"
+GENERATED_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # ============================================================
@@ -99,16 +109,28 @@ def get_db_connection():
 # Blueprints (e.g. aptitude_backend) use this instead of importing from app.py
 app.config["GET_DB_CONNECTION"] = get_db_connection
 
-from routes.aptitude_backend import aptitude_bp
+from routes.aptitude_backend import aptitude_bp  # noqa: E402
+from routes.video_quiz import video_quiz_bp  # noqa: E402
 
 if aptitude_bp.name not in app.blueprints:
     app.register_blueprint(aptitude_bp)
+if video_quiz_bp.name not in app.blueprints:
+    app.register_blueprint(video_quiz_bp)
 
 
 def login_required(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
         if "user_id" not in session:
+            # Game scripts call /api/... with fetch(); an HTML login redirect
+            # would break their JSON parsing and show "check your connection".
+            if request.path.startswith("/api/"):
+                return jsonify(
+                    ok=False,
+                    success=False,
+                    error="Your session expired. Please log in again.",
+                    message="Your session expired. Please log in again.",
+                ), 401
             flash("Please log in to continue.", "warning")
             return redirect(url_for("login", next=request.path))
         return view(*args, **kwargs)
@@ -239,32 +261,92 @@ def bump_video_progress(user_id):
 
 
 def save_video_record(user_id, title, style, language, filename):
+    """Save a generated video (basic version). Returns the new video id or None."""
     connection = get_db_connection()
     if connection is None:
-        app.logger.error("Video was generated, but its record could not be saved.")
-        return False
-    cursor = None
+        return None
+    cursor = connection.cursor()
     try:
-        cursor = connection.cursor()
         cursor.execute(
-            "INSERT INTO generated_videos "
-            "(user_id, title, description, video_style, language, filename) "
-            "VALUES (%s, %s, %s, %s, %s, %s)",
+            """
+            INSERT INTO generated_videos
+                (user_id, title, description, video_style, language, filename)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
             (
                 user_id,
-                (title or "Educational Lesson")[:150],
-                f"{style} lesson in {language}",
+                title,
+                "AI-generated educational video",
                 style,
                 language,
                 filename,
             ),
         )
+        video_id = cursor.lastrowid
         connection.commit()
-        return True
+        return video_id
+    except Exception:
+        connection.rollback()
+        app.logger.exception("Could not save generated video.")
+        return None
+    finally:
+        cursor.close()
+        connection.close()
+
+
+def save_video_record_v2(user_id, meta):
+    """Save a generated video with all its settings. Returns the new video id or None."""
+    connection = get_db_connection()
+    if connection is None:
+        return None
+    cursor = None
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            "INSERT INTO generated_videos "
+            "(user_id, title, description, video_style, language, difficulty, audience, "
+            " aspect_ratio, filename, duration_seconds, subtitles, highlights, music, script_text) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            (
+                user_id,
+                (meta["title"] or "Educational Lesson")[:150],
+                f"{meta['style']} lesson in {meta['language']}",
+                meta["style"], meta["language"], meta["difficulty"], meta["audience"],
+                meta["aspect_ratio"], meta["filename"], int(meta["duration_seconds"]),
+                1 if meta["subtitles"] else 0,
+                1 if meta["highlights"] else 0,
+                1 if meta["music"] else 0,
+                meta["script_text"],
+            ),
+        )
+        connection.commit()
+        return cursor.lastrowid
     except Error as exc:
         connection.rollback()
         app.logger.error("Video record could not be saved: %s", exc)
-        return False
+        return None
+    finally:
+        if cursor is not None:
+            cursor.close()
+        connection.close()
+
+
+def get_video_for_user(video_id, user_id):
+    """Return the video row only if it belongs to this user."""
+    connection = get_db_connection()
+    if connection is None:
+        return None
+    cursor = None
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT * FROM generated_videos WHERE id = %s AND user_id = %s",
+            (video_id, user_id),
+        )
+        return cursor.fetchone()
+    except Error as exc:
+        app.logger.error("Could not load video: %s", exc)
+        return None
     finally:
         if cursor is not None:
             cursor.close()
@@ -301,6 +383,7 @@ def load_dashboard_data(user_id):
         )
         for video in cursor.fetchall():
             data["videos"].append({
+                "id": video.get("id"),
                 "title": video.get("title") or "Educational Lesson",
                 "description": video.get("description") or "Your generated learning video",
                 "style": video.get("video_style") or video.get("style") or "AI Lesson",
@@ -308,6 +391,7 @@ def load_dashboard_data(user_id):
                 "filename": video.get("filename") or video.get("video_filename"),
                 "video_url": video.get("video_url"),
                 "thumbnail": video.get("thumbnail"),
+                "created_at": video.get("created_at"),
             })
 
         try:
@@ -338,6 +422,182 @@ def load_dashboard_data(user_id):
             cursor.close()
         connection.close()
     return data
+
+
+# ============================================================
+# MY GENERATED VIDEOS
+# ============================================================
+
+@app.route("/my-videos")
+@login_required
+def my_generated_videos():
+    user_id = session.get("user_id")
+
+    connection = get_db_connection()
+    if connection is None:
+        flash("Database connection failed.", "error")
+        return redirect(url_for("dashboard"))
+
+    cursor = None
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            """
+            SELECT
+                id,
+                title,
+                title AS prompt,
+                description,
+                video_style,
+                language,
+                filename,
+                filename AS file_name,
+                created_at
+            FROM generated_videos
+            WHERE user_id = %s
+            ORDER BY created_at DESC
+            """,
+            (user_id,),
+        )
+        videos = cursor.fetchall()
+        return render_template("my_generated_videos.html", videos=videos)
+    except Error as exc:
+        app.logger.error("Could not load videos: %s", exc)
+        flash("Unable to load generated videos.", "error")
+        return redirect(url_for("dashboard"))
+    finally:
+        if cursor:
+            cursor.close()
+        connection.close()
+
+
+# Serve a generated video belonging to the logged-in user
+@app.route("/my-videos/watch/<int:video_id>")
+@login_required
+def watch_generated_video(video_id):
+    user_id = session.get("user_id")
+
+    connection = get_db_connection()
+    if connection is None:
+        abort(503)
+
+    cursor = None
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT filename FROM generated_videos WHERE id = %s AND user_id = %s",
+            (video_id, user_id),
+        )
+        video = cursor.fetchone()
+
+        if not video or not video.get("filename"):
+            abort(404)
+
+        return redirect(url_for("generated_video_file", filename=video["filename"]))
+    finally:
+        if cursor:
+            cursor.close()
+        connection.close()
+
+
+# Serve only generated files that belong to the logged-in user
+@app.route("/generated-videos/<path:filename>")
+@login_required
+def generated_video_file(filename):
+    user_id = session.get("user_id")
+
+    connection = get_db_connection()
+    if connection is None:
+        abort(503)
+
+    cursor = None
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            "SELECT id FROM generated_videos WHERE user_id = %s AND filename = %s LIMIT 1",
+            (user_id, filename),
+        )
+        record = cursor.fetchone()
+        if not record:
+            abort(404)
+    finally:
+        if cursor:
+            cursor.close()
+        connection.close()
+
+    # Videos are saved by services.video_generator into static/generated
+    return send_from_directory(str(GENERATED_DIR), filename, as_attachment=False)
+
+
+# Download a generated video (owner only) with a meaningful file name
+@app.route("/my-videos/download/<int:video_id>")
+@login_required
+def download_generated_video(video_id):
+    video = get_video_for_user(video_id, session["user_id"])
+    if not video:
+        abort(404)
+    filename = Path(video.get("filename") or "").name
+    if not filename or not (GENERATED_DIR / filename).is_file():
+        flash("This video file is no longer available.", "error")
+        return redirect(url_for("my_generated_videos"))
+    nice_name = secure_filename(video.get("title") or "lesson")[:60] or "lesson"
+    return send_from_directory(
+        str(GENERATED_DIR), filename, as_attachment=True, download_name=nice_name + ".mp4"
+    )
+
+
+# Delete a generated video belonging to the logged-in user
+@app.route("/my-videos/delete/<int:video_id>", methods=["POST"])
+@login_required
+def delete_generated_video(video_id):
+    user_id = session.get("user_id")
+
+    connection = get_db_connection()
+    if connection is None:
+        flash("Database connection failed.", "error")
+        return redirect(url_for("my_generated_videos"))
+
+    cursor = None
+    filename = None
+
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            "SELECT filename FROM generated_videos WHERE id = %s AND user_id = %s",
+            (video_id, user_id),
+        )
+        record = cursor.fetchone()
+
+        if not record:
+            flash("Video not found.", "error")
+            return redirect(url_for("my_generated_videos"))
+
+        filename = record[0]
+
+        cursor.execute(
+            "DELETE FROM generated_videos WHERE id = %s AND user_id = %s",
+            (video_id, user_id),
+        )
+        connection.commit()
+
+        if filename:
+            video_path = GENERATED_DIR / os.path.basename(filename)
+            if video_path.is_file():
+                video_path.unlink()
+
+        flash("Video deleted successfully.", "success")
+
+    except Error as exc:
+        connection.rollback()
+        app.logger.error("Video deletion failed: %s", exc)
+        flash("Could not delete the video.", "error")
+
+    finally:
+        if cursor:
+            cursor.close()
+        connection.close()
+
+    return redirect(url_for("my_generated_videos"))
 
 
 # ============================================================
@@ -419,41 +679,6 @@ def build_payload(game_key, game=None):
     }
 
 
-# Each game key (including the keys used on the dashboard cards)
-# maps to the game name used by static/games.html?g=...
-GAME_SLUGS = {
-    "snake_learner": "snake",
-    "whack_a_concept": "whack", "whack_concept": "whack",
-    "typing_racer": "typing",
-    "simon_memory": "simon",
-    "tech_2048": "2048",
-    "flappy_bird_brain": "flappy", "flappy_brain": "flappy",
-    "tetris_blocks": "tetris",
-    "minesweeper_debug": "mines",
-    "maze_runner": "maze",
-    "tower_defense": "tower", "tower_firewall": "tower",
-    "pacman_data_hunt": "pac", "pacman_data": "pac",
-    "logic_gates_lab": "logic", "logic_gates": "logic",
-    "robot_coder": "robot",
-    "platform_adventure": "platform",
-    "escape_room_2": "escape",
-    "candy_match": "candy",
-    "mind_match": "memory",
-    "daily_brain_boost": "memory",
-    "arrow_rush": "arrowrush",
-    "space_dodge": "dodge",
-    "arrow_memory": "arrowmem",
-    "packet_crossing": "cross",
-}
-
-# For alias keys (e.g. "whack_concept"), find the real GAMES key
-# so the score is saved against the right game.
-CANONICAL_KEY = {}
-for _key, _slug in GAME_SLUGS.items():
-    if _key in GAMES:
-        CANONICAL_KEY.setdefault(_slug, _key)
-
-
 # ============================================================
 # GAME PAGES
 # ============================================================
@@ -493,6 +718,7 @@ def eduvision_game(game_key):
     return render_template(
         "game.html",
         payload=payload,
+        game_key=game_key,
         game_title=game["name"],
         game_type=game["mode"],
         credits=get_user_credits(session["user_id"]),
@@ -550,48 +776,12 @@ for _endpoint, (_alias_key, _legacy_url) in _GAME_ROUTE_ALIASES.items():
 
 
 # ============================================================
-# VIDEO INSTRUCTIONS
-# ============================================================
-
-def build_video_instructions(topic, video_style, audience_level, language):
-    audience_instructions = {
-        "Kids": "Use very simple words, short sentences, colorful visuals, fun examples, and friendly narration.",
-        "School Students": "Explain step by step with definitions, diagrams, school-level examples, key points, and revision questions.",
-        "College Students": "Use detailed explanations, appropriate technical terms, practical examples, diagrams, and real-world applications.",
-        "Teachers": "Include learning objectives, structured explanations, classroom examples, teaching tips, and assessment questions.",
-    }
-    style_instructions = {
-        "Educational": "Use an introduction, learning objectives, explanation, examples, and summary.",
-        "Animated": "Describe animated objects, characters, movements, visual effects, and transitions.",
-        "Simple Explanation": "Use everyday examples, simple comparisons, and short sentences.",
-        "Storytelling": "Explain through a story with characters, a problem, and a conclusion.",
-    }
-    return f"""
-Create an accurate educational video script.
-TOPIC: {topic}
-TARGET AUDIENCE: {audience_level}
-VIDEO STYLE: {video_style}
-NARRATION LANGUAGE: {language}
-
-AUDIENCE REQUIREMENTS:
-{audience_instructions.get(audience_level, audience_instructions["School Students"])}
-
-STYLE REQUIREMENTS:
-{style_instructions.get(video_style, style_instructions["Educational"])}
-
-Divide the topic into ordered scenes. Give each scene a title, narration, and matching visual description.
-Use the selected narration language and vocabulary appropriate for the audience.
-End with a summary and three review questions.
-"""
-
-
-# ============================================================
 # HOME AND AUTHENTICATION
 # ============================================================
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", game_count=len(GAMES))
 
 
 def send_otp_email(email, otp, purpose):
@@ -668,12 +858,7 @@ def _verify_otp(table_name, email, otp):
         cursor = connection.cursor(dictionary=True)
 
         cursor.execute(
-            f"""
-            SELECT otp_hash, expires_at, attempts
-            FROM {table_name}
-            WHERE email = %s
-            FOR UPDATE
-            """,
+            f"SELECT otp_hash, expires_at, attempts FROM {table_name} WHERE email = %s FOR UPDATE",
             (email,),
         )
 
@@ -684,30 +869,20 @@ def _verify_otp(table_name, email, otp):
             return False, "No verification request was found. Request a new code."
 
         if int(row.get("attempts") or 0) >= OTP_MAX_ATTEMPTS:
-            cursor.execute(
-                f"DELETE FROM {table_name} WHERE email = %s",
-                (email,),
-            )
+            cursor.execute(f"DELETE FROM {table_name} WHERE email = %s", (email,))
             connection.commit()
             return False, "Too many attempts. Request a new code."
 
         expiry = row["expires_at"]
 
         if expiry is None or expiry < datetime.now():
-            cursor.execute(
-                f"DELETE FROM {table_name} WHERE email = %s",
-                (email,),
-            )
+            cursor.execute(f"DELETE FROM {table_name} WHERE email = %s", (email,))
             connection.commit()
             return False, "The code expired. Request a new one."
 
         if not check_password_hash(row["otp_hash"], otp):
             cursor.execute(
-                f"""
-                UPDATE {table_name}
-                SET attempts = attempts + 1
-                WHERE email = %s
-                """,
+                f"UPDATE {table_name} SET attempts = attempts + 1 WHERE email = %s",
                 (email,),
             )
             connection.commit()
@@ -1301,9 +1476,6 @@ def logout():
 # DASHBOARD
 # ============================================================
 
-GENERATED_DIR = Path(app.root_path) / "static" / "generated"
-
-
 @app.route("/generated/<path:filename>")
 @login_required
 def generated_video(filename):
@@ -1368,37 +1540,44 @@ def dashboard():
 
     session["credits"] = data["credits"]
 
-    # Latest video for the learning workspace player
+    # Build the "My Generated Videos" library
+    generated_videos = []
+
+    for video in data["videos"][:12]:
+        filename = Path(video.get("filename") or "").name
+
+        # Skip records whose video file does not exist
+        if not filename or not (GENERATED_DIR / filename).is_file():
+            continue
+
+        generated_videos.append({
+            "id": video.get("id"),
+            "title": video.get("title") or "Untitled Lesson",
+            "video_style": video.get("style") or "Educational",
+            "language": video.get("language") or "English",
+            "filename": filename,
+            "url": url_for("generated_video", filename=filename),
+            "created_at": video.get("created_at") or "",
+        })
+
+    # Latest available video for the learning workspace
     latest_video = ""
     latest_video_topic = ""
     latest_video_exists = False
-    for video in data["videos"]:
-        name = Path(video["filename"] or "").name
-        if name and (GENERATED_DIR / name).exists():
-            latest_video = name
-            latest_video_topic = video["title"]
-            latest_video_exists = True
-            break
 
-    # Cards for the "My Generated Videos" section. The template needs
-    # `filename` and `video_style`, so the Watch button works.
-    generated_videos = [
-        {
-            "title": video["title"],
-            "video_style": video["style"],
-            "language": video["language"],
-            "filename": Path(video["filename"] or "").name,
-        }
-        for video in data["videos"][:12]
-    ]
+    if generated_videos:
+        latest_video = generated_videos[0]["filename"]
+        latest_video_topic = generated_videos[0]["title"]
+        latest_video_exists = True
 
+    # Recent videos for other dashboard sections
     recent_videos = [
         {
             "prompt": video["title"],
-            "video_style": video["style"],
+            "video_style": video["video_style"],
             "language": video["language"],
         }
-        for video in data["videos"][:5]
+        for video in generated_videos[:5]
     ]
 
     return render_template(
@@ -1451,37 +1630,47 @@ def ask_question():
 @login_required
 def generate_video():
     user_id = session["user_id"]
-    if request.method == "GET":
+
+    def page(video_url=None, video_info=None, quiz_url=None, download_url=None):
         return render_template(
             "generate_video.html",
             user_name=session.get("user_name", "Student"),
-            video_url=None,
+            video_url=video_url,
+            video_info=video_info,
+            quiz_url=quiz_url,
+            download_url=download_url,
         )
+
+    if request.method == "GET":
+        return page()
 
     temporary_path = None
     charged = False
+    created_file = None
+    return_to = request.form.get("return_to", "generate_page")
+
     try:
         topic = (request.form.get("topic") or request.form.get("prompt") or "").strip()[:1000]
         style = request.form.get("video_style", "Educational")
         language = request.form.get("language", "English")
         audience = request.form.get("audience_level", "School Students")
         difficulty = request.form.get("difficulty", "Beginner")
+        aspect_ratio = request.form.get("aspect_ratio", "16:9")
+        subtitles = request.form.get("subtitles") == "on"
+        highlights = request.form.get("highlight_concepts") == "on"
+        music = request.form.get("background_music") == "on"
 
-        allowed_styles = {"Educational", "Animated", "Simple Explanation", "Storytelling"}
-        allowed_languages = {"English", "Kannada", "Hindi", "Spanish", "French", "German"}
-        allowed_difficulties = {"Beginner", "Intermediate", "Advanced"}
-        allowed_audiences = {"Kids", "School Students", "College Students", "Teachers"}
-
-        if style not in allowed_styles:
+        if style not in {"Educational", "Animated", "Simple Explanation", "Storytelling"}:
             raise ValueError("Please select a valid video style.")
-        if language not in allowed_languages:
+        if language not in {"English", "Kannada", "Hindi"}:
             raise ValueError("Please select a valid narration language.")
-        if difficulty not in allowed_difficulties:
+        if difficulty not in {"Beginner", "Intermediate", "Advanced"}:
             raise ValueError("Please select a valid difficulty level.")
-        if audience not in allowed_audiences:
+        if audience not in {"Kids", "School Students", "College Students", "Teachers"}:
             raise ValueError("Please select a valid target audience.")
+        if aspect_ratio not in {"16:9", "9:16"}:
+            raise ValueError("Please select a valid aspect ratio.")
 
-        instructions = build_video_instructions(topic, style, audience, language)
         source_text = topic
         uploaded = request.files.get("file")
 
@@ -1493,20 +1682,25 @@ def generate_video():
             if extension not in {".pdf", ".txt", ".png", ".jpg", ".jpeg"}:
                 raise ValueError("Supported uploads: PDF, TXT, PNG, JPG and JPEG.")
 
+            uploaded.stream.seek(0, os.SEEK_END)
+            size_bytes = uploaded.stream.tell()
+            uploaded.stream.seek(0)
+            if size_bytes > MAX_UPLOAD_MB * 1024 * 1024:
+                raise ValueError(f"The file is larger than {MAX_UPLOAD_MB} MB.")
+
             upload_dir = Path(app.root_path) / "uploads"
             upload_dir.mkdir(parents=True, exist_ok=True)
             temporary_path = upload_dir / f"{uuid.uuid4().hex}{extension}"
             uploaded.save(str(temporary_path))
             extracted = extract_text(temporary_path).strip()
             if extracted:
-                source_text = (
-                    source_text + "\n\nAdditional uploaded material:\n" + extracted
-                ).strip()
+                source_text = (source_text + "\n\n" + extracted).strip()
             elif not source_text:
                 raise ValueError("No readable text was found in the uploaded file.")
 
         if not source_text.strip():
             raise ValueError("Enter a topic or upload readable material.")
+
         if not charge_credits(user_id, VIDEO_COST):
             raise ValueError(
                 f"You need {VIDEO_COST} credits to generate a video. "
@@ -1514,42 +1708,86 @@ def generate_video():
             )
         charged = True
 
-        output_name = build_educational_video(
-            source_text=instructions + "\n\nEDUCATIONAL SOURCE MATERIAL:\n" + source_text,
+        result = generate_video_package(
+            source_text=source_text,
             style=style,
             difficulty=difficulty,
             language=language,
+            audience=audience,
+            aspect_ratio=aspect_ratio,
+            subtitles=subtitles,
+            highlights=highlights,
+            music=music,
         )
-        saved = save_video_record(
-            user_id, topic or "Lesson from upload", style, language, Path(output_name).name
-        )
-        if not saved:
-            raise RuntimeError("The video was generated, but its database record could not be saved. Please try again.")
-        # Keep the charge only after both video generation and its record succeed.
+        created_file = Path(result["path"])
+
+        video_id = save_video_record_v2(user_id, {
+            "title": result["title"], "style": style, "language": language,
+            "difficulty": difficulty, "audience": audience, "aspect_ratio": aspect_ratio,
+            "filename": result["filename"], "duration_seconds": result["duration_seconds"],
+            "subtitles": subtitles, "highlights": highlights, "music": music,
+            "script_text": result["script_text"],
+        })
+        if not video_id:
+            raise RuntimeError("The video was generated, but its database record could not be saved.")
+
         charged = False
+        created_file = None  # saved successfully, keep the file
         log_activity(user_id, "video")
         bump_video_progress(user_id)
         session["credits"] = get_user_credits(user_id)
 
-        video_url = url_for("static", filename="generated/" + Path(output_name).name)
-        return render_template(
-            "generate_video.html",
-            user_name=session.get("user_name", "Student"),
-            video_url=video_url,
-        )
-    except (ValueError, RuntimeError) as exc:
-        if charged:
-            refund_credits(user_id, VIDEO_COST)
-        flash(str(exc), "error")
-    except Exception:
-        if charged:
-            refund_credits(user_id, VIDEO_COST)
-        app.logger.exception("Educational video generation failed")
-        flash("Video generation failed. Check the Flask terminal for details.", "error")
-    finally:
-        if temporary_path is not None and temporary_path.exists():
-            temporary_path.unlink()
+        if return_to == "dashboard":
+            flash("Your educational video was generated successfully!", "success")
+            return redirect(url_for("dashboard"))
 
+        minutes, seconds = divmod(int(result["duration_seconds"]), 60)
+        return page(
+            video_url=url_for("generated_video_file", filename=result["filename"]),
+            download_url=url_for("download_generated_video", video_id=video_id),
+            quiz_url=url_for("video_quiz.video_quiz_page", video_id=video_id),
+            video_info={
+                "title": result["title"], "language": language, "style": style,
+                "difficulty": difficulty, "aspect_ratio": aspect_ratio,
+                "duration": f"{minutes}m {seconds:02d}s",
+                "created_at": datetime.now().strftime("%d %b %Y"),
+            },
+        )
+
+    except ValueError as exc:
+        flash(str(exc), "error")
+        if return_to == "dashboard":
+            return redirect(url_for("dashboard"))
+        return page()
+
+    except Exception as exc:
+        app.logger.exception("Educational video generation failed")
+        flash(f"Video generation failed: {type(exc).__name__}: {str(exc)[:300]}", "error")
+        if return_to == "dashboard":
+            return redirect(url_for("dashboard"))
+        return page()
+
+    finally:
+        # Refund if we charged but never finished (this is the only refund).
+        if charged:
+            refund_credits(user_id, VIDEO_COST)
+            session["credits"] = get_user_credits(user_id)
+        # Delete a generated file whose database record was not saved.
+        if created_file is not None:
+            try:
+                created_file.unlink(missing_ok=True)
+            except OSError:
+                pass
+        if temporary_path is not None:
+            try:
+                Path(temporary_path).unlink(missing_ok=True)
+            except OSError:
+                app.logger.warning("Could not delete temporary upload %s", temporary_path)
+
+
+@app.route("/generate-video", methods=["GET"])
+@login_required
+def generate_video_page():
     return render_template(
         "generate_video.html",
         user_name=session.get("user_name", "Student"),
@@ -1672,7 +1910,15 @@ def award_game_credits(user_id, game_key, score_pct, seconds):
 @login_required
 def api_game_finish():
     data = request.get_json(silent=True) or {}
-    game_key = data.get("game")
+    game_key = (
+        data.get("game")
+        or data.get("game_key")
+        or data.get("game_id")
+        or data.get("key")
+        or data.get("gameKey")
+    )
+    if isinstance(game_key, str):
+        game_key = game_key.strip()
 
     if not isinstance(game_key, str) or game_key not in GAMES:
         return jsonify(ok=False, error="Unknown game."), 400
@@ -1860,11 +2106,32 @@ def memory_game():
 # ============================================================
 # GAME LEVEL PROGRESS AND REWARDS
 # ============================================================
+# game.js sends one request per level reached while playing:
+#   POST /api/game-level/complete  {game_key, level, score}
+# and one request when the game ends (see /api/game/finish above).
+# Each level pays GAME_LEVEL_REWARD credits ONCE per user and game, levels
+# must be completed in order, and MAX_GAME_LEVEL limits the total payout to
+# MAX_GAME_LEVEL * GAME_LEVEL_REWARD credits per game.
 
-MAX_GAME_LEVEL = 10
-GAME_LEVEL_REWARD = 5
+ALLOWED_GAME_KEYS = {
+    "arrow_maze",
+    "hologram_memory",
+    "candy_match",
+    "memory_match",
+    "bubble_shooter",
+    "endless_runner",
+    "neon_tic_tac_toe",
+    "puzzle_2048",
+    "arrow_direction",
+    "sliding_puzzle",
+    "quiz_battle",
+    "tetris_blocks",
+    "flappy_brain",
+    "snake_game"
+}
 
-ALLOWED_GAME_KEYS = set(GAMES.keys())
+GAME_LEVEL_REWARD = 10
+MAX_GAME_LEVEL = 1000
 
 
 def get_or_create_game_progress(user_id, game_key):
@@ -1912,97 +2179,117 @@ def get_or_create_game_progress(user_id, game_key):
 def complete_game_level():
     user_id = session["user_id"]
     data = request.get_json(silent=True) or {}
-
-    game_key = str(data.get("game_key", "")).strip()
+    game_key = str(
+        data.get("game_key")
+        or data.get("game")
+        or data.get("game_id")
+        or data.get("key")
+        or data.get("gameKey")
+        or ""
+    ).strip()
 
     try:
-        level = int(data.get("level", 0))
-        score = max(0, int(data.get("score", 0)))
+        level = int(float(data.get("level")))
+        score = int(float(data.get("score", 0) or 0))
     except (TypeError, ValueError):
-        return jsonify({"success": False, "message": "Invalid level or score."}), 400
+        return jsonify(success=False, message="Invalid level or score."), 400
 
-    if game_key not in GAMES or level < 1 or level > MAX_GAME_LEVEL:
-        return jsonify({"success": False, "message": "Invalid game or level."}), 400
+    if game_key not in ALLOWED_GAME_KEYS:
+        return jsonify(success=False, message=f"Unknown game: {game_key}"), 400
+    if level < 1 or level > MAX_GAME_LEVEL:
+        return jsonify(success=False, message="Invalid game level."), 400
+    if score < 0:
+        return jsonify(success=False, message="Invalid score."), 400
 
     connection = get_db_connection()
     if connection is None:
-        return jsonify({"success": False, "message": "Unable to connect to the database."}), 503
+        return jsonify(success=False, message="Database connection failed."), 503
 
     cursor = None
     try:
         cursor = connection.cursor(dictionary=True)
-        connection.start_transaction()
 
+        # Lock the user's credit row so two requests cannot pay the same level twice.
         cursor.execute("SELECT credits FROM users WHERE id = %s FOR UPDATE", (user_id,))
-        user = cursor.fetchone()
-
-        if not user:
+        if not cursor.fetchone():
             connection.rollback()
-            return jsonify({"success": False, "message": "User account not found."}), 404
+            return jsonify(success=False, message="User account not found."), 404
 
         cursor.execute(
-            "INSERT IGNORE INTO game_progress (user_id, game_key, unlocked_level, completed_levels, best_score) "
+            "INSERT IGNORE INTO game_progress "
+            "(user_id, game_key, unlocked_level, completed_levels, best_score) "
             "VALUES (%s, %s, 1, 0, 0)",
             (user_id, game_key),
         )
-
-        reward = GAME_LEVEL_REWARD
-
-        # The unique database index prevents duplicate rewards.
         cursor.execute(
-            """
-            INSERT IGNORE INTO game_level_rewards
-                (user_id, game_key, level_number, score, credits_earned)
-            VALUES (%s, %s, %s, %s, %s)
-            """,
-            (user_id, game_key, level, score, reward),
+            "SELECT unlocked_level FROM game_progress "
+            "WHERE user_id = %s AND game_key = %s FOR UPDATE",
+            (user_id, game_key),
         )
+        unlocked = int((cursor.fetchone() or {}).get("unlocked_level") or 1)
 
+        # Levels must be completed in order (no skipping ahead).
+        if level > unlocked:
+            connection.rollback()
+            return jsonify(success=False, message="Complete the earlier levels first."), 400
+
+        # UNIQUE(user_id, game_key, level_number) blocks duplicate rewards.
+        cursor.execute(
+            "INSERT IGNORE INTO game_level_rewards "
+            "(user_id, game_key, level_number, score, credits_earned) "
+            "VALUES (%s, %s, %s, %s, %s)",
+            (user_id, game_key, level, score, GAME_LEVEL_REWARD),
+        )
         newly_completed = cursor.rowcount == 1
+        earned = 0
 
         if newly_completed:
+            earned = GAME_LEVEL_REWARD
             cursor.execute(
                 "UPDATE users SET credits = COALESCE(credits, 0) + %s WHERE id = %s",
-                (reward, user_id),
+                (earned, user_id),
             )
             cursor.execute(
-                """UPDATE game_progress
-                   SET completed_levels = completed_levels + 1,
-                       unlocked_level = GREATEST(unlocked_level, %s),
-                       best_score = GREATEST(COALESCE(best_score, 0), %s)
-                   WHERE user_id = %s AND game_key = %s""",
+                "UPDATE game_progress "
+                "SET completed_levels = completed_levels + 1, "
+                "    unlocked_level = GREATEST(unlocked_level, %s), "
+                "    best_score = GREATEST(COALESCE(best_score, 0), %s) "
+                "WHERE user_id = %s AND game_key = %s",
                 (level + 1, score, user_id, game_key),
             )
-            earned = reward
-        else:
-            earned = 0
+            cursor.execute(
+                "INSERT IGNORE INTO user_activity (user_id, activity_date, activity_type) "
+                "VALUES (%s, CURDATE(), 'game')",
+                (user_id,),
+            )
 
         cursor.execute("SELECT credits FROM users WHERE id = %s", (user_id,))
-        updated_user = cursor.fetchone()
-        balance = int(updated_user["credits"] or 0)
-
+        balance = int((cursor.fetchone() or {}).get("credits") or 0)
         connection.commit()
         session["credits"] = balance
 
-        return jsonify({
-            "success": True,
-            "earned": earned,
-            "balance": balance,
-            "level": level,
-            "game_key": game_key,
-            "duplicate": not newly_completed,
-            "message": (
-                f"+{earned} credits earned!"
+        return jsonify(
+            success=True,
+            earned=earned,
+            balance=balance,
+            level=level,
+            game_key=game_key,
+            duplicate=not newly_completed,
+            message=(
+                f"You earned {earned} credits!"
                 if earned > 0
-                else "You already earned credits for this level."
+                else "This level has already been completed."
             ),
-        })
+        ), 200
 
     except Error:
         connection.rollback()
-        app.logger.exception("Game level reward failed")
-        return jsonify({"success": False, "message": "Unable to save credits. Please try again."}), 500
-
+        app.logger.exception("Game level reward database error")
+        return jsonify(success=False, message="Database error while saving game reward."), 500
+    except Exception:
+        connection.rollback()
+        app.logger.exception("Unexpected game level completion error")
+        return jsonify(success=False, message="Unexpected error while saving game reward."), 500
     finally:
         if cursor:
             cursor.close()
@@ -2049,7 +2336,7 @@ def initialize_database():
     """Create the configured database and all tables used by this app.
 
     Existing tables/data are preserved. CREATE TABLE IF NOT EXISTS does not
-    alter old schemas, so existing tables must already match these columns.
+    alter old schemas, so missing columns are added by the migration below.
     (The aptitude_attempts table is also upgraded automatically by
     routes/aptitude_backend.py if an older version exists.)
     """
@@ -2141,11 +2428,112 @@ def initialize_database():
             email VARCHAR(150) PRIMARY KEY, otp_hash VARCHAR(255) NOT NULL,
             expires_at DATETIME NOT NULL, attempts INT NOT NULL DEFAULT 0, created_at DATETIME NOT NULL
         ) ENGINE=InnoDB""",
+        """CREATE TABLE IF NOT EXISTS video_quizzes (
+            id INT AUTO_INCREMENT PRIMARY KEY, video_id INT NOT NULL, user_id INT NOT NULL,
+            questions LONGTEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY unique_video_quiz (video_id), INDEX idx_video_quizzes_user (user_id),
+            CONSTRAINT fk_video_quizzes_video FOREIGN KEY (video_id)
+                REFERENCES generated_videos(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB""",
+        """CREATE TABLE IF NOT EXISTS video_quiz_attempts (
+            id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, video_id INT NOT NULL,
+            quiz_id INT NOT NULL, answers TEXT NOT NULL, score INT NOT NULL DEFAULT 0,
+            total_questions INT NOT NULL DEFAULT 0, percentage INT NOT NULL DEFAULT 0,
+            credits_earned INT NOT NULL DEFAULT 0, completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_vqa_user_quiz (user_id, quiz_id),
+            CONSTRAINT fk_vqa_video FOREIGN KEY (video_id)
+                REFERENCES generated_videos(id) ON DELETE CASCADE,
+            CONSTRAINT fk_vqa_quiz FOREIGN KEY (quiz_id)
+                REFERENCES video_quizzes(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB""",
     ]
     try:
         cursor = connection.cursor()
-        for statement in statements:
+
+        # Older versions of generated_videos may be missing columns the app uses.
+        # Add those first, then create the tables that depend on generated_videos.
+        for statement in statements[:10]:
             cursor.execute(statement)
+
+        wanted_columns = [
+            ("game_progress", "unlocked_level", "INT NOT NULL DEFAULT 1"),
+            ("game_progress", "completed_levels", "INT NOT NULL DEFAULT 0"),
+            ("game_progress", "best_score", "INT NOT NULL DEFAULT 0"),
+            ("game_level_rewards", "level_number", "INT NOT NULL DEFAULT 1"),
+            ("game_level_rewards", "score", "INT NOT NULL DEFAULT 0"),
+            ("game_level_rewards", "credits_earned", "INT NOT NULL DEFAULT 0"),
+            ("game_plays", "score_pct", "INT NOT NULL DEFAULT 0"),
+            ("game_plays", "seconds", "INT NOT NULL DEFAULT 0"),
+            ("game_plays", "credits_earned", "INT NOT NULL DEFAULT 0"),
+            ("generated_videos", "title", "VARCHAR(150) NOT NULL DEFAULT 'Educational Lesson'"),
+            ("generated_videos", "description", "TEXT NULL"),
+            ("generated_videos", "video_style", "VARCHAR(80) NULL DEFAULT 'Educational'"),
+            ("generated_videos", "language", "VARCHAR(40) NULL DEFAULT 'English'"),
+            ("generated_videos", "filename", "VARCHAR(255) NULL"),
+            ("generated_videos", "video_url", "VARCHAR(500) NULL"),
+            ("generated_videos", "thumbnail", "VARCHAR(500) NULL"),
+            ("generated_videos", "difficulty", "VARCHAR(30) NULL"),
+            ("generated_videos", "audience", "VARCHAR(40) NULL"),
+            ("generated_videos", "aspect_ratio", "VARCHAR(10) NULL DEFAULT '16:9'"),
+            ("generated_videos", "duration_seconds", "INT NOT NULL DEFAULT 0"),
+            ("generated_videos", "subtitles", "TINYINT(1) NOT NULL DEFAULT 0"),
+            ("generated_videos", "highlights", "TINYINT(1) NOT NULL DEFAULT 0"),
+            ("generated_videos", "music", "TINYINT(1) NOT NULL DEFAULT 0"),
+            ("generated_videos", "script_text", "LONGTEXT NULL"),
+        ]
+        for table, column, definition in wanted_columns:
+            cursor.execute(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+                (database_name, table, column),
+            )
+            if cursor.fetchone()[0] == 0:
+                cursor.execute(
+                    f"ALTER TABLE `{table}` ADD COLUMN `{column}` {definition}"
+                )
+                app.logger.info("Added missing column %s.%s", table, column)
+
+        # Older versions of generated_videos used prompt / difficulty / file_name.
+        # Make those optional and copy old data into title / filename.
+        def _text(value):
+            return value.decode() if isinstance(value, (bytes, bytearray)) else value
+
+        cursor.execute(
+            "SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE "
+            "FROM information_schema.COLUMNS "
+            "WHERE TABLE_SCHEMA = %s AND TABLE_NAME = 'generated_videos'",
+            (database_name,),
+        )
+        video_columns = {
+            _text(row[0]): (_text(row[1]), _text(row[2]))
+            for row in cursor.fetchall()
+        }
+
+        for legacy in ("prompt", "difficulty", "file_name"):
+            info = video_columns.get(legacy)
+            if info and info[1] == "NO":
+                cursor.execute(
+                    f"ALTER TABLE generated_videos MODIFY COLUMN `{legacy}` {info[0]} NULL"
+                )
+                app.logger.info("Made generated_videos.%s optional", legacy)
+
+        if "prompt" in video_columns:
+            cursor.execute(
+                "UPDATE generated_videos SET title = LEFT(prompt, 150) "
+                "WHERE prompt IS NOT NULL AND prompt <> '' "
+                "AND (title IS NULL OR title = 'Educational Lesson')"
+            )
+        if "file_name" in video_columns:
+            cursor.execute(
+                "UPDATE generated_videos SET filename = file_name "
+                "WHERE file_name IS NOT NULL AND file_name <> '' "
+                "AND (filename IS NULL OR filename = '')"
+            )
+
+        # Quiz tables reference generated_videos(id), so they are created last.
+        for statement in statements[10:]:
+            cursor.execute(statement)
+
         # Ensure every existing account has a progress row.
         cursor.execute(
             "INSERT IGNORE INTO learning_progress (user_id, videos_generated, quizzes_completed, games_played, total_score) "
@@ -2169,6 +2557,8 @@ def initialize_database():
 # ============================================================
 
 if __name__ == "__main__":
+    print(f".env file: {_ENV_FILE}")
+    print(f".env exists: {_ENV_FILE.exists()}")
     if initialize_database():
         print("Database initialization successful.")
     else:
