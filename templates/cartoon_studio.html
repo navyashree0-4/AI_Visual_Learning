@@ -1,0 +1,700 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cartoon Studio | EduVision</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#1f1b3d; --paper:#fbfaff; --card:#ffffff; --line:#e1ddf5;
+  --violet:#5546e8; --violet-dark:#4335cb; --sun:#ffc83d; --coral:#e8513c; --mint:#12906f;
+  --muted:#645f82; --soft:#f0eeff;
+  --head:'Baloo 2','Trebuchet MS',Arial,sans-serif;
+  --body:'Nunito','Segoe UI',Arial,sans-serif;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{scroll-padding-top:80px}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.55}
+a{color:var(--violet)}
+h1,h2,h3{font-family:var(--head);line-height:1.15;margin:0}
+h1{font-size:clamp(2rem,5vw,3.1rem);font-weight:800}
+h2{font-size:1.5rem;font-weight:700;margin:34px 0 12px}
+h3{font-size:1.15rem;font-weight:700}
+p{margin:0 0 12px}
+
+/* top bar */
+.top{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:20px;flex-wrap:wrap;
+  padding:12px clamp(16px,4vw,40px);background:var(--ink);color:#fff}
+.brand{font-family:var(--head);font-weight:800;font-size:1.3rem;color:#fff;text-decoration:none;margin-right:auto}
+.brand b{color:var(--sun)}
+.top nav{display:flex;gap:18px;flex-wrap:wrap}
+.top nav a{color:#d9d5ff;text-decoration:none;font-weight:600}
+.top nav a:hover{color:#fff}
+.pill{background:var(--sun);color:var(--ink);font-weight:800;padding:5px 14px;border-radius:99px;white-space:nowrap}
+
+main{max-width:920px;margin:0 auto;padding:28px clamp(16px,4vw,32px) 140px}
+
+/* steps */
+.steps{display:flex;gap:8px;list-style:none;margin:0 0 30px;padding:0;flex-wrap:wrap}
+.steps li{display:flex;align-items:center;gap:8px;padding:6px 14px 6px 8px;border-radius:99px;color:var(--muted);
+  background:var(--soft);font-weight:700;font-size:.95rem}
+.steps li span{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#fff;
+  color:var(--muted);font-size:.85rem}
+.steps li[aria-current="step"]{background:var(--ink);color:#fff}
+.steps li[aria-current="step"] span{background:var(--sun);color:var(--ink)}
+
+/* panels, fields */
+.panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px}
+.hint{color:var(--muted);font-size:.95rem}
+.field{display:block;margin-bottom:14px}
+.field .lbl{display:block;font-weight:700;margin-bottom:5px;font-size:.95rem}
+input[type=text],textarea,select{width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;
+  font:inherit;color:var(--ink);background:#fff}
+textarea{resize:vertical;min-height:48px}
+input[type=text]:focus,textarea:focus,select:focus{outline:3px solid #c9c3ff;border-color:var(--violet)}
+:focus-visible{outline:3px solid var(--violet);outline-offset:2px}
+input[type=file]{font:inherit;max-width:100%}
+
+/* choice chips */
+fieldset{border:0;margin:0 0 18px;padding:0}
+legend{font-weight:700;margin-bottom:8px;padding:0}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{position:relative}
+.chip input{position:absolute;opacity:0;inset:0;width:100%;height:100%;margin:0;cursor:pointer}
+.chip span{display:block;padding:8px 15px;border:1.5px solid var(--line);border-radius:99px;background:#fff;font-weight:700;font-size:.95rem}
+.chip small{display:block;font-weight:600;color:var(--muted);font-size:.8rem;line-height:1.2}
+.chip input:checked+span{background:var(--violet);border-color:var(--violet);color:#fff}
+.chip input:checked+span small{color:#e4e1ff}
+.chip input:focus-visible+span{outline:3px solid var(--violet);outline-offset:2px}
+.examples{display:flex;flex-wrap:wrap;gap:8px;margin:-4px 0 18px}
+.examples button{border:1.5px dashed #b9b2f5;background:transparent;color:var(--violet-dark);border-radius:10px;
+  padding:6px 12px;font:inherit;font-size:.9rem;font-weight:600;cursor:pointer;text-align:left}
+.examples button:hover{background:var(--soft)}
+
+/* buttons */
+.btn{display:inline-block;border:0;border-radius:11px;padding:12px 22px;font:inherit;font-weight:800;cursor:pointer;
+  text-decoration:none;text-align:center}
+.btn.primary{background:var(--violet);color:#fff}
+.btn.primary:hover:not(:disabled){background:var(--violet-dark)}
+.btn.ghost{background:var(--soft);color:var(--violet-dark)}
+.btn.ghost:hover:not(:disabled){background:#e3dfff}
+.btn.small{padding:7px 14px;font-size:.9rem}
+.btn.danger{background:#fff;color:var(--coral);border:1.5px solid #f3c3bb}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* characters */
+.chars{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.char{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+.char .field{margin-bottom:10px}
+
+/* scenes: film strip */
+.scenes{display:grid;gap:18px}
+.scene{display:grid;grid-template-columns:64px 1fr;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.strip{background-color:var(--ink);
+  background-image:radial-gradient(circle at 9px 12px,var(--paper) 4px,transparent 4.5px),
+                   radial-gradient(circle at 55px 12px,var(--paper) 4px,transparent 4.5px);
+  background-size:64px 24px;background-repeat:repeat-y;color:var(--sun);
+  font-family:var(--head);font-weight:800;font-size:1.7rem;text-align:center;padding-top:14px}
+.scene-body{padding:18px}
+.scene-head{display:flex;gap:10px;align-items:flex-end;margin-bottom:6px}
+.scene-head .field{flex:1;margin:0}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.say{display:grid;grid-template-columns:150px 1fr 120px;gap:8px;margin-bottom:8px}
+.rewrite{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;padding-top:14px;border-top:1px dashed var(--line)}
+.rewrite input{flex:1;min-width:200px}
+.sub{font-weight:700;font-size:.95rem;margin:4px 0 6px}
+
+/* options */
+.opts{display:grid;gap:10px}
+.check{display:flex;gap:10px;align-items:flex-start;font-weight:600}
+.check input{margin-top:5px;width:18px;height:18px;accent-color:var(--violet)}
+.check small{display:block;color:var(--muted);font-weight:400}
+
+/* sticky make bar */
+.makebar{position:fixed;left:0;right:0;bottom:0;z-index:15;background:#fff;border-top:2px solid var(--ink);
+  display:flex;gap:16px;align-items:center;justify-content:center;flex-wrap:wrap;padding:12px clamp(16px,4vw,32px)}
+.makeinfo{margin-right:auto;max-width:520px}
+.makeinfo strong{display:block;font-family:var(--head);font-size:1.15rem}
+.makeinfo span{color:var(--muted);font-size:.9rem}
+.makeinfo .low{color:var(--coral);font-weight:700}
+
+/* banners */
+.banner{padding:12px 16px;border-radius:12px;background:#fff3d6;border:1px solid #f1d58a;margin-bottom:18px;font-weight:600}
+
+/* progress */
+.bar{height:22px;border-radius:99px;background:var(--soft);overflow:hidden;margin:18px 0 10px}
+.bar>div{height:100%;width:1%;background:linear-gradient(90deg,var(--violet),#8b7dff);transition:width .8s ease}
+.pmsg{font-family:var(--head);font-size:1.3rem;font-weight:700}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:20px}
+.gallery figure{margin:0;background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.gallery img{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;background:var(--soft)}
+.gallery figcaption{padding:6px 10px;font-size:.85rem;font-weight:700}
+
+/* result */
+video{width:100%;max-height:70vh;background:#000;border-radius:14px}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}
+.exports{display:flex;gap:8px;flex-wrap:wrap}
+.meta{color:var(--muted);margin:6px 0 0}
+.error-box{background:#fff0ed;border:1px solid #f3c3bb;border-radius:14px;padding:18px}
+
+/* toast */
+.toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%) translateY(20px);z-index:40;max-width:min(560px,92vw);
+  background:var(--ink);color:#fff;padding:12px 18px;border-radius:12px;font-weight:600;opacity:0;pointer-events:none;
+  transition:opacity .2s,transform .2s}
+.toast.show{opacity:1;transform:translateX(-50%)}
+.toast.error{background:var(--coral)}
+
+@media (max-width:700px){
+  .two{grid-template-columns:1fr}
+  .say{grid-template-columns:1fr}
+  .scene{grid-template-columns:48px 1fr}
+  .strip{background-size:48px 24px;font-size:1.3rem;
+    background-image:radial-gradient(circle at 7px 12px,var(--paper) 3.5px,transparent 4px),
+                     radial-gradient(circle at 41px 12px,var(--paper) 3.5px,transparent 4px)}
+  .makeinfo{margin-right:0;width:100%}
+  .makebar .btn{flex:1}
+}
+@media (prefers-reduced-motion:reduce){
+  .bar>div,.toast{transition:none}
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <a class="brand" href="/dashboard">Edu<b>Vision</b> Cartoon Studio</a>
+  <nav aria-label="Main">
+    <a href="/dashboard">Dashboard</a>
+    <a href="/my-videos">My videos</a>
+    <a href="/game">Games</a>
+  </nav>
+  <span class="pill" title="Your credit balance"><span id="credits">{{ credits }}</span> credits</span>
+</header>
+
+<main>
+  <ol class="steps" id="steps" aria-label="Progress">
+    <li data-stage="idea"><span>1</span>Idea</li>
+    <li data-stage="story"><span>2</span>Story</li>
+    <li data-stage="progress"><span>3</span>Animate</li>
+    <li data-stage="result"><span>4</span>Watch</li>
+  </ol>
+
+  {% if not fal_ready %}
+  <div class="banner" role="alert">
+    Animation is not set up on this server yet (set CARTOON_MODE=free or add FAL_KEY in the .env file).
+    You can write and edit stories, but you cannot make the movie until an administrator adds it.
+  </div>
+  {% endif %}
+
+  <!-- 1. IDEA -->
+  <section id="stage-idea" aria-labelledby="idea-title">
+    <h1 id="idea-title">What is your cartoon about?</h1>
+    <p class="hint" style="margin:10px 0 22px;max-width:60ch">
+      Describe an idea in a sentence or two. We write the story first, you can change anything,
+      and credits are only used when you press Make my movie.
+    </p>
+    <form id="ideaForm" class="panel" novalidate>
+      <label class="field">
+        <span class="lbl">Your idea</span>
+        <textarea id="prompt" rows="4" maxlength="800" placeholder="A shy robot learns to share its battery with a village of fireflies"></textarea>
+      </label>
+      <div class="examples" id="examples" aria-label="Example ideas"></div>
+      <fieldset><legend>Cartoon style</legend><div class="chips" id="styleChips"></div></fieldset>
+      <fieldset><legend>Spoken language</legend><div class="chips" id="langChips"></div></fieldset>
+      <fieldset><legend>Length</legend><div class="chips" id="durChips"></div></fieldset>
+      <fieldset><legend>Screen shape</legend><div class="chips" id="aspectChips"></div></fieldset>
+      <button class="btn primary" id="storyBtn" type="submit">Write my story</button>
+    </form>
+  </section>
+
+  <!-- 2. STORY -->
+  <section id="stage-story" aria-labelledby="story-title" hidden>
+    <h1 id="story-title">Check your story</h1>
+    <p class="hint" style="margin:10px 0 0;max-width:62ch">
+      Change anything you like. Setting and action describe the picture, so keep those in English.
+      Narration and spoken lines are read aloud in <strong id="langName">English</strong>.
+    </p>
+    <div id="storyRoot"></div>
+
+    <h2>Movie options</h2>
+    <div class="panel opts">
+      <label class="check"><input type="checkbox" id="opt-subs" checked>
+        <span>Subtitles<small>Show the spoken words on screen.</small></span></label>
+      <label class="check"><input type="checkbox" id="opt-music" checked>
+        <span>Background music<small>Soft music under the voices.</small></span></label>
+      <label class="check"><input type="checkbox" id="opt-sfx" checked>
+        <span>Sound effects<small>Whooshes, birds and other effects chosen for each scene.</small></span></label>
+      <label class="field" style="margin:6px 0 0">
+        <span class="lbl">Your own picture for scene 1 (optional)</span>
+        <input type="file" id="file-image" accept=".jpg,.jpeg,.png">
+        <span class="hint">JPG or PNG, up to 10 MB. It becomes the first animated scene.</span>
+      </label>
+      <label class="field" style="margin:0">
+        <span class="lbl">Your own music (optional)</span>
+        <input type="file" id="file-audio" accept=".mp3,.wav,.m4a,.ogg">
+        <span class="hint">MP3, WAV, M4A or OGG, up to 15 MB. Used instead of the default music.</span>
+      </label>
+    </div>
+    <div class="row"><button type="button" class="btn ghost" id="backIdea">Change my idea</button></div>
+
+    <div class="makebar" id="makebar">
+      <div class="makeinfo">
+        <strong id="costLine"></strong>
+        <span id="costSub"></span>
+      </div>
+      <a class="btn ghost" id="earn" href="/game" hidden>Play games to earn credits</a>
+      <button type="button" class="btn primary" id="makeBtn">Make my movie</button>
+    </div>
+  </section>
+
+  <!-- 3. PROGRESS -->
+  <section id="stage-progress" aria-labelledby="prog-title" hidden>
+    <h1 id="prog-title">Making your movie</h1>
+    <p class="hint" style="margin:10px 0 0;max-width:62ch">
+      Animation takes a few minutes. Keep this page open, or come back later: your movie will also appear in My videos.
+    </p>
+    <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="1" id="barWrap"><div id="bar"></div></div>
+    <div class="pmsg" id="pmsg" aria-live="polite">Starting</div>
+    <div id="gallery-wrap" hidden>
+      <h2>Pictures so far</h2>
+      <div class="gallery" id="gallery"></div>
+    </div>
+    <div class="error-box" id="failBox" hidden>
+      <h3>The movie could not be finished</h3>
+      <p id="failMsg"></p>
+      <button class="btn primary" type="button" id="failBack">Back to my story</button>
+    </div>
+  </section>
+
+  <!-- 4. RESULT -->
+  <section id="stage-result" aria-labelledby="res-title" hidden>
+    <h1 id="res-title">Your movie is ready</h1>
+    <div id="resultRoot"></div>
+  </section>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+'use strict';
+
+const CFG = {
+  costPerScene: {{ cost_per_scene|tojson }},
+  scenesByDuration: {{ scenes_by_duration|tojson }},
+  styles: {{ styles|tojson }},
+  falReady: {{ fal_ready|tojson }},
+  credits: {{ credits|tojson }}
+};
+const URLS = {
+  story: "/api/cartoon/story",
+  regen: "/api/cartoon/regenerate-scene",
+  generate: "/api/cartoon/generate",
+  status: "/api/cartoon/status/__ID__",
+  credits: "/api/credits"
+};
+
+const LANGUAGES = ['English','Kannada','Hindi'];
+const ASPECTS = [['16:9','Widescreen','16:9'],['9:16','Phone','9:16'],['1:1','Square','1:1']];
+const VOICES = [['female','Woman'],['male','Man'],['child','Child'],['deep','Deep voice']];
+const EMOTIONS = ['happy','sad','angry','surprised','scared','excited','calm','curious','proud'];
+const SFX = [['','No sound effect'],['whoosh','Whoosh'],['magic','Magic'],['boing','Boing'],['roar','Roar'],
+             ['birds','Birds'],['water','Water'],['pop','Pop'],['footsteps','Footsteps'],['wind','Wind']];
+const EXAMPLES = [
+  'A shy robot learns to share its battery with a village of fireflies',
+  'Two brothers in Mysuru build a rocket out of an old rickshaw',
+  'A little cloud who is afraid of thunder makes friends with the wind'
+];
+
+const state = { story:null, style:CFG.styles[0] || '3D', language:'English', aspect:'16:9',
+                jobId:null, timer:null, fails:0, seen:new Set(), credits:CFG.credits };
+
+const $ = (s, r) => (r || document).querySelector(s);
+
+/* ---------- small helpers ---------- */
+function h(tag, attrs){
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === false || v == null) continue;
+    if (k === 'class') el.className = v;
+    else if (k === 'text') el.textContent = v;
+    else if (k.slice(0,2) === 'on') el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  for (const kid of Array.prototype.slice.call(arguments, 2).flat()) {
+    if (kid == null || kid === false) continue;
+    el.append(kid.nodeType ? kid : document.createTextNode(kid));
+  }
+  return el;
+}
+
+let toastTimer;
+function toast(msg, kind){
+  const t = $('#toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (kind || '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = 'toast'; }, 6500);
+}
+
+async function api(url, opts){
+  let res, data = {};
+  try { res = await fetch(url, opts); }
+  catch (e) { throw new Error('Could not reach the server. Check your connection and try again.'); }
+  try { data = await res.json(); } catch (e) { /* not JSON */ }
+  if (!res.ok || data.ok === false) {
+    throw new Error(data.error || data.message || ('Something went wrong (' + res.status + ').'));
+  }
+  return data;
+}
+
+function setCredits(n){
+  state.credits = Number(n) || 0;
+  $('#credits').textContent = state.credits;
+  if (state.story) updateCost();
+}
+async function refreshCredits(){
+  try { const d = await api(URLS.credits); setCredits(d.credits); } catch (e) { /* keep old value */ }
+}
+
+function showStage(name){
+  for (const s of ['idea','story','progress','result']) $('#stage-' + s).hidden = (s !== name);
+  document.querySelectorAll('#steps li').forEach(li => {
+    if (li.dataset.stage === name) li.setAttribute('aria-current','step'); else li.removeAttribute('aria-current');
+  });
+  window.scrollTo({ top: 0 });
+}
+
+/* ---------- choice chips ---------- */
+function chips(container, name, items, selected, onPick){
+  container.replaceChildren();
+  items.forEach(it => {
+    const input = h('input', { type:'radio', name:name, value:it.value });
+    input.checked = (it.value === selected);
+    input.addEventListener('change', () => onPick(it.value));
+    container.append(h('label', { class:'chip' }, input,
+      h('span', {}, it.label, it.sub ? h('small', { text: it.sub }) : null)));
+  });
+}
+
+function buildIdeaForm(){
+  EXAMPLES.forEach(text => {
+    $('#examples').append(h('button', { type:'button', text:text, onclick:() => {
+      $('#prompt').value = text; $('#prompt').focus();
+    }}));
+  });
+  chips($('#styleChips'), 'style', CFG.styles.map(s => ({ value:s, label:s })), state.style, v => state.style = v);
+  chips($('#langChips'), 'language', LANGUAGES.map(l => ({ value:l, label:l })), state.language, v => state.language = v);
+  const durations = Object.entries(CFG.scenesByDuration).sort((a, b) => a[1] - b[1]);
+  state.duration = (durations.find(d => d[0] === 'Medium') || durations[0])[0];
+  chips($('#durChips'), 'duration',
+    durations.map(([name, n]) => ({ value:name, label:name,
+      sub: n + ' scenes, ' + (n * CFG.costPerScene) + ' credits' })),
+    state.duration, v => state.duration = v);
+  chips($('#aspectChips'), 'aspect',
+    ASPECTS.map(a => ({ value:a[0], label:a[1], sub:a[2] })), state.aspect, v => state.aspect = v);
+}
+
+/* ---------- story editor ---------- */
+function field(label, get, set, opts){
+  opts = opts || {};
+  const input = opts.rows
+    ? h('textarea', { rows:opts.rows, maxlength:opts.max })
+    : h('input', { type:'text', maxlength:opts.max });
+  input.value = get();
+  input.addEventListener('input', () => set(input.value));
+  if (opts.change) input.addEventListener('change', opts.change);
+  return h('label', { class:'field' }, h('span', { class:'lbl', text:label }), input);
+}
+
+function selectEl(options, value, onChange, label){
+  const sel = h('select', { 'aria-label':label });
+  options.forEach(o => {
+    const v = Array.isArray(o) ? o[0] : o, t = Array.isArray(o) ? o[1] : o;
+    sel.append(h('option', { value:v, text:t }));
+  });
+  sel.value = value;
+  sel.addEventListener('change', () => onChange(sel.value));
+  return sel;
+}
+
+function renderStory(){
+  const s = state.story, root = $('#storyRoot');
+  $('#langName').textContent = state.language;
+  root.replaceChildren();
+
+  root.append(h('h2', { text:'Title' }),
+    h('div', { class:'panel' },
+      field('Movie title', () => s.title, v => { s.title = v; }, { max:100 }),
+      field('One-line summary', () => s.logline, v => { s.logline = v; }, { max:300 })));
+
+  const grid = h('div', { class:'chars' });
+  s.characters.forEach(ch => {
+    let prev = ch.name;
+    grid.append(h('div', { class:'char' },
+      field('Name', () => ch.name, v => { ch.name = v; }, { max:60, change:() => {
+        const nn = ch.name.trim();
+        if (!nn) { ch.name = prev; renderStory(); return; }
+        ch.name = nn;
+        s.scenes.forEach(sc => sc.dialogue.forEach(d => { if (d.character === prev) d.character = nn; }));
+        prev = nn;
+        renderScenes();
+      }}),
+      field('What they look like (English)', () => ch.look, v => { ch.look = v; }, { rows:2, max:300 }),
+      field('Personality', () => ch.description, v => { ch.description = v; }, { rows:2, max:300 }),
+      h('label', { class:'field' }, h('span', { class:'lbl', text:'Voice' }),
+        selectEl(VOICES, ch.voice, v => { ch.voice = v; }, 'Voice for ' + ch.name))));
+  });
+  root.append(h('h2', { text:'Characters' }), grid, h('h2', { text:'Scenes' }), h('div', { class:'scenes', id:'scenes' }));
+  renderScenes();
+  updateCost();
+}
+
+function renderScenes(){
+  const box = $('#scenes');
+  box.replaceChildren();
+  state.story.scenes.forEach((sc, i) => box.append(sceneCard(sc, i)));
+}
+
+function sceneCard(sc, i){
+  const s = state.story;
+  const names = s.characters.map(c => c.name);
+
+  const dlg = h('div', {});
+  if (sc.dialogue.length) dlg.append(h('div', { class:'sub', text:'Spoken lines' }));
+  sc.dialogue.forEach((d, k) => {
+    const line = h('input', { type:'text', maxlength:120, 'aria-label':'Line ' + (k + 1) });
+    line.value = d.line;
+    line.addEventListener('input', () => { d.line = line.value; });
+    dlg.append(h('div', { class:'say' },
+      selectEl(names, d.character, v => { d.character = v; }, 'Who speaks line ' + (k + 1)),
+      line,
+      selectEl(EMOTIONS, d.emotion, v => { d.emotion = v; }, 'Feeling for line ' + (k + 1))));
+  });
+
+  const instr = h('input', { type:'text', maxlength:300, placeholder:'Optional: what should change? For example, make it funnier' });
+  const rewrite = h('button', { type:'button', class:'btn ghost small', text:'Rewrite this scene' });
+  rewrite.addEventListener('click', async () => {
+    const problem = validateStory();
+    if (problem) { toast(problem, 'error'); return; }
+    rewrite.disabled = true; rewrite.textContent = 'Rewriting';
+    try {
+      const d = await api(URLS.regen, { method:'POST', headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ story:s, index:i, instruction:instr.value,
+                               style:state.style, language:state.language }) });
+      s.scenes[i] = d.scene;
+      renderScenes();
+      toast('Scene ' + (i + 1) + ' rewritten.');
+    } catch (e) {
+      toast(e.message, 'error');
+      rewrite.disabled = false; rewrite.textContent = 'Rewrite this scene';
+    }
+  });
+
+  const remove = h('button', { type:'button', class:'btn danger small', text:'Remove scene',
+    disabled: s.scenes.length <= 1 });
+  remove.addEventListener('click', () => {
+    s.scenes.splice(i, 1);
+    renderScenes(); updateCost();
+  });
+
+  return h('article', { class:'scene' },
+    h('div', { class:'strip', 'aria-hidden':'true', text:String(i + 1) }),
+    h('div', { class:'scene-body' },
+      h('div', { class:'scene-head' },
+        field('Scene ' + (i + 1) + ' title', () => sc.title, v => { sc.title = v; }, { max:80 }),
+        remove),
+      h('div', { class:'two' },
+        field('Setting (English)', () => sc.setting, v => { sc.setting = v; }, { rows:2, max:300 }),
+        field('Action (English)', () => sc.action, v => { sc.action = v; }, { rows:2, max:400 })),
+      field('Narrator says', () => sc.narration, v => { sc.narration = v; }, { rows:2, max:250 }),
+      dlg,
+      h('label', { class:'field' }, h('span', { class:'lbl', text:'Sound effect' }),
+        selectEl(SFX, sc.sfx || '', v => { sc.sfx = v; }, 'Sound effect for scene ' + (i + 1))),
+      h('div', { class:'rewrite' }, instr, rewrite)));
+}
+
+function validateStory(){
+  const s = state.story;
+  if (!s || !s.scenes.length) return 'The story needs at least one scene.';
+  for (let i = 0; i < s.scenes.length; i++) {
+    const sc = s.scenes[i];
+    const spoken = sc.dialogue.some(d => d.line.trim());
+    if (!sc.narration.trim() && !spoken) return 'Scene ' + (i + 1) + ' needs narration or at least one spoken line.';
+  }
+  return '';
+}
+
+/* ---------- cost bar ---------- */
+function updateCost(){
+  if (!state.story) return;
+  const n = state.story.scenes.length, cost = n * CFG.costPerScene;
+  const enough = state.credits >= cost;
+  $('#costLine').textContent = n + (n === 1 ? ' scene' : ' scenes') + ' x ' + CFG.costPerScene + ' = ' + cost + ' credits';
+  const sub = $('#costSub');
+  sub.replaceChildren();
+  if (enough) sub.append('You have ' + state.credits + ' credits. Failed movies are refunded.');
+  else sub.append(h('span', { class:'low', text:'You need ' + (cost - state.credits) + ' more credits.' }),
+                  ' Remove a scene or play a game to earn them.');
+  $('#earn').hidden = enough;
+  const btn = $('#makeBtn');
+  btn.disabled = !enough || !CFG.falReady;
+  btn.textContent = 'Make my movie';
+}
+
+/* ---------- actions ---------- */
+async function onIdeaSubmit(e){
+  e.preventDefault();
+  const prompt = $('#prompt').value.trim();
+  if (prompt.length < 5) { toast('Describe your idea in at least a short sentence.', 'error'); $('#prompt').focus(); return; }
+  const btn = $('#storyBtn');
+  btn.disabled = true; btn.textContent = 'Writing your story. This can take a minute';
+  try {
+    const d = await api(URLS.story, { method:'POST', headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ prompt:prompt, style:state.style, language:state.language, duration:state.duration }) });
+    state.story = d.story;
+    renderStory();
+    showStage('story');
+  } catch (err) {
+    toast(err.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Write my story';
+  }
+}
+
+async function onMake(){
+  const problem = validateStory();
+  if (problem) { toast(problem, 'error'); return; }
+  const fd = new FormData();
+  fd.append('story', JSON.stringify(state.story));
+  fd.append('style', state.style);
+  fd.append('language', state.language);
+  fd.append('aspect_ratio', state.aspect);
+  if ($('#opt-subs').checked) fd.append('subtitles', 'on');
+  if ($('#opt-music').checked) fd.append('music', 'on');
+  if ($('#opt-sfx').checked) fd.append('sfx', 'on');
+  const img = $('#file-image').files[0], aud = $('#file-audio').files[0];
+  if (img) fd.append('image', img);
+  if (aud) fd.append('audio', aud);
+
+  const btn = $('#makeBtn');
+  btn.disabled = true; btn.textContent = 'Starting';
+  try {
+    const d = await api(URLS.generate, { method:'POST', body:fd });
+    setCredits(d.credits);
+    state.jobId = d.job_id;
+    try { sessionStorage.setItem('cartoonJob', JSON.stringify({ id:d.job_id, story:state.story })); } catch (e) {}
+    startProgress();
+  } catch (err) {
+    toast(err.message, 'error');
+    updateCost();
+  }
+}
+
+/* ---------- progress ---------- */
+function startProgress(){
+  state.seen = new Set(); state.fails = 0;
+  $('#gallery').replaceChildren(); $('#gallery-wrap').hidden = true; $('#failBox').hidden = true;
+  $('#bar').style.width = '1%'; $('#pmsg').textContent = 'Starting';
+  showStage('progress');
+  clearTimeout(state.timer);
+  tick();
+}
+
+function captionFor(a){
+  const s = state.story;
+  if (a.kind === 'character') { const c = s && s.characters[a.index]; return c ? c.name : 'Character ' + (a.index + 1); }
+  const sc = s && s.scenes[a.index];
+  return 'Scene ' + (a.index + 1) + (sc && sc.title ? ': ' + sc.title : '');
+}
+
+function showAssets(list){
+  (list || []).forEach(a => {
+    if (state.seen.has(a.url)) return;
+    state.seen.add(a.url);
+    $('#gallery-wrap').hidden = false;
+    $('#gallery').append(h('figure', {},
+      h('img', { src:a.url, alt:captionFor(a), loading:'lazy' }),
+      h('figcaption', { text:captionFor(a) })));
+  });
+}
+
+async function tick(){
+  try {
+    const d = await api(URLS.status.replace('__ID__', encodeURIComponent(state.jobId)));
+    state.fails = 0;
+    const pct = Math.max(1, Math.min(100, d.percent || 1));
+    $('#bar').style.width = pct + '%';
+    $('#barWrap').setAttribute('aria-valuenow', pct);
+    $('#pmsg').textContent = d.message || 'Working';
+    showAssets(d.assets);
+    if (d.status === 'done' && d.result) { finish(d.result); return; }
+    if (d.status === 'failed') { fail(d.error || 'The movie could not be finished. Your credits were refunded.'); return; }
+  } catch (err) {
+    state.fails++;
+    if (/not found/i.test(err.message) || state.fails >= 6) { fail(err.message); return; }
+  }
+  state.timer = setTimeout(tick, 3000);
+}
+
+function clearJob(){ try { sessionStorage.removeItem('cartoonJob'); } catch (e) {} }
+
+function fail(message){
+  clearJob();
+  $('#failMsg').textContent = message;
+  $('#failBox').hidden = false;
+  $('#pmsg').textContent = 'Stopped';
+  refreshCredits();
+}
+
+function finish(r){
+  clearJob();
+  setCredits(r.credits);
+  const root = $('#resultRoot');
+  root.replaceChildren();
+  const video = h('video', { controls:true, preload:'metadata', playsinline:true, src:r.video_url });
+  root.append(
+    video,
+    h('h2', { text:r.title, style:'margin-top:20px' }),
+    h('p', { class:'meta', text:r.duration + ', ' + r.scenes + (r.scenes === 1 ? ' scene' : ' scenes') }),
+    h('div', { class:'row' },
+      h('a', { class:'btn primary', href:r.download_url, text:'Download movie' }),
+      h('a', { class:'btn ghost', href:r.quiz_url, text:'Take a quiz about it' }),
+      h('button', { class:'btn ghost', type:'button', text:'Make another cartoon', onclick:resetAll })),
+    h('h3', { text:'Save for social media', style:'margin-top:22px' }),
+    h('p', { class:'hint', text:'Each button prepares a copy in the right shape. The first one can take a short while.' }),
+    h('div', { class:'exports' }, (r.exports || []).map(x =>
+      h('a', { class:'btn ghost small', href:x.url, text:x.label }))),
+    h('p', { class:'hint', style:'margin-top:22px' },
+      'Find this movie later in ', h('a', { href:"/my-videos", text:'My videos' }), '.'));
+  showStage('result');
+}
+
+function resetAll(){
+  state.story = null; state.jobId = null;
+  $('#storyRoot').replaceChildren();
+  $('#file-image').value = ''; $('#file-audio').value = '';
+  showStage('idea');
+}
+
+/* ---------- start ---------- */
+buildIdeaForm();
+$('#ideaForm').addEventListener('submit', onIdeaSubmit);
+$('#makeBtn').addEventListener('click', onMake);
+$('#backIdea').addEventListener('click', () => showStage('idea'));
+$('#failBack').addEventListener('click', () => { if (state.story) { renderStory(); showStage('story'); } else resetAll(); });
+showStage('idea');
+
+// Come back to a movie that is still being made after a page reload.
+try {
+  const saved = JSON.parse(sessionStorage.getItem('cartoonJob') || 'null');
+  if (saved && saved.id) { state.jobId = saved.id; state.story = saved.story || null; startProgress(); }
+} catch (e) { clearJob(); }
+})();
+</script>
+</body>
+</html>

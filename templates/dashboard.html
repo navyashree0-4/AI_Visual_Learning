@@ -15,6 +15,82 @@
                 localStorage.getItem("eduvision-theme") || "dark";
         } catch (e) {}
     </script>
+
+    <!-- Styles for the NEW Cartoon Studio additions only.
+         You can later move these into static/css/dashboard.css -->
+    <style>
+        .quick-actions { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+        .quick.pink { background: linear-gradient(135deg, #ff5fa2, #ff8a5f); color: #fff; }
+
+        .studio-switch {
+            display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 18px;
+        }
+        .cartoon-promo {
+            position: relative; overflow: hidden;
+            display: grid; grid-template-columns: 1.4fr 1fr; gap: 24px; align-items: center;
+            padding: 30px; border-radius: 24px; color: #fff;
+            background: linear-gradient(135deg, #ff5fa2 0%, #8b5cf6 55%, #4f46e5 100%);
+            box-shadow: 0 18px 50px rgba(139, 92, 246, .28);
+        }
+        .cartoon-promo h3 { font-size: 1.7rem; margin: 6px 0 8px; }
+        .cartoon-promo p { opacity: .92; max-width: 560px; line-height: 1.6; }
+        .cartoon-tags { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 20px; }
+        .cartoon-tags span {
+            background: rgba(255,255,255,.18); padding: 6px 12px;
+            border-radius: 999px; font-size: .8rem; font-weight: 600;
+            backdrop-filter: blur(6px);
+        }
+        .cartoon-cta {
+            display: inline-flex; align-items: center; gap: 10px;
+            background: #fff; color: #5b21b6; font-weight: 700;
+            padding: 13px 22px; border-radius: 14px; text-decoration: none;
+            transition: transform .2s ease, box-shadow .2s ease;
+        }
+        .cartoon-cta:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,.25); }
+        .cartoon-cost { margin-left: 14px; font-size: .85rem; opacity: .9; }
+        .cartoon-art { text-align: center; font-size: 5.5rem; line-height: 1; }
+        .cartoon-art small { display: block; font-size: .9rem; margin-top: 10px; opacity: .9; }
+
+        .library-filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+        .filter-chip {
+            border: 1px solid rgba(139, 92, 246, .35); background: transparent;
+            color: inherit; padding: 8px 16px; border-radius: 999px;
+            cursor: pointer; font-weight: 600; font-size: .85rem;
+            transition: all .2s ease;
+        }
+        .filter-chip.active, .filter-chip:hover {
+            background: linear-gradient(135deg, #8b5cf6, #6366f1);
+            color: #fff; border-color: transparent;
+        }
+        .type-badge {
+            position: absolute; top: 10px; left: 10px; z-index: 2;
+            padding: 4px 10px; border-radius: 999px; font-size: .72rem;
+            font-weight: 700; color: #fff; letter-spacing: .03em;
+        }
+        .type-badge.edu { background: #4f46e5; }
+        .type-badge.cartoon { background: #ec4899; }
+        .generated-video-preview { position: relative; }
+        .video-status {
+            display: inline-block; margin-top: 6px; padding: 3px 10px;
+            border-radius: 999px; font-size: .72rem; font-weight: 700;
+            background: rgba(245, 158, 11, .18); color: #f59e0b;
+        }
+        .video-status.failed { background: rgba(239, 68, 68, .18); color: #ef4444; }
+        .cartoon-link, .download-link {
+            display: inline-block; padding: 7px 14px; border-radius: 10px;
+            text-decoration: none; font-size: .85rem; font-weight: 600;
+            background: rgba(236, 72, 153, .15); color: #ec4899;
+            margin-right: 6px; margin-top: 6px;
+        }
+        .download-link { background: rgba(99, 102, 241, .15); color: #6366f1; }
+        .filter-empty { text-align: center; padding: 24px; opacity: .75; }
+
+        @media (max-width: 760px) {
+            .cartoon-promo { grid-template-columns: 1fr; padding: 22px; }
+            .cartoon-art { display: none; }
+            .cartoon-cost { display: block; margin: 10px 0 0; }
+        }
+    </style>
 </head>
 
 <body>
@@ -23,6 +99,7 @@
 {% set st = streak|default(learning_streak|default(0))|int %}
 {% set credit_value = credits|default(50)|int %}
 {% set cost = video_cost|default(10)|int %}
+{% set cartoon_credit_cost = cartoon_cost|default(30)|int %}
 {% set video_list = generated_videos|default([]) %}
 {% set video_count = videos_completed|default(video_list|length)|int %}
 
@@ -66,7 +143,13 @@
 
             <a class="nav-link" href="{{ url_for('generate_video_page') }}">
                 <span class="nav-icon">✨</span>
-                <span>AI Video Studio</span>
+                <span>Educational Video Studio</span>
+            </a>
+
+            <!-- NEW: Cartoon & Animation Studio -->
+            <a class="nav-link" href="/cartoon-studio">
+                <span class="nav-icon">🎨</span>
+                <span>Cartoon &amp; Animation Studio</span>
             </a>
 
             <a class="nav-link" href="#my-videos" data-section="my-videos">
@@ -191,14 +274,19 @@
                     </h1>
 
                     <p>
-                        Learn visually, create AI lessons and challenge
-                        yourself with fun learning games.
+                        Learn visually, create AI lessons, make animated
+                        cartoon movies and challenge yourself with fun
+                        learning games.
                     </p>
 
                     <div class="welcome-buttons">
 
                         <a href="#create-video" class="button primary-button">
                             ✨ Create a lesson
+                        </a>
+
+                        <a href="/cartoon-studio" class="button ghost-button">
+                            🎨 Make a cartoon
                         </a>
 
                         <a href="#game-hub" class="button ghost-button">
@@ -237,8 +325,15 @@
 
                 <a class="quick purple" href="#create-video">
                     <span>🎬</span>
-                    <strong>AI Video</strong>
+                    <strong>Educational Video</strong>
                     <small>Make a lesson</small>
+                </a>
+
+                <!-- NEW -->
+                <a class="quick pink" href="/cartoon-studio">
+                    <span>🎨</span>
+                    <strong>Cartoon Studio</strong>
+                    <small>Animated movies</small>
                 </a>
 
                 <a class="quick orange" href="{{ url_for('games') }}">
@@ -282,7 +377,7 @@
                             <div class="stat-icon">🎬</div>
                             <strong data-count="{{ video_count }}">{{ video_count }}</strong>
                             <p>Videos created</p>
-                            <small>Your visual lessons</small>
+                            <small>Lessons &amp; cartoons</small>
                         </article>
 
                         <article class="stat-card stat-blue tilt">
@@ -317,7 +412,7 @@
             </section>
 
 
-            <!-- 4. AI VIDEO STUDIO -->
+            <!-- 4. EDUCATIONAL VIDEO STUDIO -->
             <section class="section studio-section reveal" id="create-video">
 
                 <div class="section-heading">
@@ -343,7 +438,7 @@
                             <div class="studio-heading-icon">🎬</div>
 
                             <div>
-                                <h3>AI Video Studio</h3>
+                                <h3>Educational Video Studio</h3>
                                 <p>Your idea. Your lesson. Powered by AI.</p>
                             </div>
 
@@ -531,7 +626,7 @@
 
                         <p class="credit-description">
                             Play games, complete challenges and collect credits
-                            to create more AI-powered lessons.
+                            to create more AI-powered lessons and cartoons.
                         </p>
 
                         <div class="credit-track">
@@ -560,8 +655,15 @@
 
                             <li>
                                 <span class="earn-icon">🎬</span>
-                                <span>Generate a video</span>
+                                <span>Educational video</span>
                                 <b>−{{ cost }}</b>
+                            </li>
+
+                            <!-- NEW -->
+                            <li>
+                                <span class="earn-icon">🎨</span>
+                                <span>Cartoon movie</span>
+                                <b>−{{ cartoon_credit_cost }}</b>
                             </li>
 
                         </ul>
@@ -577,26 +679,97 @@
             </section>
 
 
-            <!-- 5. MY GENERATED VIDEOS -->
+            <!-- 4B. NEW: AI CARTOON & ANIMATION STUDIO -->
+            <section class="section reveal" id="cartoon-studio">
+
+                <div class="section-heading">
+                    <div>
+                        <span class="eyebrow">STORIES THAT MOVE</span>
+                        <h2>AI Cartoon &amp; Animation Studio</h2>
+                        <p>Type one idea and get a complete animated cartoon movie.</p>
+                    </div>
+                    <div class="heading-illustration">🍿</div>
+                </div>
+
+                <article class="cartoon-promo">
+
+                    <div>
+                        <span class="studio-badge">NEW · AI ANIMATION</span>
+
+                        <h3>Turn a simple prompt into a cartoon movie</h3>
+
+                        <p>
+                            Example: “Create a 3D cartoon movie about a clever
+                            rabbit and a lion who become friends.” EduVision
+                            writes the story, designs the characters, animates
+                            every scene, adds voices, music and subtitles, and
+                            gives you a downloadable MP4.
+                        </p>
+
+                        <div class="cartoon-tags">
+                            <span>2D</span>
+                            <span>3D</span>
+                            <span>Anime</span>
+                            <span>Storybook</span>
+                            <span>Kids Cartoon</span>
+                            <span>Fantasy</span>
+                            <span>English · ಕನ್ನಡ · हिन्दी</span>
+                            <span>Reels · Shorts · TikTok · YouTube</span>
+                        </div>
+
+                        <a href="/cartoon-studio" class="cartoon-cta">
+                            🎨 Open Cartoon Studio <span>→</span>
+                        </a>
+
+                        <span class="cartoon-cost">
+                            💎 From {{ cartoon_credit_cost }} credits per movie
+                        </span>
+                    </div>
+
+                    <div class="cartoon-art" aria-hidden="true">
+                        🐰🦁
+                        <small>Your story. Your characters. Real animation.</small>
+                    </div>
+
+                </article>
+
+            </section>
+
+
+            <!-- 5. MY GENERATED VIDEOS (Educational + Cartoon) -->
             <section class="section library-section reveal" id="my-videos">
 
                 <div class="section-heading">
                     <div>
                         <span class="eyebrow">YOUR LIBRARY</span>
                         <h2>My Generated Videos</h2>
-                        <p>Your educational videos created with EduVision.</p>
+                        <p>Your educational videos and cartoon movies created with EduVision.</p>
                     </div>
                 </div>
 
                 {% if video_list %}
 
-                <div class="generated-videos-grid">
+                <div class="library-filters" id="libraryFilters" role="tablist" aria-label="Filter videos">
+                    <button type="button" class="filter-chip active" data-filter="all">All</button>
+                    <button type="button" class="filter-chip" data-filter="educational">🎓 Educational</button>
+                    <button type="button" class="filter-chip" data-filter="cartoon">🎨 Cartoon</button>
+                </div>
+
+                <div class="generated-videos-grid" id="videosGrid">
 
                     {% for video in video_list %}
 
-                    <article class="generated-video-card">
+                    {% set vtype = (video.video_type|default('educational'))|lower %}
+                    {% set is_cartoon = vtype in ['cartoon', 'cartoon_animation', 'animation'] %}
+
+                    <article class="generated-video-card"
+                             data-type="{{ 'cartoon' if is_cartoon else 'educational' }}">
 
                         <div class="generated-video-preview">
+
+                            <span class="type-badge {{ 'cartoon' if is_cartoon else 'edu' }}">
+                                {{ '🎨 CARTOON' if is_cartoon else '🎓 LESSON' }}
+                            </span>
 
                             {% if video.filename and video.url %}
 
@@ -608,7 +781,7 @@
                             {% else %}
 
                             <div class="video-placeholder">
-                                <span>🎬</span>
+                                <span>{{ '🎨' if is_cartoon else '🎬' }}</span>
                                 <p>Video preview unavailable</p>
                             </div>
 
@@ -619,12 +792,16 @@
                         <div class="generated-video-info">
 
                             <h3>
-                                {{ video.title|default('Educational Lesson') }}
+                                {{ video.title|default('Cartoon Movie' if is_cartoon else 'Educational Lesson') }}
                             </h3>
 
                             <div class="video-meta">
                                 <span>
-                                    {{ video.video_style|default('Educational')|replace('_', ' ')|title }}
+                                    {% if is_cartoon %}
+                                        {{ video.cartoon_style|default(video.video_style|default('Cartoon'))|replace('_', ' ')|title }}
+                                    {% else %}
+                                        {{ video.video_style|default('Educational')|replace('_', ' ')|title }}
+                                    {% endif %}
                                 </span>
                                 <span>·</span>
                                 <span>
@@ -638,14 +815,43 @@
                             </small>
                             {% endif %}
 
-                            {% if video.id %}
-                            <div class="generated-video-actions">
-                                <a class="quiz-link"
-                                   href="{{ url_for('video_quiz.video_quiz_page', video_id=video.id) }}">
-                                    🧠 Take Quiz
-                                </a>
+                            {% if video.status and video.status|lower not in ['completed', 'complete', 'done', 'success'] %}
+                            <div>
+                                <span class="video-status {{ 'failed' if video.status|lower in ['failed', 'error'] else '' }}">
+                                    {{ video.status|title }}
+                                </span>
                             </div>
                             {% endif %}
+
+                            <div class="generated-video-actions">
+
+                                {% if is_cartoon %}
+
+                                    {% if video.id %}
+                                    <a class="cartoon-link"
+                                       href="/cartoon-studio?movie={{ video.id }}">
+                                        🎨 Open in Studio
+                                    </a>
+                                    {% endif %}
+
+                                    {% if video.url %}
+                                    <a class="download-link"
+                                       href="{{ video.download_url|default(video.url) }}"
+                                       download>
+                                        ⬇ Download MP4
+                                    </a>
+                                    {% endif %}
+
+                                {% elif video.id %}
+
+                                    <a class="quiz-link"
+                                       href="{{ url_for('video_quiz.video_quiz_page', video_id=video.id) }}">
+                                        🧠 Take Quiz
+                                    </a>
+
+                                {% endif %}
+
+                            </div>
 
                         </div>
 
@@ -655,14 +861,18 @@
 
                 </div>
 
+                <p class="filter-empty" id="filterEmpty" hidden>
+                    No videos of this type yet.
+                </p>
+
                 {% else %}
 
                 <div class="library-empty">
                     <span>🎬</span>
                     <h3>No videos generated yet</h3>
                     <p>
-                        Your generated educational videos will appear here
-                        after you create your first lesson.
+                        Your educational videos and cartoon movies will appear
+                        here after you create your first one.
                     </p>
                 </div>
 
@@ -820,7 +1030,10 @@
                             <span class="tl-dot"></span>
 
                             <div>
-                                <strong>🎬 Created: {{ a.activity }}</strong>
+                                <strong>
+                                    {{ '🎨' if (a.type|default('')|lower) in ['cartoon', 'cartoon_animation', 'animation'] else '🎬' }}
+                                    Created: {{ a.activity }}
+                                </strong>
 
                                 {% if a.date %}
                                 <small>
@@ -872,6 +1085,35 @@
     </main>
 
 </div>
+
+<!-- Library filter (Educational / Cartoon). Independent of dashboard.js. -->
+<script>
+    (function () {
+        var filters = document.getElementById("libraryFilters");
+        var grid = document.getElementById("videosGrid");
+        var empty = document.getElementById("filterEmpty");
+        if (!filters || !grid) return;
+
+        filters.addEventListener("click", function (event) {
+            var chip = event.target.closest(".filter-chip");
+            if (!chip) return;
+
+            var wanted = chip.getAttribute("data-filter");
+            var chips = filters.querySelectorAll(".filter-chip");
+            for (var i = 0; i < chips.length; i++) chips[i].classList.remove("active");
+            chip.classList.add("active");
+
+            var cards = grid.querySelectorAll(".generated-video-card");
+            var visible = 0;
+            for (var j = 0; j < cards.length; j++) {
+                var show = wanted === "all" || cards[j].getAttribute("data-type") === wanted;
+                cards[j].style.display = show ? "" : "none";
+                if (show) visible++;
+            }
+            if (empty) empty.hidden = visible !== 0;
+        });
+    })();
+</script>
 
 <script src="{{ url_for('static', filename='js/dashboard.js') }}" defer></script>
 

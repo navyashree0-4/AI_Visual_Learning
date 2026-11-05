@@ -9,10 +9,13 @@ _ENV_FILE = Path(__file__).resolve().parent / ".env"
 load_dotenv(_ENV_FILE, override=True, encoding="utf-8-sig")  # Load before importing routes/services
 
 from datetime import date, datetime, timedelta
+import inspect
 import json
 import re
 import secrets
 import smtplib
+import threading
+import time
 from email.message import EmailMessage
 from functools import wraps
 import uuid
@@ -51,6 +54,8 @@ app.register_blueprint(learning_bp)
 
 VIDEO_COST = max(1, int(os.getenv("VIDEO_COST", "10")))
 DAILY_CREDIT_CAP = max(0, int(os.getenv("DAILY_CREDIT_CAP", "40")))
+CARTOON_CREDITS_PER_SCENE = 0 if os.getenv("CARTOON_MODE", "free").strip().lower() != "fal" \
+    else max(1, int(os.getenv("CARTOON_CREDITS_PER_SCENE", "5")))
 
 DB_CONFIG = {
     "host": os.getenv("MYSQL_HOST", "localhost"),
@@ -106,7 +111,7 @@ def get_db_connection():
     return None
 
 
-# Blueprints (e.g. aptitude_backend) use this instead of importing from app.py
+# Blueprints (e.g. aptitude_backend, video_quiz) use this instead of importing from app.py
 app.config["GET_DB_CONNECTION"] = get_db_connection
 
 from routes.aptitude_backend import aptitude_bp  # noqa: E402
@@ -124,7 +129,7 @@ def login_required(view):
         if "user_id" not in session:
             # Game scripts call /api/... with fetch(); an HTML login redirect
             # would break their JSON parsing and show "check your connection".
-            if request.path.startswith("/api/"):
+            if request.path.startswith("/api/") or request.path.startswith("/generate_video/"):
                 return jsonify(
                     ok=False,
                     success=False,
@@ -351,6 +356,77 @@ def get_video_for_user(video_id, user_id):
         if cursor is not None:
             cursor.close()
         connection.close()
+
+
+# ============================================================
+# CARTOON STUDIO: credit hooks + blueprint + page
+# ============================================================
+# routes/cartoon_studio.py never imports app.py. It calls these functions through
+# app.config, so every cartoon movie is charged, refunded and saved with the SAME
+# credit logic as the educational videos. Cost = scenes x CARTOON_CREDITS_PER_SCENE.
+app.config["CHARGE_CREDITS"] = charge_credits
+app.config["REFUND_CREDITS"] = refund_credits
+app.config["GET_USER_CREDITS"] = get_user_credits
+app.config["SAVE_VIDEO_RECORD"] = save_video_record_v2
+app.config["LOG_ACTIVITY"] = log_activity
+app.config["BUMP_VIDEO_PROGRESS"] = bump_video_progress
+app.config["GET_VIDEO_FOR_USER"] = get_video_for_user
+
+try:
+    from routes.cartoon_studio import cartoon_bp  # noqa: E402
+except ImportError:
+    cartoon_bp = None
+    app.logger.warning("routes/cartoon_studio.py not found; using the built-in studio page.")
+
+if cartoon_bp is not None and cartoon_bp.name not in app.blueprints:
+    app.register_blueprint(cartoon_bp)
+
+
+@app.context_processor
+def inject_cartoon_helpers():
+    """Use `{{ cartoon_url }}` and `{{ cartoon_cost_per_scene }}` in templates."""
+    try:
+        url = url_for("cartoon.cartoon_studio")
+    except BuildError:
+        url = "/cartoon-studio"
+    return {"cartoon_url": url, "cartoon_cost_per_scene": CARTOON_CREDITS_PER_SCENE}
+
+
+CARTOON_SCENES_BY_DURATION = {"Short": 3, "Medium": 5, "Long": 8}
+# These names are sent to /api/cartoon/story as they are. Make sure they match
+# the styles your routes/cartoon_studio.py accepts.
+CARTOON_STYLES = ["3D", "2D Flat", "Anime", "Watercolor"]
+
+
+def _cartoon_ready():
+    """True when animation is configured (CARTOON_MODE=free or a FAL_KEY exists)."""
+    return (os.getenv("CARTOON_MODE", "").strip().lower() == "free"
+            or bool(os.getenv("FAL_KEY", "").strip()))
+
+
+# Only used when the blueprint does not already provide the studio page.
+if "cartoon.cartoon_studio" not in app.view_functions:
+    @app.route("/cartoon-studio")
+    @login_required
+    def cartoon_studio_page():
+        return render_template(
+            "cartoon_studio.html",
+            credits=get_user_credits(session["user_id"]),
+            cost_per_scene=CARTOON_CREDITS_PER_SCENE,
+            scenes_by_duration=CARTOON_SCENES_BY_DURATION,
+            styles=CARTOON_STYLES,
+            fal_ready=_cartoon_ready(),
+        )
+
+
+@app.route("/api/credits")
+@login_required
+def api_credits():
+    """Live credit balance (the studio page can call this to refresh the badge)."""
+    balance = get_user_credits(session["user_id"])
+    session["credits"] = balance
+    return jsonify(ok=True, credits=balance, video_cost=VIDEO_COST,
+                   cartoon_cost_per_scene=CARTOON_CREDITS_PER_SCENE)
 
 
 def calculate_streak(active_days):
@@ -1557,6 +1633,7 @@ def dashboard():
             "language": video.get("language") or "English",
             "filename": filename,
             "url": url_for("generated_video", filename=filename),
+            "quiz_url": url_for("video_quiz.video_quiz_page", video_id=video.get("id")),
             "created_at": video.get("created_at") or "",
         })
 
@@ -1564,10 +1641,12 @@ def dashboard():
     latest_video = ""
     latest_video_topic = ""
     latest_video_exists = False
+    latest_video_id = None
 
     if generated_videos:
         latest_video = generated_videos[0]["filename"]
         latest_video_topic = generated_videos[0]["title"]
+        latest_video_id = generated_videos[0]["id"]
         latest_video_exists = True
 
     # Recent videos for other dashboard sections
@@ -1591,6 +1670,9 @@ def dashboard():
         latest_video=latest_video,
         latest_video_topic=latest_video_topic,
         latest_video_exists=latest_video_exists,
+        latest_video_id=latest_video_id,
+        latest_quiz_url=(url_for("video_quiz.video_quiz_page", video_id=latest_video_id)
+                         if latest_video_id else ""),
         videos_completed=videos_completed,
         quizzes_completed=quizzes_completed,
         games_played=games_played,
@@ -1625,82 +1707,153 @@ def ask_question():
 # ============================================================
 # VIDEO GENERATION
 # ============================================================
+# Two ways in:
+#   POST /generate_video/start          (AJAX) starts a background job -> {job_id}
+#   GET  /generate_video/status/<id>    (AJAX) live percent, message, result or error
+#   POST /generate_video                (plain form, e.g. dashboard quick form) waits and redirects
+# Both share _parse_video_form() and _execute_video_job().
 
-@app.route("/generate_video", methods=["GET", "POST"])
-@login_required
-def generate_video():
-    user_id = session["user_id"]
+ALLOWED_UPLOADS = {".pdf", ".txt", ".png", ".jpg", ".jpeg"}
+IMAGE_UPLOADS = {".png", ".jpg", ".jpeg"}
+MAX_UPLOAD_FILES = 5
+VALID_STYLES = {"Educational", "Animated", "Simple Explanation", "Storytelling"}
+VALID_LANGUAGES = {"English", "Kannada", "Hindi"}
+VALID_DIFFICULTIES = {"Beginner", "Intermediate", "Advanced"}
+VALID_AUDIENCES = {"Kids", "School Students", "College Students", "Teachers"}
+VALID_ASPECTS = {"16:9", "9:16"}
+VALID_DURATIONS = {"Short", "Medium", "Long"}
 
-    def page(video_url=None, video_info=None, quiz_url=None, download_url=None):
-        return render_template(
-            "generate_video.html",
-            user_name=session.get("user_name", "Student"),
-            video_url=video_url,
-            video_info=video_info,
-            quiz_url=quiz_url,
-            download_url=download_url,
-        )
+VIDEO_JOBS = {}
+VIDEO_JOBS_LOCK = threading.Lock()
 
-    if request.method == "GET":
-        return page()
 
-    temporary_path = None
-    charged = False
-    created_file = None
-    return_to = request.form.get("return_to", "generate_page")
+def _cleanup_files(paths):
+    for p in paths:
+        try:
+            Path(p).unlink(missing_ok=True)
+        except OSError:
+            app.logger.warning("Could not delete temporary upload %s", p)
+
+
+def _parse_video_form(form, files):
+    """Validate the form, save uploads to temp files and return (params, temp_paths).
+
+    Raises ValueError with a user-friendly message.
+    """
+    topic = (form.get("topic") or form.get("prompt") or "").strip()[:1000]
+    style = form.get("video_style", "Educational")
+    language = form.get("language", "English")
+    audience = form.get("audience_level") or form.get("audience") or "School Students"
+    difficulty = form.get("difficulty", "Beginner")
+    aspect_ratio = form.get("aspect_ratio", "16:9")
+    duration = form.get("duration", "Medium")
+
+    if style not in VALID_STYLES:
+        raise ValueError("Please select a valid video style.")
+    if language not in VALID_LANGUAGES:
+        raise ValueError("Please select a valid narration language.")
+    if difficulty not in VALID_DIFFICULTIES:
+        raise ValueError("Please select a valid difficulty level.")
+    if audience not in VALID_AUDIENCES:
+        raise ValueError("Please select a valid target audience.")
+    if aspect_ratio not in VALID_ASPECTS:
+        raise ValueError("Please select a valid aspect ratio.")
+    if duration not in VALID_DURATIONS:
+        raise ValueError("Please select Short, Medium or Long duration.")
+
+    uploads = [f for f in (files.getlist("files") + files.getlist("file")) if f and f.filename]
+    if len(uploads) > MAX_UPLOAD_FILES:
+        raise ValueError(f"Please upload at most {MAX_UPLOAD_FILES} files.")
+
+    temp_paths = []
+    texts = [topic] if topic else []
+    image_path = None
+    image_without_text = False
 
     try:
-        topic = (request.form.get("topic") or request.form.get("prompt") or "").strip()[:1000]
-        style = request.form.get("video_style", "Educational")
-        language = request.form.get("language", "English")
-        audience = request.form.get("audience_level", "School Students")
-        difficulty = request.form.get("difficulty", "Beginner")
-        aspect_ratio = request.form.get("aspect_ratio", "16:9")
-        subtitles = request.form.get("subtitles") == "on"
-        highlights = request.form.get("highlight_concepts") == "on"
-        music = request.form.get("background_music") == "on"
+        upload_dir = Path(app.root_path) / "uploads"
+        upload_dir.mkdir(parents=True, exist_ok=True)
 
-        if style not in {"Educational", "Animated", "Simple Explanation", "Storytelling"}:
-            raise ValueError("Please select a valid video style.")
-        if language not in {"English", "Kannada", "Hindi"}:
-            raise ValueError("Please select a valid narration language.")
-        if difficulty not in {"Beginner", "Intermediate", "Advanced"}:
-            raise ValueError("Please select a valid difficulty level.")
-        if audience not in {"Kids", "School Students", "College Students", "Teachers"}:
-            raise ValueError("Please select a valid target audience.")
-        if aspect_ratio not in {"16:9", "9:16"}:
-            raise ValueError("Please select a valid aspect ratio.")
-
-        source_text = topic
-        uploaded = request.files.get("file")
-
-        if uploaded and uploaded.filename:
+        for uploaded in uploads:
             filename = secure_filename(uploaded.filename)
-            if not filename:
-                raise ValueError("Please choose a valid filename.")
             extension = Path(filename).suffix.lower()
-            if extension not in {".pdf", ".txt", ".png", ".jpg", ".jpeg"}:
+            if not filename or extension not in ALLOWED_UPLOADS:
                 raise ValueError("Supported uploads: PDF, TXT, PNG, JPG and JPEG.")
 
             uploaded.stream.seek(0, os.SEEK_END)
             size_bytes = uploaded.stream.tell()
             uploaded.stream.seek(0)
             if size_bytes > MAX_UPLOAD_MB * 1024 * 1024:
-                raise ValueError(f"The file is larger than {MAX_UPLOAD_MB} MB.")
+                raise ValueError(f"{filename} is larger than {MAX_UPLOAD_MB} MB.")
 
-            upload_dir = Path(app.root_path) / "uploads"
-            upload_dir.mkdir(parents=True, exist_ok=True)
-            temporary_path = upload_dir / f"{uuid.uuid4().hex}{extension}"
-            uploaded.save(str(temporary_path))
-            extracted = extract_text(temporary_path).strip()
-            if extracted:
-                source_text = (source_text + "\n\n" + extracted).strip()
-            elif not source_text:
-                raise ValueError("No readable text was found in the uploaded file.")
+            path = upload_dir / f"{uuid.uuid4().hex}{extension}"
+            uploaded.save(str(path))
+            temp_paths.append(path)
 
-        if not source_text.strip():
-            raise ValueError("Enter a topic or upload readable material.")
+            if extension in IMAGE_UPLOADS:
+                if image_path is None:
+                    image_path = str(path)
+                try:
+                    text = extract_text(path).strip()  # OCR; may fail if Tesseract is missing
+                except Exception:
+                    text = ""
+                if text:
+                    texts.append(text)
+                else:
+                    image_without_text = True
+            else:
+                try:
+                    text = extract_text(path).strip()
+                except ValueError as exc:
+                    raise ValueError(f"{filename}: {exc}") from exc
+                except ImportError as exc:
+                    raise ValueError(f"{filename}: {exc}") from exc
+                if text:
+                    texts.append(text)
 
+        source_text = "\n\n".join(texts).strip()
+
+        if not source_text and not image_path:
+            raise ValueError("Enter a topic or upload a PDF or image first.")
+        if not source_text and image_path and image_without_text and not os.getenv("OLLAMA_VISION_MODEL", "").strip():
+            raise ValueError(
+                "No readable text was found in the image. Add a topic as well, "
+                "or set OLLAMA_VISION_MODEL=llava in .env so EduVision can describe pictures."
+            )
+    except Exception:
+        _cleanup_files(temp_paths)
+        raise
+
+    params = {
+        "source_text": source_text,
+        "style": style,
+        "language": language,
+        "audience": audience,
+        "difficulty": difficulty,
+        "aspect_ratio": aspect_ratio,
+        "duration": duration,
+        "subtitles": form.get("subtitles") == "on",
+        "highlights": form.get("highlight_concepts") == "on",
+        "music": form.get("background_music") == "on",
+        "image_path": image_path,
+    }
+    return params, temp_paths
+
+
+def _call_generator(**kwargs):
+    """Call generate_video_package with only the arguments the installed version supports."""
+    accepted = inspect.signature(generate_video_package).parameters
+    return generate_video_package(**{k: v for k, v in kwargs.items() if k in accepted})
+
+
+def _execute_video_job(user_id, params, temp_paths, progress=None):
+    """Charge credits, build the video, save it. Refunds and cleans up on any failure.
+
+    Runs in a worker thread or the request thread, so it must not touch `session`.
+    """
+    charged = False
+    created_file = None
+    try:
         if not charge_credits(user_id, VIDEO_COST):
             raise ValueError(
                 f"You need {VIDEO_COST} credits to generate a video. "
@@ -1708,25 +1861,29 @@ def generate_video():
             )
         charged = True
 
-        result = generate_video_package(
-            source_text=source_text,
-            style=style,
-            difficulty=difficulty,
-            language=language,
-            audience=audience,
-            aspect_ratio=aspect_ratio,
-            subtitles=subtitles,
-            highlights=highlights,
-            music=music,
+        result = _call_generator(
+            source_text=params["source_text"],
+            style=params["style"],
+            difficulty=params["difficulty"],
+            language=params["language"],
+            audience=params["audience"],
+            aspect_ratio=params["aspect_ratio"],
+            subtitles=params["subtitles"],
+            highlights=params["highlights"],
+            music=params["music"],
+            image_path=params["image_path"],
+            duration=params["duration"],
+            progress=progress,
         )
         created_file = Path(result["path"])
 
         video_id = save_video_record_v2(user_id, {
-            "title": result["title"], "style": style, "language": language,
-            "difficulty": difficulty, "audience": audience, "aspect_ratio": aspect_ratio,
-            "filename": result["filename"], "duration_seconds": result["duration_seconds"],
-            "subtitles": subtitles, "highlights": highlights, "music": music,
-            "script_text": result["script_text"],
+            "title": result["title"], "style": params["style"], "language": params["language"],
+            "difficulty": params["difficulty"], "audience": params["audience"],
+            "aspect_ratio": params["aspect_ratio"], "filename": result["filename"],
+            "duration_seconds": result["duration_seconds"],
+            "subtitles": params["subtitles"], "highlights": params["highlights"],
+            "music": params["music"], "script_text": result["script_text"],
         })
         if not video_id:
             raise RuntimeError("The video was generated, but its database record could not be saved.")
@@ -1735,64 +1892,189 @@ def generate_video():
         created_file = None  # saved successfully, keep the file
         log_activity(user_id, "video")
         bump_video_progress(user_id)
+
+        minutes, seconds = divmod(int(result["duration_seconds"]), 60)
+        return {
+            "video_id": video_id,
+            "filename": result["filename"],
+            "title": result["title"],
+            "language": params["language"],
+            "style": params["style"],
+            "difficulty": params["difficulty"],
+            "aspect_ratio": params["aspect_ratio"],
+            "duration": f"{minutes}m {seconds:02d}s",
+        }
+    finally:
+        if charged:
+            refund_credits(user_id, VIDEO_COST)
+        if created_file is not None:
+            try:
+                created_file.unlink(missing_ok=True)
+            except OSError:
+                pass
+        _cleanup_files(temp_paths)
+
+
+def _friendly_error(exc):
+    if isinstance(exc, ValueError):
+        return str(exc)
+    text = f"{type(exc).__name__}: {str(exc)[:300]}"
+    return f"Video generation failed. Your credits were refunded. ({text})"
+
+
+def _video_job_worker(job_id, user_id, params, temp_paths):
+    def progress(percent, message):
+        with VIDEO_JOBS_LOCK:
+            job = VIDEO_JOBS.get(job_id)
+            if job:
+                job["status"] = "running"
+                job["percent"] = max(job["percent"], min(99, int(percent)))
+                job["message"] = str(message)
+
+    try:
+        info = _execute_video_job(user_id, params, temp_paths, progress)
+        with VIDEO_JOBS_LOCK:
+            job = VIDEO_JOBS.get(job_id)
+            if job:
+                job.update(status="done", percent=100, message="Your video is ready!", result=info)
+    except Exception as exc:
+        app.logger.exception("Educational video generation failed")
+        with VIDEO_JOBS_LOCK:
+            job = VIDEO_JOBS.get(job_id)
+            if job:
+                job.update(status="failed", error=_friendly_error(exc))
+
+
+def _prune_jobs():
+    cutoff = time.time() - 3600
+    with VIDEO_JOBS_LOCK:
+        for job_id in [k for k, v in VIDEO_JOBS.items() if v["created"] < cutoff]:
+            VIDEO_JOBS.pop(job_id, None)
+
+
+def _render_generate_page(video_url=None, video_info=None, quiz_url=None, download_url=None):
+    user_id = session["user_id"]
+    return render_template(
+        "generate_video.html",
+        user_name=session.get("user_name", "Student"),
+        credits=get_user_credits(user_id),
+        video_cost=VIDEO_COST,
+        video_url=video_url,
+        video_info=video_info,
+        quiz_url=quiz_url,
+        download_url=download_url,
+    )
+
+
+@app.route("/generate_video/start", methods=["POST"])
+@login_required
+def generate_video_start():
+    user_id = session["user_id"]
+    _prune_jobs()
+
+    with VIDEO_JOBS_LOCK:
+        for job in VIDEO_JOBS.values():
+            if job["user_id"] == user_id and job["status"] in ("queued", "running"):
+                return jsonify(ok=False, error="A video is already being generated for you. "
+                                               "Please wait for it to finish."), 409
+
+    if get_user_credits(user_id) < VIDEO_COST:
+        return jsonify(ok=False, error=f"You need {VIDEO_COST} credits to generate a video. "
+                                       "Play a learning game to earn more."), 402
+
+    try:
+        params, temp_paths = _parse_video_form(request.form, request.files)
+    except ValueError as exc:
+        return jsonify(ok=False, error=str(exc)), 400
+    except Exception as exc:
+        app.logger.exception("Could not read the upload")
+        return jsonify(ok=False, error=f"Could not read your upload: {type(exc).__name__}"), 400
+
+    job_id = uuid.uuid4().hex
+    with VIDEO_JOBS_LOCK:
+        VIDEO_JOBS[job_id] = {
+            "user_id": user_id, "status": "queued", "percent": 1,
+            "message": "Starting", "error": "", "result": None, "created": time.time(),
+        }
+    threading.Thread(
+        target=_video_job_worker, args=(job_id, user_id, params, temp_paths), daemon=True
+    ).start()
+    return jsonify(ok=True, job_id=job_id)
+
+
+@app.route("/generate_video/status/<job_id>")
+@login_required
+def generate_video_status(job_id):
+    with VIDEO_JOBS_LOCK:
+        job = VIDEO_JOBS.get(job_id)
+        job = dict(job) if job else None
+
+    if not job or job["user_id"] != session["user_id"]:
+        return jsonify(ok=False, error="This video job was not found. Check My Videos."), 404
+
+    payload = {"ok": True, "status": job["status"], "percent": job["percent"],
+               "message": job["message"], "error": job["error"]}
+    if job["status"] == "done" and job["result"]:
+        info = job["result"]
+        session["credits"] = get_user_credits(session["user_id"])
+        payload["result"] = {
+            "video_url": url_for("generated_video_file", filename=info["filename"]),
+            "download_url": url_for("download_generated_video", video_id=info["video_id"]),
+            "quiz_url": url_for("video_quiz.video_quiz_page", video_id=info["video_id"]),
+            "credits": session["credits"],
+            "info": {k: info[k] for k in ("title", "language", "style", "difficulty",
+                                          "aspect_ratio", "duration")},
+        }
+    return jsonify(payload)
+
+
+@app.route("/generate_video", methods=["GET", "POST"])
+@login_required
+def generate_video():
+    user_id = session["user_id"]
+
+    if request.method == "GET":
+        return _render_generate_page()
+
+    return_to = request.form.get("return_to", "generate_page")
+    temp_paths = []
+    try:
+        params, temp_paths = _parse_video_form(request.form, request.files)
+        info = _execute_video_job(user_id, params, temp_paths)
         session["credits"] = get_user_credits(user_id)
 
         if return_to == "dashboard":
             flash("Your educational video was generated successfully!", "success")
             return redirect(url_for("dashboard"))
 
-        minutes, seconds = divmod(int(result["duration_seconds"]), 60)
-        return page(
-            video_url=url_for("generated_video_file", filename=result["filename"]),
-            download_url=url_for("download_generated_video", video_id=video_id),
-            quiz_url=url_for("video_quiz.video_quiz_page", video_id=video_id),
+        return _render_generate_page(
+            video_url=url_for("generated_video_file", filename=info["filename"]),
+            download_url=url_for("download_generated_video", video_id=info["video_id"]),
+            quiz_url=url_for("video_quiz.video_quiz_page", video_id=info["video_id"]),
             video_info={
-                "title": result["title"], "language": language, "style": style,
-                "difficulty": difficulty, "aspect_ratio": aspect_ratio,
-                "duration": f"{minutes}m {seconds:02d}s",
+                "title": info["title"], "language": info["language"], "style": info["style"],
+                "difficulty": info["difficulty"], "aspect_ratio": info["aspect_ratio"],
+                "duration": info["duration"],
                 "created_at": datetime.now().strftime("%d %b %Y"),
             },
         )
-
     except ValueError as exc:
         flash(str(exc), "error")
-        if return_to == "dashboard":
-            return redirect(url_for("dashboard"))
-        return page()
-
     except Exception as exc:
         app.logger.exception("Educational video generation failed")
-        flash(f"Video generation failed: {type(exc).__name__}: {str(exc)[:300]}", "error")
-        if return_to == "dashboard":
-            return redirect(url_for("dashboard"))
-        return page()
-
+        flash(_friendly_error(exc), "error")
     finally:
-        # Refund if we charged but never finished (this is the only refund).
-        if charged:
-            refund_credits(user_id, VIDEO_COST)
-            session["credits"] = get_user_credits(user_id)
-        # Delete a generated file whose database record was not saved.
-        if created_file is not None:
-            try:
-                created_file.unlink(missing_ok=True)
-            except OSError:
-                pass
-        if temporary_path is not None:
-            try:
-                Path(temporary_path).unlink(missing_ok=True)
-            except OSError:
-                app.logger.warning("Could not delete temporary upload %s", temporary_path)
+        session["credits"] = get_user_credits(user_id)
+
+    if return_to == "dashboard":
+        return redirect(url_for("dashboard"))
+    return _render_generate_page()
 
 
 @app.route("/generate-video", methods=["GET"])
 @login_required
 def generate_video_page():
-    return render_template(
-        "generate_video.html",
-        user_name=session.get("user_name", "Student"),
-        video_url=None,
-    )
+    return _render_generate_page()
 
 
 # ============================================================
@@ -2113,22 +2395,8 @@ def memory_game():
 # must be completed in order, and MAX_GAME_LEVEL limits the total payout to
 # MAX_GAME_LEVEL * GAME_LEVEL_REWARD credits per game.
 
-ALLOWED_GAME_KEYS = {
-    "arrow_maze",
-    "hologram_memory",
-    "candy_match",
-    "memory_match",
-    "bubble_shooter",
-    "endless_runner",
-    "neon_tic_tac_toe",
-    "puzzle_2048",
-    "arrow_direction",
-    "sliding_puzzle",
-    "quiz_battle",
-    "tetris_blocks",
-    "flappy_brain",
-    "snake_game"
-}
+# Always in sync with the game catalog above.
+ALLOWED_GAME_KEYS = set(GAMES)
 
 GAME_LEVEL_REWARD = 10
 MAX_GAME_LEVEL = 1000
@@ -2534,6 +2802,31 @@ def initialize_database():
         for statement in statements[10:]:
             cursor.execute(statement)
 
+        # Quiz tables created by an older version may lack columns the quiz code needs.
+        quiz_columns = [
+            ("video_quizzes", "user_id", "INT NOT NULL DEFAULT 0"),
+            ("video_quizzes", "questions", "LONGTEXT NULL"),
+            ("video_quizzes", "created_at", "TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP"),
+            ("video_quiz_attempts", "user_id", "INT NOT NULL DEFAULT 0"),
+            ("video_quiz_attempts", "video_id", "INT NOT NULL DEFAULT 0"),
+            ("video_quiz_attempts", "quiz_id", "INT NOT NULL DEFAULT 0"),
+            ("video_quiz_attempts", "answers", "TEXT NULL"),
+            ("video_quiz_attempts", "score", "INT NOT NULL DEFAULT 0"),
+            ("video_quiz_attempts", "total_questions", "INT NOT NULL DEFAULT 0"),
+            ("video_quiz_attempts", "percentage", "INT NOT NULL DEFAULT 0"),
+            ("video_quiz_attempts", "credits_earned", "INT NOT NULL DEFAULT 0"),
+            ("video_quiz_attempts", "completed_at", "TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP"),
+        ]
+        for table, column, definition in quiz_columns:
+            cursor.execute(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+                (database_name, table, column),
+            )
+            if cursor.fetchone()[0] == 0:
+                cursor.execute(f"ALTER TABLE `{table}` ADD COLUMN `{column}` {definition}")
+                app.logger.info("Added missing column %s.%s", table, column)
+
         # Ensure every existing account has a progress row.
         cursor.execute(
             "INSERT IGNORE INTO learning_progress (user_id, videos_generated, quizzes_completed, games_played, total_score) "
@@ -2564,4 +2857,10 @@ if __name__ == "__main__":
     else:
         print("WARNING: Database initialization failed.")
 
-    app.run(debug=os.getenv("FLASK_DEBUG", "0") == "1")
+    # use_reloader=False is REQUIRED: video rendering uses worker processes and a
+    # background thread, and Flask's reloader would restart them mid-job on Windows.
+    app.run(
+        debug=os.getenv("FLASK_DEBUG", "0") == "1",
+        use_reloader=False,
+        threaded=True,
+    )
