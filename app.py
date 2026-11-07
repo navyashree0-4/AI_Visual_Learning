@@ -54,8 +54,10 @@ app.register_blueprint(learning_bp)
 
 VIDEO_COST = max(1, int(os.getenv("VIDEO_COST", "10")))
 DAILY_CREDIT_CAP = max(0, int(os.getenv("DAILY_CREDIT_CAP", "40")))
-CARTOON_CREDITS_PER_SCENE = 0 if os.getenv("CARTOON_MODE", "free").strip().lower() != "fal" \
-    else max(1, int(os.getenv("CARTOON_CREDITS_PER_SCENE", "5")))
+
+# Cartoon movies ALWAYS cost credits (free-mode animation still uses your server).
+# Total cost = number of scenes x CARTOON_CREDITS_PER_SCENE.
+CARTOON_CREDITS_PER_SCENE = max(1, int(os.getenv("CARTOON_CREDITS_PER_SCENE", "5")))
 
 DB_CONFIG = {
     "host": os.getenv("MYSQL_HOST", "localhost"),
@@ -95,6 +97,23 @@ def inject_aptitude_link():
     return {"aptitude_url": url}
 
 
+def tutor_url_for_video(video_id):
+    """URL of the AI Doubt Tutor opened for one specific video.
+
+    The tutor is no longer in the main menu or quick actions; it is reached only
+    from a generated video card. Templates can call `{{ tutor_url_for_video(video.id) }}`.
+    """
+    if not video_id:
+        return "/ai-tutor/"
+    try:
+        return url_for("ai_tutor.tutor_home", video_id=video_id)
+    except BuildError:
+        return f"/ai-tutor/?video_id={int(video_id)}"
+
+
+app.jinja_env.globals["tutor_url_for_video"] = tutor_url_for_video
+
+
 # ============================================================
 # DATABASE HELPERS
 # ============================================================
@@ -121,6 +140,13 @@ if aptitude_bp.name not in app.blueprints:
     app.register_blueprint(aptitude_bp)
 if video_quiz_bp.name not in app.blueprints:
     app.register_blueprint(video_quiz_bp)
+
+# AI Doubt-Solving Tutor (routes/ai_tutor.py). Registered once, with the same guard as above.
+# It is opened from a video card: /ai-tutor/?video_id=<id>
+from routes.ai_tutor import ai_tutor_bp  # noqa: E402
+
+if ai_tutor_bp.name not in app.blueprints:
+    app.register_blueprint(ai_tutor_bp)
 
 
 def login_required(view):
@@ -300,12 +326,18 @@ def save_video_record(user_id, title, style, language, filename):
 
 
 def save_video_record_v2(user_id, meta):
-    """Save a generated video with all its settings. Returns the new video id or None."""
+    """Save a generated video with all its settings. Returns the new video id or None.
+
+    Missing keys fall back to defaults, so cartoon movies can use it too.
+    """
+    meta = meta or {}
     connection = get_db_connection()
     if connection is None:
         return None
     cursor = None
     try:
+        style = meta.get("style") or "Cartoon"
+        language = meta.get("language") or "English"
         cursor = connection.cursor()
         cursor.execute(
             "INSERT INTO generated_videos "
@@ -314,19 +346,24 @@ def save_video_record_v2(user_id, meta):
             "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (
                 user_id,
-                (meta["title"] or "Educational Lesson")[:150],
-                f"{meta['style']} lesson in {meta['language']}",
-                meta["style"], meta["language"], meta["difficulty"], meta["audience"],
-                meta["aspect_ratio"], meta["filename"], int(meta["duration_seconds"]),
-                1 if meta["subtitles"] else 0,
-                1 if meta["highlights"] else 0,
-                1 if meta["music"] else 0,
-                meta["script_text"],
+                (meta.get("title") or "Educational Lesson")[:150],
+                f"{style} lesson in {language}",
+                style,
+                language,
+                meta.get("difficulty") or "Beginner",
+                meta.get("audience") or "School Students",
+                meta.get("aspect_ratio") or "16:9",
+                meta.get("filename"),
+                int(float(meta.get("duration_seconds") or 0)),
+                1 if meta.get("subtitles") else 0,
+                1 if meta.get("highlights") else 0,
+                1 if meta.get("music") else 0,
+                meta.get("script_text") or "",
             ),
         )
         connection.commit()
         return cursor.lastrowid
-    except Error as exc:
+    except (Error, ValueError, TypeError) as exc:
         connection.rollback()
         app.logger.error("Video record could not be saved: %s", exc)
         return None
@@ -358,6 +395,38 @@ def get_video_for_user(video_id, user_id):
         connection.close()
 
 
+def get_video_context_for_tutor(video_id, user_id=None):
+    """Return the video details the AI Tutor needs, or None.
+
+    Only the logged-in user's own video is returned. Used by routes/ai_tutor.py
+    through app.config["GET_VIDEO_CONTEXT"] when /ai-tutor/?video_id=<id> is opened.
+    Keys: id, title, topic, script, language, style, difficulty, audience.
+    """
+    if not video_id:
+        return None
+    if user_id is None:
+        user_id = session.get("user_id")
+    if not user_id:
+        return None
+    try:
+        video = get_video_for_user(int(video_id), user_id)
+    except (TypeError, ValueError):
+        return None
+    if not video:
+        return None
+    title = video.get("title") or "Educational Lesson"
+    return {
+        "id": video.get("id"),
+        "title": title,
+        "topic": title,
+        "script": video.get("script_text") or "",
+        "language": video.get("language") or "English",
+        "style": video.get("video_style") or "Educational",
+        "difficulty": video.get("difficulty") or "Beginner",
+        "audience": video.get("audience") or "School Students",
+    }
+
+
 # ============================================================
 # CARTOON STUDIO: credit hooks + blueprint + page
 # ============================================================
@@ -371,6 +440,9 @@ app.config["SAVE_VIDEO_RECORD"] = save_video_record_v2
 app.config["LOG_ACTIVITY"] = log_activity
 app.config["BUMP_VIDEO_PROGRESS"] = bump_video_progress
 app.config["GET_VIDEO_FOR_USER"] = get_video_for_user
+app.config["GET_VIDEO_CONTEXT"] = get_video_context_for_tutor  # used by the AI Tutor
+app.config["CARTOON_CREDITS_PER_SCENE"] = CARTOON_CREDITS_PER_SCENE
+app.config["CARTOON_COST"] = lambda scenes: max(1, int(scenes)) * CARTOON_CREDITS_PER_SCENE
 
 try:
     from routes.cartoon_studio import cartoon_bp  # noqa: E402
@@ -536,6 +608,9 @@ def my_generated_videos():
             (user_id,),
         )
         videos = cursor.fetchall()
+        # Each video card gets an "Ask AI Tutor" link tied to that video.
+        for video in videos:
+            video["tutor_url"] = tutor_url_for_video(video.get("id"))
         return render_template("my_generated_videos.html", videos=videos)
     except Error as exc:
         app.logger.error("Could not load videos: %s", exc)
@@ -1634,6 +1709,8 @@ def dashboard():
             "filename": filename,
             "url": url_for("generated_video", filename=filename),
             "quiz_url": url_for("video_quiz.video_quiz_page", video_id=video.get("id")),
+            # AI Doubt Tutor opens with THIS video's context (/ai-tutor/?video_id=<id>)
+            "tutor_url": tutor_url_for_video(video.get("id")),
             "created_at": video.get("created_at") or "",
         })
 
@@ -1673,6 +1750,7 @@ def dashboard():
         latest_video_id=latest_video_id,
         latest_quiz_url=(url_for("video_quiz.video_quiz_page", video_id=latest_video_id)
                          if latest_video_id else ""),
+        latest_tutor_url=(tutor_url_for_video(latest_video_id) if latest_video_id else ""),
         videos_completed=videos_completed,
         quizzes_completed=quizzes_completed,
         games_played=games_played,
@@ -1952,7 +2030,8 @@ def _prune_jobs():
             VIDEO_JOBS.pop(job_id, None)
 
 
-def _render_generate_page(video_url=None, video_info=None, quiz_url=None, download_url=None):
+def _render_generate_page(video_url=None, video_info=None, quiz_url=None, download_url=None,
+                          tutor_url=None):
     user_id = session["user_id"]
     return render_template(
         "generate_video.html",
@@ -1963,6 +2042,7 @@ def _render_generate_page(video_url=None, video_info=None, quiz_url=None, downlo
         video_info=video_info,
         quiz_url=quiz_url,
         download_url=download_url,
+        tutor_url=tutor_url,
     )
 
 
@@ -2021,6 +2101,7 @@ def generate_video_status(job_id):
             "video_url": url_for("generated_video_file", filename=info["filename"]),
             "download_url": url_for("download_generated_video", video_id=info["video_id"]),
             "quiz_url": url_for("video_quiz.video_quiz_page", video_id=info["video_id"]),
+            "tutor_url": tutor_url_for_video(info["video_id"]),
             "credits": session["credits"],
             "info": {k: info[k] for k in ("title", "language", "style", "difficulty",
                                           "aspect_ratio", "duration")},
@@ -2051,6 +2132,7 @@ def generate_video():
             video_url=url_for("generated_video_file", filename=info["filename"]),
             download_url=url_for("download_generated_video", video_id=info["video_id"]),
             quiz_url=url_for("video_quiz.video_quiz_page", video_id=info["video_id"]),
+            tutor_url=tutor_url_for_video(info["video_id"]),
             video_info={
                 "title": info["title"], "language": info["language"], "style": info["style"],
                 "difficulty": info["difficulty"], "aspect_ratio": info["aspect_ratio"],
@@ -2188,45 +2270,71 @@ def award_game_credits(user_id, game_key, score_pct, seconds):
 # GAME FINISH API
 # ============================================================
 
+_GAME_KEY_ALIASES = {
+    "snake": "snake_game", "tetris": "tetris_blocks", "flappy": "flappy_brain",
+    "flappy_bird": "flappy_brain", "2048": "puzzle_2048", "candy": "candy_match",
+    "memory": "memory_match", "mind_match": "memory_match", "tictactoe": "neon_tic_tac_toe",
+    "tic_tac_toe": "neon_tic_tac_toe", "bubble": "bubble_shooter", "runner": "endless_runner",
+    "sliding": "sliding_puzzle", "quiz": "quiz_battle", "arrow": "arrow_maze",
+    "hologram": "hologram_memory",
+}
+
+
+def _normalize_game_key(raw):
+    """Map whatever id game.js sends to a catalog key, or return None."""
+    key = str(raw or "").strip().lower().replace("-", "_").replace(" ", "_")
+    if key in GAMES:
+        return key
+    key = _GAME_KEY_ALIASES.get(key, key)
+    return key if key in GAMES else None
+
+
+def _read_game_request():
+    """Accept JSON, form posts and sendBeacon bodies."""
+    data = request.get_json(silent=True, force=True)
+    if isinstance(data, dict):
+        return data
+    return request.form.to_dict() if request.form else {}
+
+
+def _num(value, default=0):
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return default
+
+
+def _game_key_from(data):
+    return _normalize_game_key(
+        data.get("game") or data.get("game_key") or data.get("game_id")
+        or data.get("key") or data.get("gameKey") or data.get("id")
+    )
+
+
 @app.route("/api/game/finish", methods=["POST"])
 @login_required
 def api_game_finish():
-    data = request.get_json(silent=True) or {}
-    game_key = (
-        data.get("game")
-        or data.get("game_key")
-        or data.get("game_id")
-        or data.get("key")
-        or data.get("gameKey")
-    )
-    if isinstance(game_key, str):
-        game_key = game_key.strip()
+    data = _read_game_request()
+    game_key = _game_key_from(data)
+    if game_key is None:
+        msg = "Unknown game."
+        return jsonify(ok=False, success=False, error=msg, message=msg), 400
 
-    if not isinstance(game_key, str) or game_key not in GAMES:
-        return jsonify(ok=False, error="Unknown game."), 400
-
-    try:
-        score_pct = int(data.get("score", 0))
-        seconds = int(data.get("seconds", 0))
-    except (TypeError, ValueError):
-        return jsonify(ok=False, error="Invalid score or time."), 400
-
-    score_pct = max(0, min(100, score_pct))
-    seconds = max(0, min(86400, seconds))
+    score_pct = max(0, min(100, _num(data.get("score", data.get("score_pct", 0)))))
+    seconds = max(0, min(86400, _num(data.get("seconds", data.get("time", 0)))))
 
     result = award_game_credits(session["user_id"], game_key, score_pct, seconds)
 
     # A missing balance means the result could not be saved
     if result["balance"] is None:
-        return jsonify(ok=False, error=result["message"]), 503
+        return jsonify(ok=False, success=False, error=result["message"],
+                       message=result["message"]), 503
 
     session["credits"] = result["balance"]
-
     return jsonify(
-        ok=True,
-        earned=result["earned"],
-        balance=result["balance"],
-        message=result["message"],
+        ok=True, success=True,
+        earned=result["earned"], balance=result["balance"],
+        credits=result["balance"], message=result["message"],
     ), 200
 
 
@@ -2292,9 +2400,12 @@ def videos():
             "SELECT * FROM generated_videos WHERE user_id = %s ORDER BY created_at DESC",
             (session["user_id"],),
         )
+        rows = cursor.fetchall()
+        for row in rows:
+            row["tutor_url"] = tutor_url_for_video(row.get("id"))
         return render_template(
             "videos.html",
-            videos=cursor.fetchall(),
+            videos=rows,
             user_name=session.get("user_name", "Student"),
         )
     except Error:
@@ -2391,9 +2502,8 @@ def memory_game():
 # game.js sends one request per level reached while playing:
 #   POST /api/game-level/complete  {game_key, level, score}
 # and one request when the game ends (see /api/game/finish above).
-# Each level pays GAME_LEVEL_REWARD credits ONCE per user and game, levels
-# must be completed in order, and MAX_GAME_LEVEL limits the total payout to
-# MAX_GAME_LEVEL * GAME_LEVEL_REWARD credits per game.
+# Each level pays GAME_LEVEL_REWARD credits ONCE per user and game.
+# MAX_GAME_LEVEL limits the total payout per game.
 
 # Always in sync with the game catalog above.
 ALLOWED_GAME_KEYS = set(GAMES)
@@ -2446,42 +2556,34 @@ def get_or_create_game_progress(user_id, game_key):
 @login_required
 def complete_game_level():
     user_id = session["user_id"]
-    data = request.get_json(silent=True) or {}
-    game_key = str(
-        data.get("game_key")
-        or data.get("game")
-        or data.get("game_id")
-        or data.get("key")
-        or data.get("gameKey")
-        or ""
-    ).strip()
+    data = _read_game_request()
 
-    try:
-        level = int(float(data.get("level")))
-        score = int(float(data.get("score", 0) or 0))
-    except (TypeError, ValueError):
-        return jsonify(success=False, message="Invalid level or score."), 400
+    def fail(message, status):
+        return jsonify(ok=False, success=False, error=message, message=message), status
 
-    if game_key not in ALLOWED_GAME_KEYS:
-        return jsonify(success=False, message=f"Unknown game: {game_key}"), 400
-    if level < 1 or level > MAX_GAME_LEVEL:
-        return jsonify(success=False, message="Invalid game level."), 400
-    if score < 0:
-        return jsonify(success=False, message="Invalid score."), 400
+    game_key = _game_key_from(data)
+    level = _num(data.get("level"), None)
+    score = _num(data.get("score", 0), 0)
+
+    if game_key is None:
+        return fail("Unknown game.", 400)
+    if level is None or level < 1 or level > MAX_GAME_LEVEL:
+        return fail("Invalid game level.", 400)
+    score = max(0, score)
 
     connection = get_db_connection()
     if connection is None:
-        return jsonify(success=False, message="Database connection failed."), 503
+        return fail("Database connection failed.", 503)
 
     cursor = None
     try:
         cursor = connection.cursor(dictionary=True)
 
-        # Lock the user's credit row so two requests cannot pay the same level twice.
+        # Lock the user's row so two requests cannot pay the same level twice.
         cursor.execute("SELECT credits FROM users WHERE id = %s FOR UPDATE", (user_id,))
         if not cursor.fetchone():
             connection.rollback()
-            return jsonify(success=False, message="User account not found."), 404
+            return fail("User account not found.", 404)
 
         cursor.execute(
             "INSERT IGNORE INTO game_progress "
@@ -2489,19 +2591,8 @@ def complete_game_level():
             "VALUES (%s, %s, 1, 0, 0)",
             (user_id, game_key),
         )
-        cursor.execute(
-            "SELECT unlocked_level FROM game_progress "
-            "WHERE user_id = %s AND game_key = %s FOR UPDATE",
-            (user_id, game_key),
-        )
-        unlocked = int((cursor.fetchone() or {}).get("unlocked_level") or 1)
 
-        # Levels must be completed in order (no skipping ahead).
-        if level > unlocked:
-            connection.rollback()
-            return jsonify(success=False, message="Complete the earlier levels first."), 400
-
-        # UNIQUE(user_id, game_key, level_number) blocks duplicate rewards.
+        # One reward per user + game + level (UNIQUE key blocks duplicates).
         cursor.execute(
             "INSERT IGNORE INTO game_level_rewards "
             "(user_id, game_key, level_number, score, credits_earned) "
@@ -2537,27 +2628,22 @@ def complete_game_level():
         session["credits"] = balance
 
         return jsonify(
-            success=True,
-            earned=earned,
-            balance=balance,
-            level=level,
-            game_key=game_key,
+            ok=True, success=True,
+            earned=earned, balance=balance, credits=balance,
+            level=level, game_key=game_key,
             duplicate=not newly_completed,
-            message=(
-                f"You earned {earned} credits!"
-                if earned > 0
-                else "This level has already been completed."
-            ),
+            message=(f"You earned {earned} credits!" if earned > 0
+                     else "This level has already been completed."),
         ), 200
 
     except Error:
         connection.rollback()
         app.logger.exception("Game level reward database error")
-        return jsonify(success=False, message="Database error while saving game reward."), 500
+        return fail("Database error while saving game reward.", 500)
     except Exception:
         connection.rollback()
         app.logger.exception("Unexpected game level completion error")
-        return jsonify(success=False, message="Unexpected error while saving game reward."), 500
+        return fail("Unexpected error while saving game reward.", 500)
     finally:
         if cursor:
             cursor.close()
@@ -2599,6 +2685,23 @@ def internal_server_error(error):
 # ============================================================
 # DATABASE INITIALIZATION: create required tables if missing
 # ============================================================
+
+def _relax_legacy_columns(cursor, database_name, table, known_columns):
+    """Make leftover NOT NULL columns (from older table versions) optional so INSERTs don't fail."""
+    cursor.execute(
+        "SELECT COLUMN_NAME, COLUMN_TYPE FROM information_schema.COLUMNS "
+        "WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND IS_NULLABLE = 'NO' "
+        "AND COLUMN_DEFAULT IS NULL AND EXTRA NOT LIKE %s",
+        (database_name, table, "%auto_increment%"),
+    )
+    for name, col_type in cursor.fetchall():
+        name = name.decode() if isinstance(name, (bytes, bytearray)) else name
+        col_type = col_type.decode() if isinstance(col_type, (bytes, bytearray)) else col_type
+        if name in known_columns:
+            continue
+        cursor.execute(f"ALTER TABLE `{table}` MODIFY COLUMN `{name}` {col_type} NULL")
+        app.logger.info("Made %s.%s optional", table, name)
+
 
 def initialize_database():
     """Create the configured database and all tables used by this app.
@@ -2760,6 +2863,33 @@ def initialize_database():
                     f"ALTER TABLE `{table}` ADD COLUMN `{column}` {definition}"
                 )
                 app.logger.info("Added missing column %s.%s", table, column)
+
+        # Old game tables may contain leftover NOT NULL columns that make INSERTs fail.
+        _relax_legacy_columns(cursor, database_name, "game_level_rewards",
+                              {"id", "user_id", "game_key", "level_number", "score",
+                               "credits_earned", "created_at"})
+        _relax_legacy_columns(cursor, database_name, "game_progress",
+                              {"id", "user_id", "game_key", "unlocked_level",
+                               "completed_levels", "best_score", "updated_at"})
+        _relax_legacy_columns(cursor, database_name, "game_plays",
+                              {"id", "user_id", "game_key", "score_pct", "seconds",
+                               "credits_earned", "played_at"})
+
+        # Make sure the "one reward per level" unique key exists on old tables.
+        cursor.execute(
+            "SELECT COUNT(*) FROM information_schema.STATISTICS "
+            "WHERE TABLE_SCHEMA = %s AND TABLE_NAME = 'game_level_rewards' "
+            "AND INDEX_NAME = 'unique_user_game_level'",
+            (database_name,),
+        )
+        if cursor.fetchone()[0] == 0:
+            try:
+                cursor.execute(
+                    "ALTER TABLE game_level_rewards ADD UNIQUE KEY unique_user_game_level "
+                    "(user_id, game_key, level_number)"
+                )
+            except Error as exc:
+                app.logger.warning("Could not add unique level-reward key: %s", exc)
 
         # Older versions of generated_videos used prompt / difficulty / file_name.
         # Make those optional and copy old data into title / filename.

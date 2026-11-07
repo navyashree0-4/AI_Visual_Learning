@@ -2625,3 +2625,18 @@ input:focus {
 .style-hint:empty {
     display: none;
 }
+
+/* =========================================
+   AI DOUBT TUTOR (quick-action card)
+   Used by: <a class="quick tutor" href="/ai-tutor/"> in dashboard.html
+   ========================================= */
+
+.quick.tutor > span {
+    background: linear-gradient(135deg, #2f6bff 0%, #6a4bff 100%);
+    color: #fff;
+    box-shadow: 0 8px 18px -8px rgba(80, 70, 230, .65);
+}
+
+.quick.tutor:hover {
+    border-color: rgba(106, 75, 255, .45);
+}

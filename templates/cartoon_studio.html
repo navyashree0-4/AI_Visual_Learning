@@ -1,700 +1,1750 @@
-<!doctype html>
+
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Cartoon Studio | EduVision</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
-<style>
-:root{
-  --ink:#1f1b3d; --paper:#fbfaff; --card:#ffffff; --line:#e1ddf5;
-  --violet:#5546e8; --violet-dark:#4335cb; --sun:#ffc83d; --coral:#e8513c; --mint:#12906f;
-  --muted:#645f82; --soft:#f0eeff;
-  --head:'Baloo 2','Trebuchet MS',Arial,sans-serif;
-  --body:'Nunito','Segoe UI',Arial,sans-serif;
-}
-*{box-sizing:border-box}
-[hidden]{display:none!important}
-html{scroll-padding-top:80px}
-body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.55}
-a{color:var(--violet)}
-h1,h2,h3{font-family:var(--head);line-height:1.15;margin:0}
-h1{font-size:clamp(2rem,5vw,3.1rem);font-weight:800}
-h2{font-size:1.5rem;font-weight:700;margin:34px 0 12px}
-h3{font-size:1.15rem;font-weight:700}
-p{margin:0 0 12px}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Cartoon & Animation Studio | EduVision</title>
 
-/* top bar */
-.top{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:20px;flex-wrap:wrap;
-  padding:12px clamp(16px,4vw,40px);background:var(--ink);color:#fff}
-.brand{font-family:var(--head);font-weight:800;font-size:1.3rem;color:#fff;text-decoration:none;margin-right:auto}
-.brand b{color:var(--sun)}
-.top nav{display:flex;gap:18px;flex-wrap:wrap}
-.top nav a{color:#d9d5ff;text-decoration:none;font-weight:600}
-.top nav a:hover{color:#fff}
-.pill{background:var(--sun);color:var(--ink);font-weight:800;padding:5px 14px;border-radius:99px;white-space:nowrap}
+    <style>
+        :root {
+            --bg: #f4f5ff;
+            --card: #ffffff;
+            --ink: #202044;
+            --muted: #777b99;
+            --primary: #7164ed;
+            --primary-dark: #5547d5;
+            --purple-light: #eeecff;
+            --yellow: #ffda70;
+            --green: #159c70;
+            --red: #dc5050;
+            --border: #e8e7f3;
+            --shadow: 0 12px 35px rgba(42, 35, 105, .08);
+            --radius: 20px;
+        }
 
-main{max-width:920px;margin:0 auto;padding:28px clamp(16px,4vw,32px) 140px}
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
 
-/* steps */
-.steps{display:flex;gap:8px;list-style:none;margin:0 0 30px;padding:0;flex-wrap:wrap}
-.steps li{display:flex;align-items:center;gap:8px;padding:6px 14px 6px 8px;border-radius:99px;color:var(--muted);
-  background:var(--soft);font-weight:700;font-size:.95rem}
-.steps li span{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#fff;
-  color:var(--muted);font-size:.85rem}
-.steps li[aria-current="step"]{background:var(--ink);color:#fff}
-.steps li[aria-current="step"] span{background:var(--sun);color:var(--ink)}
+        body {
+            background: var(--bg);
+            color: var(--ink);
+            font-family: Arial, Helvetica, sans-serif;
+            min-height: 100vh;
+        }
 
-/* panels, fields */
-.panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px}
-.hint{color:var(--muted);font-size:.95rem}
-.field{display:block;margin-bottom:14px}
-.field .lbl{display:block;font-weight:700;margin-bottom:5px;font-size:.95rem}
-input[type=text],textarea,select{width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;
-  font:inherit;color:var(--ink);background:#fff}
-textarea{resize:vertical;min-height:48px}
-input[type=text]:focus,textarea:focus,select:focus{outline:3px solid #c9c3ff;border-color:var(--violet)}
-:focus-visible{outline:3px solid var(--violet);outline-offset:2px}
-input[type=file]{font:inherit;max-width:100%}
+        button, input, textarea, select {
+            font: inherit;
+        }
 
-/* choice chips */
-fieldset{border:0;margin:0 0 18px;padding:0}
-legend{font-weight:700;margin-bottom:8px;padding:0}
-.chips{display:flex;flex-wrap:wrap;gap:8px}
-.chip{position:relative}
-.chip input{position:absolute;opacity:0;inset:0;width:100%;height:100%;margin:0;cursor:pointer}
-.chip span{display:block;padding:8px 15px;border:1.5px solid var(--line);border-radius:99px;background:#fff;font-weight:700;font-size:.95rem}
-.chip small{display:block;font-weight:600;color:var(--muted);font-size:.8rem;line-height:1.2}
-.chip input:checked+span{background:var(--violet);border-color:var(--violet);color:#fff}
-.chip input:checked+span small{color:#e4e1ff}
-.chip input:focus-visible+span{outline:3px solid var(--violet);outline-offset:2px}
-.examples{display:flex;flex-wrap:wrap;gap:8px;margin:-4px 0 18px}
-.examples button{border:1.5px dashed #b9b2f5;background:transparent;color:var(--violet-dark);border-radius:10px;
-  padding:6px 12px;font:inherit;font-size:.9rem;font-weight:600;cursor:pointer;text-align:left}
-.examples button:hover{background:var(--soft)}
+        button {
+            cursor: pointer;
+        }
 
-/* buttons */
-.btn{display:inline-block;border:0;border-radius:11px;padding:12px 22px;font:inherit;font-weight:800;cursor:pointer;
-  text-decoration:none;text-align:center}
-.btn.primary{background:var(--violet);color:#fff}
-.btn.primary:hover:not(:disabled){background:var(--violet-dark)}
-.btn.ghost{background:var(--soft);color:var(--violet-dark)}
-.btn.ghost:hover:not(:disabled){background:#e3dfff}
-.btn.small{padding:7px 14px;font-size:.9rem}
-.btn.danger{background:#fff;color:var(--coral);border:1.5px solid #f3c3bb}
-.btn:disabled{opacity:.5;cursor:not-allowed}
+        .page {
+            max-width: 1250px;
+            margin: auto;
+            padding: 28px 22px 60px;
+        }
 
-/* characters */
-.chars{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
-.char{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
-.char .field{margin-bottom:10px}
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 28px;
+            flex-wrap: wrap;
+        }
 
-/* scenes: film strip */
-.scenes{display:grid;gap:18px}
-.scene{display:grid;grid-template-columns:64px 1fr;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
-.strip{background-color:var(--ink);
-  background-image:radial-gradient(circle at 9px 12px,var(--paper) 4px,transparent 4.5px),
-                   radial-gradient(circle at 55px 12px,var(--paper) 4px,transparent 4.5px);
-  background-size:64px 24px;background-repeat:repeat-y;color:var(--sun);
-  font-family:var(--head);font-weight:800;font-size:1.7rem;text-align:center;padding-top:14px}
-.scene-body{padding:18px}
-.scene-head{display:flex;gap:10px;align-items:flex-end;margin-bottom:6px}
-.scene-head .field{flex:1;margin:0}
-.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.say{display:grid;grid-template-columns:150px 1fr 120px;gap:8px;margin-bottom:8px}
-.rewrite{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;padding-top:14px;border-top:1px dashed var(--line)}
-.rewrite input{flex:1;min-width:200px}
-.sub{font-weight:700;font-size:.95rem;margin:4px 0 6px}
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
 
-/* options */
-.opts{display:grid;gap:10px}
-.check{display:flex;gap:10px;align-items:flex-start;font-weight:600}
-.check input{margin-top:5px;width:18px;height:18px;accent-color:var(--violet)}
-.check small{display:block;color:var(--muted);font-weight:400}
+        .brand-icon {
+            width: 48px;
+            height: 48px;
+            display: grid;
+            place-items: center;
+            background: var(--primary);
+            color: white;
+            border-radius: 15px;
+            font-size: 25px;
+        }
 
-/* sticky make bar */
-.makebar{position:fixed;left:0;right:0;bottom:0;z-index:15;background:#fff;border-top:2px solid var(--ink);
-  display:flex;gap:16px;align-items:center;justify-content:center;flex-wrap:wrap;padding:12px clamp(16px,4vw,32px)}
-.makeinfo{margin-right:auto;max-width:520px}
-.makeinfo strong{display:block;font-family:var(--head);font-size:1.15rem}
-.makeinfo span{color:var(--muted);font-size:.9rem}
-.makeinfo .low{color:var(--coral);font-weight:700}
+        .brand h1 {
+            font-size: 21px;
+        }
 
-/* banners */
-.banner{padding:12px 16px;border-radius:12px;background:#fff3d6;border:1px solid #f1d58a;margin-bottom:18px;font-weight:600}
+        .brand p {
+            color: var(--muted);
+            font-size: 12px;
+            margin-top: 4px;
+        }
 
-/* progress */
-.bar{height:22px;border-radius:99px;background:var(--soft);overflow:hidden;margin:18px 0 10px}
-.bar>div{height:100%;width:1%;background:linear-gradient(90deg,var(--violet),#8b7dff);transition:width .8s ease}
-.pmsg{font-family:var(--head);font-size:1.3rem;font-weight:700}
-.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:20px}
-.gallery figure{margin:0;background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
-.gallery img{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;background:var(--soft)}
-.gallery figcaption{padding:6px 10px;font-size:.85rem;font-weight:700}
+        .top-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
 
-/* result */
-video{width:100%;max-height:70vh;background:#000;border-radius:14px}
-.row{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}
-.exports{display:flex;gap:8px;flex-wrap:wrap}
-.meta{color:var(--muted);margin:6px 0 0}
-.error-box{background:#fff0ed;border:1px solid #f3c3bb;border-radius:14px;padding:18px}
+        .credit-pill {
+            background: white;
+            border: 1px solid var(--border);
+            padding: 11px 16px;
+            border-radius: 30px;
+            font-weight: 700;
+            box-shadow: var(--shadow);
+        }
 
-/* toast */
-.toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%) translateY(20px);z-index:40;max-width:min(560px,92vw);
-  background:var(--ink);color:#fff;padding:12px 18px;border-radius:12px;font-weight:600;opacity:0;pointer-events:none;
-  transition:opacity .2s,transform .2s}
-.toast.show{opacity:1;transform:translateX(-50%)}
-.toast.error{background:var(--coral)}
+        .credit-pill span {
+            color: var(--primary);
+        }
 
-@media (max-width:700px){
-  .two{grid-template-columns:1fr}
-  .say{grid-template-columns:1fr}
-  .scene{grid-template-columns:48px 1fr}
-  .strip{background-size:48px 24px;font-size:1.3rem;
-    background-image:radial-gradient(circle at 7px 12px,var(--paper) 3.5px,transparent 4px),
-                     radial-gradient(circle at 41px 12px,var(--paper) 3.5px,transparent 4px)}
-  .makeinfo{margin-right:0;width:100%}
-  .makebar .btn{flex:1}
-}
-@media (prefers-reduced-motion:reduce){
-  .bar>div,.toast{transition:none}
-}
-</style>
+        .back-link {
+            text-decoration: none;
+            background: white;
+            border: 1px solid var(--border);
+            color: var(--ink);
+            border-radius: 30px;
+            padding: 11px 16px;
+            font-weight: 700;
+        }
+
+        .hero {
+            padding: 32px;
+            border-radius: 25px;
+            background: linear-gradient(120deg, #6558df, #9385fa);
+            color: white;
+            margin-bottom: 25px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::after {
+            content: "🎬";
+            position: absolute;
+            right: 45px;
+            top: 22px;
+            font-size: 90px;
+            opacity: .18;
+        }
+
+        .hero h2 {
+            font-size: clamp(25px, 4vw, 36px);
+            margin-bottom: 10px;
+        }
+
+        .hero p {
+            max-width: 650px;
+            line-height: 1.7;
+            opacity: .94;
+        }
+
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 25px;
+        }
+
+        .step {
+            background: white;
+            border: 1px solid var(--border);
+            padding: 15px;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .step-number {
+            width: 29px;
+            height: 29px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            background: #f0efff;
+            color: var(--primary);
+        }
+
+        .step.active {
+            border-color: var(--primary);
+            color: var(--primary);
+            box-shadow: var(--shadow);
+        }
+
+        .step.active .step-number {
+            background: var(--primary);
+            color: white;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1.5fr) minmax(280px, .8fr);
+            gap: 22px;
+            align-items: start;
+        }
+
+        .panel {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 25px;
+            box-shadow: var(--shadow);
+            margin-bottom: 20px;
+        }
+
+        .panel h3 {
+            font-size: 19px;
+            margin-bottom: 7px;
+        }
+
+        .panel-description {
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.6;
+            margin-bottom: 22px;
+        }
+
+        .field {
+            margin-bottom: 19px;
+        }
+
+        .field label {
+            display: block;
+            font-size: 13px;
+            font-weight: 700;
+            margin-bottom: 9px;
+        }
+
+        .field small {
+            color: var(--muted);
+            display: block;
+            margin-top: 7px;
+            line-height: 1.5;
+        }
+
+        input[type="text"], textarea, select {
+            width: 100%;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 13px 14px;
+            background: #fcfcff;
+            color: var(--ink);
+            outline: none;
+        }
+
+        textarea {
+            min-height: 125px;
+            resize: vertical;
+            line-height: 1.6;
+        }
+
+        input:focus, textarea:focus, select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(113, 100, 237, .1);
+        }
+
+        .two-columns {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .three-columns {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .package {
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 15px 10px;
+            text-align: center;
+            background: #fcfcff;
+            cursor: pointer;
+            transition: .2s;
+        }
+
+        .package input {
+            display: none;
+        }
+
+        .package strong {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+
+        .package span {
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .package.selected {
+            border: 2px solid var(--primary);
+            background: var(--purple-light);
+        }
+
+        .upload-box {
+            display: block;
+            border: 2px dashed #d8d5f3;
+            padding: 19px;
+            text-align: center;
+            border-radius: 14px;
+            background: #fafaff;
+            cursor: pointer;
+        }
+
+        .upload-box:hover {
+            border-color: var(--primary);
+        }
+
+        .upload-box strong {
+            display: block;
+            font-size: 13px;
+            margin-bottom: 5px;
+        }
+
+        .upload-box span {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .upload-box input {
+            display: none;
+        }
+
+        .file-name {
+            color: var(--green);
+            font-size: 12px;
+            margin-top: 8px;
+            overflow-wrap: anywhere;
+        }
+
+        .check-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 13px 0;
+            font-size: 13px;
+        }
+
+        .check-row input {
+            accent-color: var(--primary);
+            width: 17px;
+            height: 17px;
+        }
+
+        .primary-btn, .secondary-btn {
+            border: none;
+            border-radius: 12px;
+            padding: 14px 19px;
+            font-weight: 700;
+            transition: .2s;
+        }
+
+        .primary-btn {
+            background: var(--primary);
+            color: white;
+        }
+
+        .primary-btn:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+        }
+
+        .primary-btn:disabled {
+            opacity: .5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .secondary-btn {
+            background: var(--purple-light);
+            color: var(--primary-dark);
+        }
+
+        .full-btn {
+            width: 100%;
+        }
+
+        .cost-card {
+            background: #faf9ff;
+            border: 1px solid var(--border);
+            border-radius: 15px;
+            padding: 18px;
+            margin: 20px 0;
+        }
+
+        .cost-line {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            margin: 8px 0;
+            font-size: 13px;
+        }
+
+        .cost-line.total {
+            border-top: 1px solid var(--border);
+            padding-top: 12px;
+            margin-top: 13px;
+            font-weight: 800;
+            font-size: 16px;
+        }
+
+        .cost-line.total strong {
+            color: var(--primary);
+        }
+
+        .hint-card {
+            background: #fff9e8;
+            border: 1px solid #f4e6b9;
+            border-radius: 15px;
+            padding: 17px;
+            font-size: 13px;
+            line-height: 1.7;
+            color: #6e5b28;
+            margin-bottom: 18px;
+        }
+
+        .scene-list {
+            display: grid;
+            gap: 13px;
+        }
+
+        .scene-card {
+            border: 1px solid var(--border);
+            border-radius: 15px;
+            padding: 15px;
+            background: #fdfdff;
+        }
+
+        .scene-heading {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .scene-heading strong {
+            font-size: 13px;
+        }
+
+        .scene-card textarea {
+            min-height: 90px;
+            margin-bottom: 10px;
+        }
+
+        .scene-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .mini-btn {
+            border: 1px solid var(--border);
+            background: white;
+            color: var(--ink);
+            padding: 8px 11px;
+            border-radius: 9px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .mini-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .status-panel {
+            display: none;
+        }
+
+        .progress-track {
+            height: 11px;
+            background: #eeedfa;
+            border-radius: 20px;
+            overflow: hidden;
+            margin: 15px 0;
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #7164ed, #a99eff);
+            border-radius: 20px;
+            transition: width .4s;
+        }
+
+        .status-message {
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .result-video {
+            width: 100%;
+            border-radius: 14px;
+            background: #17172c;
+            margin-top: 15px;
+        }
+
+        .result-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+
+        .result-actions a {
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .asset-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .asset-grid img {
+            width: 100%;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+
+        .message {
+            display: none;
+            border-radius: 12px;
+            padding: 13px 15px;
+            font-size: 13px;
+            line-height: 1.6;
+            margin-bottom: 17px;
+        }
+
+        .message.error {
+            display: block;
+            background: #fff0f0;
+            color: #a83333;
+        }
+
+        .message.success {
+            display: block;
+            background: #eafaf3;
+            color: #14754f;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .muted {
+            color: var(--muted);
+        }
+
+        .right-sticky {
+            position: sticky;
+            top: 18px;
+        }
+
+        @media(max-width: 850px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+
+            .right-sticky {
+                position: static;
+            }
+        }
+
+        @media(max-width: 560px) {
+            .page {
+                padding: 17px 12px 40px;
+            }
+
+            .hero {
+                padding: 24px;
+            }
+
+            .hero::after {
+                right: 10px;
+                font-size: 60px;
+            }
+
+            .steps {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .two-columns {
+                grid-template-columns: 1fr;
+                gap: 0;
+            }
+
+            .three-columns {
+                grid-template-columns: 1fr;
+            }
+
+            .panel {
+                padding: 18px;
+            }
+        }
+    </style>
 </head>
+
 <body>
 
-<header class="top">
-  <a class="brand" href="/dashboard">Edu<b>Vision</b> Cartoon Studio</a>
-  <nav aria-label="Main">
-    <a href="/dashboard">Dashboard</a>
-    <a href="/my-videos">My videos</a>
-    <a href="/game">Games</a>
-  </nav>
-  <span class="pill" title="Your credit balance"><span id="credits">{{ credits }}</span> credits</span>
-</header>
+{% set initial_credits = credits|default(0)|int %}
 
-<main>
-  <ol class="steps" id="steps" aria-label="Progress">
-    <li data-stage="idea"><span>1</span>Idea</li>
-    <li data-stage="story"><span>2</span>Story</li>
-    <li data-stage="progress"><span>3</span>Animate</li>
-    <li data-stage="result"><span>4</span>Watch</li>
-  </ol>
+<div class="page">
 
-  {% if not fal_ready %}
-  <div class="banner" role="alert">
-    Animation is not set up on this server yet (set CARTOON_MODE=free or add FAL_KEY in the .env file).
-    You can write and edit stories, but you cannot make the movie until an administrator adds it.
-  </div>
-  {% endif %}
+    <header class="topbar">
+        <div class="brand">
+            <div class="brand-icon">🎨</div>
+            <div>
+                <h1>EduVision Studio</h1>
+                <p>AI Cartoon & Animation Studio</p>
+            </div>
+        </div>
 
-  <!-- 1. IDEA -->
-  <section id="stage-idea" aria-labelledby="idea-title">
-    <h1 id="idea-title">What is your cartoon about?</h1>
-    <p class="hint" style="margin:10px 0 22px;max-width:60ch">
-      Describe an idea in a sentence or two. We write the story first, you can change anything,
-      and credits are only used when you press Make my movie.
-    </p>
-    <form id="ideaForm" class="panel" novalidate>
-      <label class="field">
-        <span class="lbl">Your idea</span>
-        <textarea id="prompt" rows="4" maxlength="800" placeholder="A shy robot learns to share its battery with a village of fireflies"></textarea>
-      </label>
-      <div class="examples" id="examples" aria-label="Example ideas"></div>
-      <fieldset><legend>Cartoon style</legend><div class="chips" id="styleChips"></div></fieldset>
-      <fieldset><legend>Spoken language</legend><div class="chips" id="langChips"></div></fieldset>
-      <fieldset><legend>Length</legend><div class="chips" id="durChips"></div></fieldset>
-      <fieldset><legend>Screen shape</legend><div class="chips" id="aspectChips"></div></fieldset>
-      <button class="btn primary" id="storyBtn" type="submit">Write my story</button>
-    </form>
-  </section>
+        <div class="top-actions">
+            <div class="credit-pill">
+                🪙 Credits: <span id="creditValue">{{ initial_credits }}</span>
+            </div>
+            <a class="back-link" href="{{ url_for('dashboard') if 'dashboard' in current_app.view_functions else '/' }}">
+                ← Dashboard
+            </a>
+        </div>
+    </header>
 
-  <!-- 2. STORY -->
-  <section id="stage-story" aria-labelledby="story-title" hidden>
-    <h1 id="story-title">Check your story</h1>
-    <p class="hint" style="margin:10px 0 0;max-width:62ch">
-      Change anything you like. Setting and action describe the picture, so keep those in English.
-      Narration and spoken lines are read aloud in <strong id="langName">English</strong>.
-    </p>
-    <div id="storyRoot"></div>
+    <section class="hero">
+        <h2>Turn your ideas into animated videos ✨</h2>
+        <p>
+            Create educational cartoons, animated stories and explainer videos.
+            Write your idea, build scenes, generate your animation and export
+            videos in social-media-friendly formats.
+        </p>
+    </section>
 
-    <h2>Movie options</h2>
-    <div class="panel opts">
-      <label class="check"><input type="checkbox" id="opt-subs" checked>
-        <span>Subtitles<small>Show the spoken words on screen.</small></span></label>
-      <label class="check"><input type="checkbox" id="opt-music" checked>
-        <span>Background music<small>Soft music under the voices.</small></span></label>
-      <label class="check"><input type="checkbox" id="opt-sfx" checked>
-        <span>Sound effects<small>Whooshes, birds and other effects chosen for each scene.</small></span></label>
-      <label class="field" style="margin:6px 0 0">
-        <span class="lbl">Your own picture for scene 1 (optional)</span>
-        <input type="file" id="file-image" accept=".jpg,.jpeg,.png">
-        <span class="hint">JPG or PNG, up to 10 MB. It becomes the first animated scene.</span>
-      </label>
-      <label class="field" style="margin:0">
-        <span class="lbl">Your own music (optional)</span>
-        <input type="file" id="file-audio" accept=".mp3,.wav,.m4a,.ogg">
-        <span class="hint">MP3, WAV, M4A or OGG, up to 15 MB. Used instead of the default music.</span>
-      </label>
+    <div class="steps">
+        <div class="step active" id="stepIdea">
+            <span class="step-number">1</span> Your Idea
+        </div>
+        <div class="step" id="stepStory">
+            <span class="step-number">2</span> Story & Scenes
+        </div>
+        <div class="step" id="stepAnimate">
+            <span class="step-number">3</span> Animation
+        </div>
+        <div class="step" id="stepWatch">
+            <span class="step-number">4</span> Watch & Export
+        </div>
     </div>
-    <div class="row"><button type="button" class="btn ghost" id="backIdea">Change my idea</button></div>
 
-    <div class="makebar" id="makebar">
-      <div class="makeinfo">
-        <strong id="costLine"></strong>
-        <span id="costSub"></span>
-      </div>
-      <a class="btn ghost" id="earn" href="/game" hidden>Play games to earn credits</a>
-      <button type="button" class="btn primary" id="makeBtn">Make my movie</button>
+    <div id="messageBox" class="message"></div>
+
+    <div class="layout">
+
+        <main>
+
+            <!-- IDEA SECTION -->
+            <section class="panel" id="ideaPanel">
+                <h3>💡 Create your animation idea</h3>
+                <p class="panel-description">
+                    Describe the topic or story you want to turn into a cartoon video.
+                </p>
+
+                <div class="field">
+                    <label for="prompt">What should your video explain?</label>
+                    <textarea id="prompt" placeholder="Example: Explain photosynthesis through a story about a little green plant. Show sunlight, water, roots, leaves and how the plant makes its food. Use simple language and real-life examples."></textarea>
+                    <small>
+                        Tip: Mention the characters, topic, examples and what viewers should learn.
+                    </small>
+                </div>
+
+                <div class="two-columns">
+                    <div class="field">
+                        <label for="style">Animation style</label>
+                        <select id="style">
+                            {% for style in styles|default(['3D', '2D Flat', 'Anime', 'Watercolor']) %}
+                            <option value="{{ style }}">{{ style }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="language">Video language</label>
+                        <select id="language">
+                            <option value="English">English</option>
+                            <option value="Kannada">Kannada</option>
+                            <option value="Hindi">Hindi</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label>Choose video duration</label>
+
+                    <div class="three-columns">
+                        <label class="package">
+                            <input type="radio" name="duration" value="Short">
+                            <strong>Short</strong>
+                            <span>3 scenes · 5 credits</span>
+                        </label>
+
+                        <label class="package selected">
+                            <input type="radio" name="duration" value="Medium" checked>
+                            <strong>Medium</strong>
+                            <span>5 scenes · 10 credits</span>
+                        </label>
+
+                        <label class="package">
+                            <input type="radio" name="duration" value="Long">
+                            <strong>Long</strong>
+                            <span>8 scenes · 15 credits</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="two-columns">
+                    <div class="field">
+                        <label for="aspectRatio">Video format</label>
+                        <select id="aspectRatio">
+                            <option value="16:9">Landscape (16:9)</option>
+                            <option value="9:16">Portrait (9:16)</option>
+                            <option value="1:1">Square (1:1)</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="audience">Target audience</label>
+                        <select id="audience">
+                            <option value="Kids">Kids</option>
+                            <option value="School Students">School Students</option>
+                            <option value="College Students" selected>College Students</option>
+                            <option value="Teachers">Teachers</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label>Upload a reference image (optional)</label>
+                    <label class="upload-box">
+                        <strong>🖼️ Choose image</strong>
+                        <span>JPG, JPEG or PNG · Maximum 10 MB</span>
+                        <input type="file" id="referenceImage" accept=".jpg,.jpeg,.png,image/jpeg,image/png">
+                        <div class="file-name" id="imageFileName"></div>
+                    </label>
+                </div>
+
+                <div class="field">
+                    <label>Upload narration audio (optional)</label>
+                    <label class="upload-box">
+                        <strong>🎙️ Choose audio</strong>
+                        <span>MP3, WAV, M4A or OGG · Maximum 15 MB</span>
+                        <input type="file" id="narrationAudio" accept=".mp3,.wav,.m4a,.ogg,audio/*">
+                        <div class="file-name" id="audioFileName"></div>
+                    </label>
+                </div>
+
+                <button class="primary-btn full-btn" id="generateStoryBtn" type="button">
+                    Generate Story & Scenes →
+                </button>
+            </section>
+
+            <!-- STORY SECTION -->
+            <section class="panel hidden" id="storyPanel">
+                <h3>📖 Your animation story</h3>
+                <p class="panel-description">
+                    Review the generated story and edit the scenes before creating your video.
+                </p>
+
+                <div class="field">
+                    <label for="storyTitle">Video title</label>
+                    <input type="text" id="storyTitle" placeholder="Enter video title">
+                </div>
+
+                <div class="field">
+                    <label for="storySummary">Story summary</label>
+                    <textarea id="storySummary" placeholder="Your story summary will appear here."></textarea>
+                </div>
+
+                <div class="field">
+                    <label>Scenes</label>
+                    <div class="scene-list" id="sceneList"></div>
+                    <small class="muted">
+                        You can edit or remove scenes. The selected duration package price stays fixed.
+                    </small>
+                </div>
+
+                <div class="result-actions">
+                    <button class="secondary-btn" id="backToIdeaBtn" type="button">← Back</button>
+                    <button class="secondary-btn" id="regenerateStoryBtn" type="button">↻ Regenerate story</button>
+                    <button class="primary-btn" id="continueBtn" type="button">Continue to animation →</button>
+                </div>
+            </section>
+
+            <!-- ANIMATION SECTION -->
+            <section class="panel hidden" id="animationPanel">
+                <h3>🎬 Animation settings</h3>
+                <p class="panel-description">
+                    Select the finishing options for your educational cartoon.
+                </p>
+
+                <label class="check-row">
+                    <input type="checkbox" id="subtitles" checked>
+                    Add subtitles to the video
+                </label>
+
+                <label class="check-row">
+                    <input type="checkbox" id="music" checked>
+                    Add background music
+                </label>
+
+                <label class="check-row">
+                    <input type="checkbox" id="sfx" checked>
+                    Add sound effects
+                </label>
+
+                <div class="hint-card">
+                    <strong>💡 Before generating</strong><br>
+                    Check your story and uploaded files. Your selected package has a fixed credit cost.
+                    Credits are charged by the server and refunded if generation fails.
+                </div>
+
+                <div class="result-actions">
+                    <button class="secondary-btn" id="backToStoryBtn" type="button">← Edit story</button>
+                    <button class="primary-btn" id="generateVideoBtn" type="button">
+                        ✨ Generate Cartoon Video
+                    </button>
+                </div>
+            </section>
+
+            <!-- PROGRESS SECTION -->
+            <section class="panel status-panel" id="statusPanel">
+                <h3>⏳ Creating your animation</h3>
+                <p class="panel-description">
+                    Your scenes are being processed. Please keep this page open.
+                </p>
+
+                <div class="progress-track">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+
+                <div class="cost-line">
+                    <span id="progressPercent">0%</span>
+                    <strong id="progressLabel">Preparing...</strong>
+                </div>
+
+                <p class="status-message" id="statusMessage">
+                    Starting animation...
+                </p>
+
+                <div class="asset-grid" id="assetGrid"></div>
+            </section>
+
+            <!-- RESULT SECTION -->
+            <section class="panel hidden" id="resultPanel">
+                <h3>🎉 Your video is ready!</h3>
+                <p class="panel-description" id="resultDescription">
+                    Your cartoon animation has been generated successfully.
+                </p>
+
+                <video id="resultVideo" class="result-video" controls playsinline></video>
+
+                <div class="result-actions">
+                    <a class="primary-btn" id="downloadVideo" href="#" download>
+                        ↓ Download video
+                    </a>
+                    <a class="secondary-btn" id="quizLink" href="#">
+                        Take video quiz
+                    </a>
+                </div>
+
+                <div class="field" style="margin-top:25px">
+                    <label>Social media export</label>
+                    <p class="panel-description">
+                        Export your finished animation in formats suitable for different platforms.
+                    </p>
+
+                    <div class="two-columns">
+                        <div>
+                            <label for="exportPreset">Choose format</label>
+                            <select id="exportPreset">
+                                <option value="youtube">YouTube Landscape</option>
+                                <option value="reels">Instagram Reels</option>
+                                <option value="shorts">YouTube Shorts</option>
+                                <option value="square">Square Social Post</option>
+                                <option value="tiktok">TikTok Portrait</option>
+                            </select>
+                        </div>
+                        <div style="display:flex;align-items:end">
+                            <button class="primary-btn full-btn" id="exportBtn" type="button">
+                                Export video
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <button class="secondary-btn full-btn" id="createAnotherBtn" type="button">
+                    + Create another animation
+                </button>
+            </section>
+
+        </main>
+
+        <!-- RIGHT SIDEBAR -->
+        <aside class="right-sticky">
+
+            <section class="panel">
+                <h3>🪙 Credit summary</h3>
+                <p class="panel-description">
+                    Your animation package cost.
+                </p>
+
+                <div class="cost-card">
+                    <div class="cost-line">
+                        <span>Selected duration</span>
+                        <strong id="selectedDuration">Medium</strong>
+                    </div>
+
+                    <div class="cost-line">
+                        <span>Number of scenes</span>
+                        <strong id="selectedScenes">5</strong>
+                    </div>
+
+                    <div class="cost-line total">
+                        <span>Generation cost</span>
+                        <strong id="selectedCost">10 credits</strong>
+                    </div>
+                </div>
+
+                <div class="cost-line">
+                    <span>Available balance</span>
+                    <strong id="availableCredits">{{ initial_credits }}</strong>
+                </div>
+
+                <p class="muted" id="creditHint" style="font-size:12px;line-height:1.6;margin-top:12px">
+                    Credits are charged when you start generating the video.
+                </p>
+            </section>
+
+            <section class="panel">
+                <h3>🌟 Creation tips</h3>
+                <div class="hint-card">
+                    <strong>1. Explain the topic</strong><br>
+                    Write what your cartoon should teach.
+                </div>
+
+                <div class="hint-card">
+                    <strong>2. Add a real-life example</strong><br>
+                    Examples help students understand difficult concepts.
+                </div>
+
+                <div class="hint-card">
+                    <strong>3. Review the scenes</strong><br>
+                    Edit the story before generating the final video.
+                </div>
+            </section>
+
+        </aside>
     </div>
-  </section>
-
-  <!-- 3. PROGRESS -->
-  <section id="stage-progress" aria-labelledby="prog-title" hidden>
-    <h1 id="prog-title">Making your movie</h1>
-    <p class="hint" style="margin:10px 0 0;max-width:62ch">
-      Animation takes a few minutes. Keep this page open, or come back later: your movie will also appear in My videos.
-    </p>
-    <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="1" id="barWrap"><div id="bar"></div></div>
-    <div class="pmsg" id="pmsg" aria-live="polite">Starting</div>
-    <div id="gallery-wrap" hidden>
-      <h2>Pictures so far</h2>
-      <div class="gallery" id="gallery"></div>
-    </div>
-    <div class="error-box" id="failBox" hidden>
-      <h3>The movie could not be finished</h3>
-      <p id="failMsg"></p>
-      <button class="btn primary" type="button" id="failBack">Back to my story</button>
-    </div>
-  </section>
-
-  <!-- 4. RESULT -->
-  <section id="stage-result" aria-labelledby="res-title" hidden>
-    <h1 id="res-title">Your movie is ready</h1>
-    <div id="resultRoot"></div>
-  </section>
-</main>
-
-<div class="toast" id="toast" role="status" aria-live="polite"></div>
+</div>
 
 <script>
-(function(){
-'use strict';
+"use strict";
 
 const CFG = {
-  costPerScene: {{ cost_per_scene|tojson }},
-  scenesByDuration: {{ scenes_by_duration|tojson }},
-  styles: {{ styles|tojson }},
-  falReady: {{ fal_ready|tojson }},
-  credits: {{ credits|tojson }}
-};
-const URLS = {
-  story: "/api/cartoon/story",
-  regen: "/api/cartoon/regenerate-scene",
-  generate: "/api/cartoon/generate",
-  status: "/api/cartoon/status/__ID__",
-  credits: "/api/credits"
+    initialCredits: {{ initial_credits|tojson }},
+    storyUrl: "/api/cartoon/story",
+    regenerateSceneUrl: "/api/cartoon/regenerate-scene",
+    generateUrl: "/api/cartoon/generate",
+    statusUrl: "/api/cartoon/status/",
+    creditsUrl: "/api/credits",
+    exportUrl: "/cartoon-studio/export/",
+    loginUrl: "/login"
 };
 
-const LANGUAGES = ['English','Kannada','Hindi'];
-const ASPECTS = [['16:9','Widescreen','16:9'],['9:16','Phone','9:16'],['1:1','Square','1:1']];
-const VOICES = [['female','Woman'],['male','Man'],['child','Child'],['deep','Deep voice']];
-const EMOTIONS = ['happy','sad','angry','surprised','scared','excited','calm','curious','proud'];
-const SFX = [['','No sound effect'],['whoosh','Whoosh'],['magic','Magic'],['boing','Boing'],['roar','Roar'],
-             ['birds','Birds'],['water','Water'],['pop','Pop'],['footsteps','Footsteps'],['wind','Wind']];
-const EXAMPLES = [
-  'A shy robot learns to share its battery with a village of fireflies',
-  'Two brothers in Mysuru build a rocket out of an old rickshaw',
-  'A little cloud who is afraid of thunder makes friends with the wind'
-];
+const PACKAGES = {
+    Short: { scenes: 3, credits: 5 },
+    Medium: { scenes: 5, credits: 10 },
+    Long: { scenes: 8, credits: 15 }
+};
 
-const state = { story:null, style:CFG.styles[0] || '3D', language:'English', aspect:'16:9',
-                jobId:null, timer:null, fails:0, seen:new Set(), credits:CFG.credits };
+let currentStory = null;
+let currentJobId = null;
+let pollingTimer = null;
+let currentVideoId = null;
+let currentVideoUrl = null;
+let lastAssets = [];
 
-const $ = (s, r) => (r || document).querySelector(s);
+const $ = id => document.getElementById(id);
 
-/* ---------- small helpers ---------- */
-function h(tag, attrs){
-  const el = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs || {})) {
-    if (v === false || v == null) continue;
-    if (k === 'class') el.className = v;
-    else if (k === 'text') el.textContent = v;
-    else if (k.slice(0,2) === 'on') el.addEventListener(k.slice(2), v);
-    else el.setAttribute(k, v === true ? '' : v);
-  }
-  for (const kid of Array.prototype.slice.call(arguments, 2).flat()) {
-    if (kid == null || kid === false) continue;
-    el.append(kid.nodeType ? kid : document.createTextNode(kid));
-  }
-  return el;
+function showMessage(message, type = "error") {
+    const box = $("messageBox");
+    box.textContent = message;
+    box.className = "message " + type;
+    box.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
-let toastTimer;
-function toast(msg, kind){
-  const t = $('#toast');
-  t.textContent = msg;
-  t.className = 'toast show ' + (kind || '');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.className = 'toast'; }, 6500);
+function clearMessage() {
+    const box = $("messageBox");
+    box.textContent = "";
+    box.className = "message";
 }
 
-async function api(url, opts){
-  let res, data = {};
-  try { res = await fetch(url, opts); }
-  catch (e) { throw new Error('Could not reach the server. Check your connection and try again.'); }
-  try { data = await res.json(); } catch (e) { /* not JSON */ }
-  if (!res.ok || data.ok === false) {
-    throw new Error(data.error || data.message || ('Something went wrong (' + res.status + ').'));
-  }
-  return data;
-}
-
-function setCredits(n){
-  state.credits = Number(n) || 0;
-  $('#credits').textContent = state.credits;
-  if (state.story) updateCost();
-}
-async function refreshCredits(){
-  try { const d = await api(URLS.credits); setCredits(d.credits); } catch (e) { /* keep old value */ }
-}
-
-function showStage(name){
-  for (const s of ['idea','story','progress','result']) $('#stage-' + s).hidden = (s !== name);
-  document.querySelectorAll('#steps li').forEach(li => {
-    if (li.dataset.stage === name) li.setAttribute('aria-current','step'); else li.removeAttribute('aria-current');
-  });
-  window.scrollTo({ top: 0 });
-}
-
-/* ---------- choice chips ---------- */
-function chips(container, name, items, selected, onPick){
-  container.replaceChildren();
-  items.forEach(it => {
-    const input = h('input', { type:'radio', name:name, value:it.value });
-    input.checked = (it.value === selected);
-    input.addEventListener('change', () => onPick(it.value));
-    container.append(h('label', { class:'chip' }, input,
-      h('span', {}, it.label, it.sub ? h('small', { text: it.sub }) : null)));
-  });
-}
-
-function buildIdeaForm(){
-  EXAMPLES.forEach(text => {
-    $('#examples').append(h('button', { type:'button', text:text, onclick:() => {
-      $('#prompt').value = text; $('#prompt').focus();
-    }}));
-  });
-  chips($('#styleChips'), 'style', CFG.styles.map(s => ({ value:s, label:s })), state.style, v => state.style = v);
-  chips($('#langChips'), 'language', LANGUAGES.map(l => ({ value:l, label:l })), state.language, v => state.language = v);
-  const durations = Object.entries(CFG.scenesByDuration).sort((a, b) => a[1] - b[1]);
-  state.duration = (durations.find(d => d[0] === 'Medium') || durations[0])[0];
-  chips($('#durChips'), 'duration',
-    durations.map(([name, n]) => ({ value:name, label:name,
-      sub: n + ' scenes, ' + (n * CFG.costPerScene) + ' credits' })),
-    state.duration, v => state.duration = v);
-  chips($('#aspectChips'), 'aspect',
-    ASPECTS.map(a => ({ value:a[0], label:a[1], sub:a[2] })), state.aspect, v => state.aspect = v);
-}
-
-/* ---------- story editor ---------- */
-function field(label, get, set, opts){
-  opts = opts || {};
-  const input = opts.rows
-    ? h('textarea', { rows:opts.rows, maxlength:opts.max })
-    : h('input', { type:'text', maxlength:opts.max });
-  input.value = get();
-  input.addEventListener('input', () => set(input.value));
-  if (opts.change) input.addEventListener('change', opts.change);
-  return h('label', { class:'field' }, h('span', { class:'lbl', text:label }), input);
-}
-
-function selectEl(options, value, onChange, label){
-  const sel = h('select', { 'aria-label':label });
-  options.forEach(o => {
-    const v = Array.isArray(o) ? o[0] : o, t = Array.isArray(o) ? o[1] : o;
-    sel.append(h('option', { value:v, text:t }));
-  });
-  sel.value = value;
-  sel.addEventListener('change', () => onChange(sel.value));
-  return sel;
-}
-
-function renderStory(){
-  const s = state.story, root = $('#storyRoot');
-  $('#langName').textContent = state.language;
-  root.replaceChildren();
-
-  root.append(h('h2', { text:'Title' }),
-    h('div', { class:'panel' },
-      field('Movie title', () => s.title, v => { s.title = v; }, { max:100 }),
-      field('One-line summary', () => s.logline, v => { s.logline = v; }, { max:300 })));
-
-  const grid = h('div', { class:'chars' });
-  s.characters.forEach(ch => {
-    let prev = ch.name;
-    grid.append(h('div', { class:'char' },
-      field('Name', () => ch.name, v => { ch.name = v; }, { max:60, change:() => {
-        const nn = ch.name.trim();
-        if (!nn) { ch.name = prev; renderStory(); return; }
-        ch.name = nn;
-        s.scenes.forEach(sc => sc.dialogue.forEach(d => { if (d.character === prev) d.character = nn; }));
-        prev = nn;
-        renderScenes();
-      }}),
-      field('What they look like (English)', () => ch.look, v => { ch.look = v; }, { rows:2, max:300 }),
-      field('Personality', () => ch.description, v => { ch.description = v; }, { rows:2, max:300 }),
-      h('label', { class:'field' }, h('span', { class:'lbl', text:'Voice' }),
-        selectEl(VOICES, ch.voice, v => { ch.voice = v; }, 'Voice for ' + ch.name))));
-  });
-  root.append(h('h2', { text:'Characters' }), grid, h('h2', { text:'Scenes' }), h('div', { class:'scenes', id:'scenes' }));
-  renderScenes();
-  updateCost();
-}
-
-function renderScenes(){
-  const box = $('#scenes');
-  box.replaceChildren();
-  state.story.scenes.forEach((sc, i) => box.append(sceneCard(sc, i)));
-}
-
-function sceneCard(sc, i){
-  const s = state.story;
-  const names = s.characters.map(c => c.name);
-
-  const dlg = h('div', {});
-  if (sc.dialogue.length) dlg.append(h('div', { class:'sub', text:'Spoken lines' }));
-  sc.dialogue.forEach((d, k) => {
-    const line = h('input', { type:'text', maxlength:120, 'aria-label':'Line ' + (k + 1) });
-    line.value = d.line;
-    line.addEventListener('input', () => { d.line = line.value; });
-    dlg.append(h('div', { class:'say' },
-      selectEl(names, d.character, v => { d.character = v; }, 'Who speaks line ' + (k + 1)),
-      line,
-      selectEl(EMOTIONS, d.emotion, v => { d.emotion = v; }, 'Feeling for line ' + (k + 1))));
-  });
-
-  const instr = h('input', { type:'text', maxlength:300, placeholder:'Optional: what should change? For example, make it funnier' });
-  const rewrite = h('button', { type:'button', class:'btn ghost small', text:'Rewrite this scene' });
-  rewrite.addEventListener('click', async () => {
-    const problem = validateStory();
-    if (problem) { toast(problem, 'error'); return; }
-    rewrite.disabled = true; rewrite.textContent = 'Rewriting';
-    try {
-      const d = await api(URLS.regen, { method:'POST', headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify({ story:s, index:i, instruction:instr.value,
-                               style:state.style, language:state.language }) });
-      s.scenes[i] = d.scene;
-      renderScenes();
-      toast('Scene ' + (i + 1) + ' rewritten.');
-    } catch (e) {
-      toast(e.message, 'error');
-      rewrite.disabled = false; rewrite.textContent = 'Rewrite this scene';
-    }
-  });
-
-  const remove = h('button', { type:'button', class:'btn danger small', text:'Remove scene',
-    disabled: s.scenes.length <= 1 });
-  remove.addEventListener('click', () => {
-    s.scenes.splice(i, 1);
-    renderScenes(); updateCost();
-  });
-
-  return h('article', { class:'scene' },
-    h('div', { class:'strip', 'aria-hidden':'true', text:String(i + 1) }),
-    h('div', { class:'scene-body' },
-      h('div', { class:'scene-head' },
-        field('Scene ' + (i + 1) + ' title', () => sc.title, v => { sc.title = v; }, { max:80 }),
-        remove),
-      h('div', { class:'two' },
-        field('Setting (English)', () => sc.setting, v => { sc.setting = v; }, { rows:2, max:300 }),
-        field('Action (English)', () => sc.action, v => { sc.action = v; }, { rows:2, max:400 })),
-      field('Narrator says', () => sc.narration, v => { sc.narration = v; }, { rows:2, max:250 }),
-      dlg,
-      h('label', { class:'field' }, h('span', { class:'lbl', text:'Sound effect' }),
-        selectEl(SFX, sc.sfx || '', v => { sc.sfx = v; }, 'Sound effect for scene ' + (i + 1))),
-      h('div', { class:'rewrite' }, instr, rewrite)));
-}
-
-function validateStory(){
-  const s = state.story;
-  if (!s || !s.scenes.length) return 'The story needs at least one scene.';
-  for (let i = 0; i < s.scenes.length; i++) {
-    const sc = s.scenes[i];
-    const spoken = sc.dialogue.some(d => d.line.trim());
-    if (!sc.narration.trim() && !spoken) return 'Scene ' + (i + 1) + ' needs narration or at least one spoken line.';
-  }
-  return '';
-}
-
-/* ---------- cost bar ---------- */
-function updateCost(){
-  if (!state.story) return;
-  const n = state.story.scenes.length, cost = n * CFG.costPerScene;
-  const enough = state.credits >= cost;
-  $('#costLine').textContent = n + (n === 1 ? ' scene' : ' scenes') + ' x ' + CFG.costPerScene + ' = ' + cost + ' credits';
-  const sub = $('#costSub');
-  sub.replaceChildren();
-  if (enough) sub.append('You have ' + state.credits + ' credits. Failed movies are refunded.');
-  else sub.append(h('span', { class:'low', text:'You need ' + (cost - state.credits) + ' more credits.' }),
-                  ' Remove a scene or play a game to earn them.');
-  $('#earn').hidden = enough;
-  const btn = $('#makeBtn');
-  btn.disabled = !enough || !CFG.falReady;
-  btn.textContent = 'Make my movie';
-}
-
-/* ---------- actions ---------- */
-async function onIdeaSubmit(e){
-  e.preventDefault();
-  const prompt = $('#prompt').value.trim();
-  if (prompt.length < 5) { toast('Describe your idea in at least a short sentence.', 'error'); $('#prompt').focus(); return; }
-  const btn = $('#storyBtn');
-  btn.disabled = true; btn.textContent = 'Writing your story. This can take a minute';
-  try {
-    const d = await api(URLS.story, { method:'POST', headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify({ prompt:prompt, style:state.style, language:state.language, duration:state.duration }) });
-    state.story = d.story;
-    renderStory();
-    showStage('story');
-  } catch (err) {
-    toast(err.message, 'error');
-  } finally {
-    btn.disabled = false; btn.textContent = 'Write my story';
-  }
-}
-
-async function onMake(){
-  const problem = validateStory();
-  if (problem) { toast(problem, 'error'); return; }
-  const fd = new FormData();
-  fd.append('story', JSON.stringify(state.story));
-  fd.append('style', state.style);
-  fd.append('language', state.language);
-  fd.append('aspect_ratio', state.aspect);
-  if ($('#opt-subs').checked) fd.append('subtitles', 'on');
-  if ($('#opt-music').checked) fd.append('music', 'on');
-  if ($('#opt-sfx').checked) fd.append('sfx', 'on');
-  const img = $('#file-image').files[0], aud = $('#file-audio').files[0];
-  if (img) fd.append('image', img);
-  if (aud) fd.append('audio', aud);
-
-  const btn = $('#makeBtn');
-  btn.disabled = true; btn.textContent = 'Starting';
-  try {
-    const d = await api(URLS.generate, { method:'POST', body:fd });
-    setCredits(d.credits);
-    state.jobId = d.job_id;
-    try { sessionStorage.setItem('cartoonJob', JSON.stringify({ id:d.job_id, story:state.story })); } catch (e) {}
-    startProgress();
-  } catch (err) {
-    toast(err.message, 'error');
+function setCredits(value) {
+    const amount = Math.max(0, Number(value) || 0);
+    $("creditValue").textContent = amount;
+    $("availableCredits").textContent = amount;
+    CFG.initialCredits = amount;
     updateCost();
-  }
 }
 
-/* ---------- progress ---------- */
-function startProgress(){
-  state.seen = new Set(); state.fails = 0;
-  $('#gallery').replaceChildren(); $('#gallery-wrap').hidden = true; $('#failBox').hidden = true;
-  $('#bar').style.width = '1%'; $('#pmsg').textContent = 'Starting';
-  showStage('progress');
-  clearTimeout(state.timer);
-  tick();
+async function refreshCredits() {
+    try {
+        const response = await fetch(CFG.creditsUrl, {
+            credentials: "same-origin"
+        });
+
+        if (response.status === 401) {
+            window.location.href = CFG.loginUrl;
+            return;
+        }
+
+        const data = await response.json();
+
+        if (response.ok && data.credits !== undefined) {
+            setCredits(data.credits);
+        }
+    } catch (error) {
+        console.warn("Could not refresh credits:", error);
+    }
 }
 
-function captionFor(a){
-  const s = state.story;
-  if (a.kind === 'character') { const c = s && s.characters[a.index]; return c ? c.name : 'Character ' + (a.index + 1); }
-  const sc = s && s.scenes[a.index];
-  return 'Scene ' + (a.index + 1) + (sc && sc.title ? ': ' + sc.title : '');
+function selectedDuration() {
+    return document.querySelector('input[name="duration"]:checked')?.value || "Medium";
 }
 
-function showAssets(list){
-  (list || []).forEach(a => {
-    if (state.seen.has(a.url)) return;
-    state.seen.add(a.url);
-    $('#gallery-wrap').hidden = false;
-    $('#gallery').append(h('figure', {},
-      h('img', { src:a.url, alt:captionFor(a), loading:'lazy' }),
-      h('figcaption', { text:captionFor(a) })));
-  });
+function getPackage() {
+    return PACKAGES[selectedDuration()] || PACKAGES.Medium;
 }
 
-async function tick(){
-  try {
-    const d = await api(URLS.status.replace('__ID__', encodeURIComponent(state.jobId)));
-    state.fails = 0;
-    const pct = Math.max(1, Math.min(100, d.percent || 1));
-    $('#bar').style.width = pct + '%';
-    $('#barWrap').setAttribute('aria-valuenow', pct);
-    $('#pmsg').textContent = d.message || 'Working';
-    showAssets(d.assets);
-    if (d.status === 'done' && d.result) { finish(d.result); return; }
-    if (d.status === 'failed') { fail(d.error || 'The movie could not be finished. Your credits were refunded.'); return; }
-  } catch (err) {
-    state.fails++;
-    if (/not found/i.test(err.message) || state.fails >= 6) { fail(err.message); return; }
-  }
-  state.timer = setTimeout(tick, 3000);
+function updateCost() {
+    const duration = selectedDuration();
+    const pack = getPackage();
+
+    $("selectedDuration").textContent = duration;
+    $("selectedScenes").textContent = pack.scenes;
+    $("selectedCost").textContent = pack.credits + " credits";
+
+    const enough = CFG.initialCredits >= pack.credits;
+    const button = $("generateVideoBtn");
+
+    if (button) {
+        button.disabled = !enough;
+    }
+
+    $("creditHint").textContent = enough
+        ? "Credits are charged when you start generating the video."
+        : "You do not have enough credits for this package.";
 }
 
-function clearJob(){ try { sessionStorage.removeItem('cartoonJob'); } catch (e) {} }
+function updatePackageSelection() {
+    document.querySelectorAll(".package").forEach(label => {
+        const input = label.querySelector("input");
+        label.classList.toggle("selected", input.checked);
+    });
 
-function fail(message){
-  clearJob();
-  $('#failMsg').textContent = message;
-  $('#failBox').hidden = false;
-  $('#pmsg').textContent = 'Stopped';
-  refreshCredits();
+    updateCost();
 }
 
-function finish(r){
-  clearJob();
-  setCredits(r.credits);
-  const root = $('#resultRoot');
-  root.replaceChildren();
-  const video = h('video', { controls:true, preload:'metadata', playsinline:true, src:r.video_url });
-  root.append(
-    video,
-    h('h2', { text:r.title, style:'margin-top:20px' }),
-    h('p', { class:'meta', text:r.duration + ', ' + r.scenes + (r.scenes === 1 ? ' scene' : ' scenes') }),
-    h('div', { class:'row' },
-      h('a', { class:'btn primary', href:r.download_url, text:'Download movie' }),
-      h('a', { class:'btn ghost', href:r.quiz_url, text:'Take a quiz about it' }),
-      h('button', { class:'btn ghost', type:'button', text:'Make another cartoon', onclick:resetAll })),
-    h('h3', { text:'Save for social media', style:'margin-top:22px' }),
-    h('p', { class:'hint', text:'Each button prepares a copy in the right shape. The first one can take a short while.' }),
-    h('div', { class:'exports' }, (r.exports || []).map(x =>
-      h('a', { class:'btn ghost small', href:x.url, text:x.label }))),
-    h('p', { class:'hint', style:'margin-top:22px' },
-      'Find this movie later in ', h('a', { href:"/my-videos", text:'My videos' }), '.'));
-  showStage('result');
+document.querySelectorAll('input[name="duration"]').forEach(input => {
+    input.addEventListener("change", updatePackageSelection);
+});
+
+$("referenceImage").addEventListener("change", event => {
+    $("imageFileName").textContent =
+        event.target.files[0]?.name || "";
+});
+
+$("narrationAudio").addEventListener("change", event => {
+    $("audioFileName").textContent =
+        event.target.files[0]?.name || "";
+});
+
+function setStep(active) {
+    const ids = ["stepIdea", "stepStory", "stepAnimate", "stepWatch"];
+
+    ids.forEach((id, index) => {
+        $(id).classList.toggle("active", index === active - 1);
+    });
 }
 
-function resetAll(){
-  state.story = null; state.jobId = null;
-  $('#storyRoot').replaceChildren();
-  $('#file-image').value = ''; $('#file-audio').value = '';
-  showStage('idea');
+function showPanel(panelId) {
+    [
+        "ideaPanel",
+        "storyPanel",
+        "animationPanel",
+        "statusPanel",
+        "resultPanel"
+    ].forEach(id => {
+        $(id).classList.add("hidden");
+    });
+
+    $(panelId).classList.remove("hidden");
+    $(panelId).scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-/* ---------- start ---------- */
-buildIdeaForm();
-$('#ideaForm').addEventListener('submit', onIdeaSubmit);
-$('#makeBtn').addEventListener('click', onMake);
-$('#backIdea').addEventListener('click', () => showStage('idea'));
-$('#failBack').addEventListener('click', () => { if (state.story) { renderStory(); showStage('story'); } else resetAll(); });
-showStage('idea');
+function validatePrompt() {
+    const prompt = $("prompt").value.trim();
 
-// Come back to a movie that is still being made after a page reload.
-try {
-  const saved = JSON.parse(sessionStorage.getItem('cartoonJob') || 'null');
-  if (saved && saved.id) { state.jobId = saved.id; state.story = saved.story || null; startProgress(); }
-} catch (e) { clearJob(); }
-})();
+    if (prompt.length < 10) {
+        showMessage("Please enter a more detailed idea (at least 10 characters).");
+        return false;
+    }
+
+    return true;
+}
+
+async function readJsonResponse(response) {
+    let data;
+
+    try {
+        data = await response.json();
+    } catch {
+        throw new Error("The server returned an invalid response. Check your Flask terminal.");
+    }
+
+    if (response.status === 401) {
+        window.location.href = CFG.loginUrl;
+        throw new Error("Please log in again.");
+    }
+
+    if (!response.ok || data.success === false || data.ok === false) {
+        throw new Error(data.error || data.message || "Request failed.");
+    }
+
+    return data;
+}
+
+function normalizeStory(data) {
+    let story = data.story || data.data || data;
+
+    if (typeof story === "string") {
+        try {
+            story = JSON.parse(story);
+        } catch {
+            throw new Error("The story response is not valid JSON.");
+        }
+    }
+
+    if (!story || !Array.isArray(story.scenes)) {
+        throw new Error("The server did not return a valid scene list.");
+    }
+
+    story.title = story.title || "My Educational Cartoon";
+    story.summary = story.summary || story.description || "";
+
+    story.scenes = story.scenes.map((scene, index) => {
+        if (typeof scene === "string") {
+            return {
+                narration: scene,
+                visual: "",
+                title: "Scene " + (index + 1)
+            };
+        }
+
+        return {
+            ...scene,
+            narration: scene.narration || scene.text || scene.script || "",
+            visual: scene.visual || scene.image_prompt || scene.description || "",
+            title: scene.title || "Scene " + (index + 1)
+        };
+    });
+
+    return story;
+}
+
+function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, char => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+    })[char]);
+}
+
+function renderScenes() {
+    const container = $("sceneList");
+    container.innerHTML = "";
+
+    currentStory.scenes.forEach((scene, index) => {
+        const card = document.createElement("div");
+        card.className = "scene-card";
+
+        const heading = document.createElement("div");
+        heading.className = "scene-heading";
+
+        const title = document.createElement("strong");
+        title.textContent = "Scene " + (index + 1);
+
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "mini-btn";
+        remove.textContent = "Remove";
+        remove.addEventListener("click", () => removeScene(index));
+
+        heading.append(title, remove);
+
+        const narrationLabel = document.createElement("label");
+        narrationLabel.textContent = "Narration";
+
+        const narration = document.createElement("textarea");
+        narration.value = scene.narration || "";
+        narration.placeholder = "Enter narration for this scene";
+
+        narration.addEventListener("input", () => {
+            currentStory.scenes[index].narration = narration.value;
+        });
+
+        const visualLabel = document.createElement("label");
+        visualLabel.textContent = "Visual description";
+
+        const visual = document.createElement("textarea");
+        visual.value = scene.visual || "";
+        visual.placeholder = "Describe what viewers should see";
+
+        visual.addEventListener("input", () => {
+            currentStory.scenes[index].visual = visual.value;
+        });
+
+        const actions = document.createElement("div");
+        actions.className = "scene-actions";
+
+        const regenerate = document.createElement("button");
+        regenerate.type = "button";
+        regenerate.className = "mini-btn";
+        regenerate.textContent = "↻ Regenerate scene";
+        regenerate.addEventListener("click", () => regenerateScene(index));
+
+        actions.appendChild(regenerate);
+
+        card.append(
+            heading,
+            narrationLabel,
+            narration,
+            visualLabel,
+            visual,
+            actions
+        );
+
+        container.appendChild(card);
+    });
+
+    if (!currentStory.scenes.length) {
+        container.textContent = "No scenes available. Generate the story again.";
+    }
+}
+
+function removeScene(index) {
+    if (currentStory.scenes.length <= 1) {
+        showMessage("At least one scene is required.");
+        return;
+    }
+
+    currentStory.scenes.splice(index, 1);
+    renderScenes();
+}
+
+async function generateStory() {
+    clearMessage();
+
+    if (!validatePrompt()) return;
+
+    const button = $("generateStoryBtn");
+    button.disabled = true;
+    button.textContent = "Creating your story...";
+
+    try {
+        const response = await fetch(CFG.storyUrl, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                prompt: $("prompt").value.trim(),
+                style: $("style").value,
+                language: $("language").value,
+                duration: selectedDuration(),
+                audience: $("audience").value
+            })
+        });
+
+        const data = await readJsonResponse(response);
+        currentStory = normalizeStory(data);
+
+        $("storyTitle").value = currentStory.title;
+        $("storySummary").value = currentStory.summary;
+
+        renderScenes();
+        setStep(2);
+        showPanel("storyPanel");
+        showMessage("Your story is ready. Review your scenes.", "success");
+
+    } catch (error) {
+        showMessage(error.message);
+    } finally {
+        button.disabled = false;
+        button.textContent = "Generate Story & Scenes →";
+    }
+}
+
+async function regenerateStory() {
+    if (!validatePrompt()) return;
+
+    $("generateStoryBtn").disabled = true;
+
+    try {
+        const response = await fetch(CFG.storyUrl, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                prompt: $("prompt").value.trim(),
+                style: $("style").value,
+                language: $("language").value,
+                duration: selectedDuration(),
+                audience: $("audience").value
+            })
+        });
+
+        const data = await readJsonResponse(response);
+        currentStory = normalizeStory(data);
+
+        $("storyTitle").value = currentStory.title;
+        $("storySummary").value = currentStory.summary;
+
+        renderScenes();
+        showMessage("A new story has been created.", "success");
+
+    } catch (error) {
+        showMessage(error.message);
+    } finally {
+        $("generateStoryBtn").disabled = false;
+    }
+}
+
+async function regenerateScene(index) {
+    const scene = currentStory?.scenes[index];
+
+    if (!scene) return;
+
+    const instruction = prompt(
+        "What should be changed in this scene?",
+        "Make the explanation clearer and more engaging."
+    );
+
+    if (instruction === null) return;
+
+    try {
+        const response = await fetch(CFG.regenerateSceneUrl, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                story: currentStory,
+                scene: index,
+                instruction: instruction,
+                style: $("style").value,
+                language: $("language").value
+            })
+        });
+
+        const data = await readJsonResponse(response);
+
+        const replacement = data.scene || data.data || data;
+
+        if (typeof replacement === "string") {
+            currentStory.scenes[index].narration = replacement;
+        } else {
+            currentStory.scenes[index] = {
+                ...currentStory.scenes[index],
+                ...replacement,
+                narration: replacement.narration || replacement.text ||
+                    currentStory.scenes[index].narration,
+                visual: replacement.visual || replacement.image_prompt ||
+                    currentStory.scenes[index].visual
+            };
+        }
+
+        renderScenes();
+        showMessage("Scene updated successfully.", "success");
+
+    } catch (error) {
+        showMessage(error.message);
+    }
+}
+
+function validateStory() {
+    if (!currentStory || !currentStory.scenes?.length) {
+        showMessage("Please generate a story first.");
+        return false;
+    }
+
+    const title = $("storyTitle").value.trim();
+
+    if (!title) {
+        showMessage("Please enter a video title.");
+        return false;
+    }
+
+    for (let i = 0; i < currentStory.scenes.length; i++) {
+        const scene = currentStory.scenes[i];
+
+        if (!String(scene.narration || "").trim()) {
+            showMessage("Please add narration to Scene " + (i + 1) + ".");
+            return false;
+        }
+    }
+
+    currentStory.title = title;
+    currentStory.summary = $("storySummary").value.trim();
+
+    return true;
+}
+
+function updateProgress(percent, message) {
+    const value = Math.max(0, Math.min(100, Number(percent) || 0));
+
+    $("progressBar").style.width = value + "%";
+    $("progressPercent").textContent = value + "%";
+    $("progressLabel").textContent = value >= 100 ? "Completed" : "Working...";
+    $("statusMessage").textContent = message || "Creating your video...";
+}
+
+function renderAssets(assets) {
+    if (!Array.isArray(assets)) return;
+
+    lastAssets = assets;
+
+    const grid = $("assetGrid");
+    grid.innerHTML = "";
+
+    assets.forEach(asset => {
+        if (!asset || !asset.url) return;
+
+        const img = document.createElement("img");
+        img.src = asset.url;
+        img.alt = asset.kind || "Animation preview";
+        img.loading = "lazy";
+        grid.appendChild(img);
+    });
+}
+
+async function startVideoGeneration() {
+    clearMessage();
+
+    if (!validateStory()) return;
+
+    const pack = getPackage();
+
+    if (CFG.initialCredits < pack.credits) {
+        showMessage("You do not have enough credits. Please choose a smaller package.");
+        return;
+    }
+
+    const button = $("generateVideoBtn");
+    button.disabled = true;
+    button.textContent = "Starting generation...";
+
+    try {
+        const formData = new FormData();
+
+        formData.append("story", JSON.stringify(currentStory));
+        formData.append("style", $("style").value);
+        formData.append("language", $("language").value);
+        formData.append("duration", selectedDuration());
+        formData.append("aspect_ratio", $("aspectRatio").value);
+        formData.append("package_scenes", String(pack.scenes));
+        formData.append("package_cost", String(pack.credits));
+        formData.append("audience", $("audience").value);
+        formData.append("subtitles", $("subtitles").checked ? "1" : "0");
+        formData.append("music", $("music").checked ? "1" : "0");
+        formData.append("sfx", $("sfx").checked ? "1" : "0");
+
+        const imageFile = $("referenceImage").files[0];
+        const audioFile = $("narrationAudio").files[0];
+
+        if (imageFile) formData.append("image", imageFile);
+        if (audioFile) formData.append("audio", audioFile);
+
+        const response = await fetch(CFG.generateUrl, {
+            method: "POST",
+            credentials: "same-origin",
+            body: formData
+        });
+
+        const data = await readJsonResponse(response);
+
+        currentJobId = data.job_id || data.id;
+
+        if (!currentJobId) {
+            throw new Error("The server did not return a generation job ID.");
+        }
+
+        setStep(3);
+        showPanel("statusPanel");
+        updateProgress(0, data.message || "Your animation has started.");
+
+        await refreshCredits();
+        startPolling();
+
+    } catch (error) {
+        showMessage(error.message);
+        button.disabled = false;
+        button.textContent = "✨ Generate Cartoon Video";
+    }
+}
+
+function startPolling() {
+    if (pollingTimer) {
+        clearInterval(pollingTimer);
+    }
+
+    pollStatus();
+
+    pollingTimer = setInterval(pollStatus, 2500);
+}
+
+async function pollStatus() {
+    if (!currentJobId) return;
+
+    try {
+        const response = await fetch(
+            CFG.statusUrl + encodeURIComponent(currentJobId),
+            {
+                credentials: "same-origin",
+                cache: "no-store"
+            }
+        );
+
+        const data = await readJsonResponse(response);
+
+        updateProgress(
+            data.percent ?? data.progress ?? 0,
+            data.message || "Creating your video..."
+        );
+
+        renderAssets(data.assets || []);
+
+        const status = String(data.status || "").toLowerCase();
+
+        if (status === "done" || status === "completed" || status === "success") {
+            clearInterval(pollingTimer);
+            pollingTimer = null;
+
+            const result = data.result || data;
+
+            if (result.credits !== undefined) {
+                setCredits(result.credits);
+            } else {
+                await refreshCredits();
+            }
+
+            showResult(result);
+        }
+
+        if (status === "failed" || status === "error") {
+            clearInterval(pollingTimer);
+            pollingTimer = null;
+
+            await refreshCredits();
+
+            showMessage(
+                data.error || data.message || "Video generation failed. Please try again."
+            );
+
+            $("generateVideoBtn").disabled = false;
+            $("generateVideoBtn").textContent = "✨ Generate Cartoon Video";
+            setStep(2);
+            showPanel("storyPanel");
+        }
+
+    } catch (error) {
+        console.error("Status check failed:", error);
+        $("statusMessage").textContent =
+            "Connection interrupted. Trying again...";
+    }
+}
+
+function showResult(result) {
+    currentVideoId = result.video_id || result.id || null;
+    currentVideoUrl = result.video_url || result.url || null;
+
+    if (!currentVideoUrl) {
+        showMessage("Generation completed, but the server did not return a video URL.");
+        return;
+    }
+
+    $("resultVideo").src = currentVideoUrl;
+    $("downloadVideo").href = result.download_url || currentVideoUrl;
+    $("downloadVideo").setAttribute("download", result.filename || "eduvision-cartoon.mp4");
+
+    $("quizLink").href = result.quiz_url || "#";
+
+    $("resultDescription").textContent =
+        (result.title || "Your cartoon video") +
+        " is ready. Duration: " +
+        (result.duration || "Available in the video player.");
+
+    setStep(4);
+    showPanel("resultPanel");
+
+    showMessage("Your animation was generated successfully!", "success");
+    $("generateVideoBtn").disabled = false;
+    $("generateVideoBtn").textContent = "✨ Generate Cartoon Video";
+}
+
+async function exportVideo() {
+    if (!currentVideoId) {
+        showMessage("Video ID is missing. Please generate the video again.");
+        return;
+    }
+
+    const preset = $("exportPreset").value;
+    const button = $("exportBtn");
+
+    button.disabled = true;
+    button.textContent = "Exporting...";
+
+    try {
+        const response = await fetch(
+            CFG.exportUrl +
+            encodeURIComponent(currentVideoId) + "/" +
+            encodeURIComponent(preset),
+            {
+                method: "GET",
+                credentials: "same-origin"
+            }
+        );
+
+        if (response.status === 401) {
+            window.location.href = CFG.loginUrl;
+            return;
+        }
+
+        if (!response.ok) {
+            let message = "Could not export the video.";
+
+            try {
+                const data = await response.json();
+                message = data.error || data.message || message;
+            } catch {}
+
+            throw new Error(message);
+        }
+
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+
+        const link = document.createElement("a");
+        link.href = objectUrl;
+        link.download = "eduvision-" + preset + ".mp4";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+
+        URL.revokeObjectURL(objectUrl);
+
+        showMessage("Your exported video is ready.", "success");
+
+    } catch (error) {
+        showMessage(error.message);
+    } finally {
+        button.disabled = false;
+        button.textContent = "Export video";
+    }
+}
+
+function resetStudio() {
+    if (pollingTimer) {
+        clearInterval(pollingTimer);
+        pollingTimer = null;
+    }
+
+    currentStory = null;
+    currentJobId = null;
+    currentVideoId = null;
+    currentVideoUrl = null;
+    lastAssets = [];
+
+    $("prompt").value = "";
+    $("storyTitle").value = "";
+    $("storySummary").value = "";
+    $("referenceImage").value = "";
+    $("narrationAudio").value = "";
+    $("imageFileName").textContent = "";
+    $("audioFileName").textContent = "";
+    $("sceneList").innerHTML = "";
+    $("assetGrid").innerHTML = "";
+    $("resultVideo").removeAttribute("src");
+    $("resultVideo").load();
+
+    $("generateVideoBtn").disabled = false;
+    $("generateVideoBtn").textContent = "✨ Generate Cartoon Video";
+
+    clearMessage();
+    setStep(1);
+    showPanel("ideaPanel");
+    refreshCredits();
+}
+
+$("generateStoryBtn").addEventListener("click", generateStory);
+$("regenerateStoryBtn").addEventListener("click", regenerateStory);
+
+$("backToIdeaBtn").addEventListener("click", () => {
+    setStep(1);
+    showPanel("ideaPanel");
+});
+
+$("continueBtn").addEventListener("click", () => {
+    if (!validateStory()) return;
+    setStep(3);
+    showPanel("animationPanel");
+});
+
+$("backToStoryBtn").addEventListener("click", () => {
+    setStep(2);
+    showPanel("storyPanel");
+});
+
+$("generateVideoBtn").addEventListener("click", startVideoGeneration);
+$("exportBtn").addEventListener("click", exportVideo);
+$("createAnotherBtn").addEventListener("click", resetStudio);
+
+updatePackageSelection();
+refreshCredits();
 </script>
+
 </body>
 </html>

@@ -83,6 +83,16 @@
             margin-right: 6px; margin-top: 6px;
         }
         .download-link { background: rgba(99, 102, 241, .15); color: #6366f1; }
+
+        /* AI Doubt Tutor button shown on each educational video card */
+        .tutor-link {
+            display: inline-block; padding: 7px 14px; border-radius: 10px;
+            text-decoration: none; font-size: .85rem; font-weight: 600;
+            background: rgba(16, 185, 129, .15); color: #10b981;
+            margin-right: 6px; margin-top: 6px;
+        }
+        .tutor-link:hover { background: rgba(16, 185, 129, .28); }
+
         .filter-empty { text-align: center; padding: 24px; opacity: .75; }
 
         @media (max-width: 760px) {
@@ -847,6 +857,12 @@
                                     <a class="quiz-link"
                                        href="{{ url_for('video_quiz.video_quiz_page', video_id=video.id) }}">
                                         🧠 Take Quiz
+                                    </a>
+
+                                    <!-- AI Doubt Tutor, tied to this video -->
+                                    <a class="tutor-link"
+                                       href="{{ video.tutor_url|default('/ai-tutor/?video_id=' ~ video.id) }}">
+                                        🤖 Ask AI Tutor
                                     </a>
 
                                 {% endif %}

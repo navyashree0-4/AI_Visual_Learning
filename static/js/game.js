@@ -1,6 +1,7 @@
 /* =========================================================
    EDUVISION GAME ENGINE  ->  static/js/game.js
    BIG SCREENS + ANIMATIONS + JELLY MATCH  (all 14 games)
+   FIXED: reward saving, server-synced levels, visible errors
    ========================================================= */
 
 function onReady(fn) {
@@ -131,6 +132,29 @@ const EduVisionLevels = (() => {
         }
     }
 
+    // Use the level stored in the database when it is ahead of the browser.
+    function setLevel(serverLevel, serverCompleted) {
+        const lvl = Math.max(1, Math.floor(Number(serverLevel) || 1));
+        let changed = false;
+
+        if (lvl > state.level) {
+            state.level = lvl;
+            changed = true;
+        }
+
+        const done = Math.max(0, Math.floor(Number(serverCompleted) || 0));
+        if (done > state.completedLevels) {
+            state.completedLevels = done;
+            changed = true;
+        }
+
+        if (changed) {
+            save();
+            updatePayload();
+            render();
+        }
+    }
+
     function getDifficulty(levelNumber = state.level) {
         const level = Math.max(1, Math.floor(Number(levelNumber) || 1));
 
@@ -213,6 +237,7 @@ const EduVisionLevels = (() => {
         save,
         render,
         complete,
+        setLevel,
         getDifficulty,
         get level() { return state.level; },
         get gameId() { return state.gameId; },
@@ -879,6 +904,8 @@ const showRewardPopup = ({ level, earned, balance, duplicate = false }) => {
         });
 };
 
+// Saves the finished level on the server. Errors are shown on the page
+// (no alert) and a Retry button appears.
 const completeLevelAndAwardCredits = async (completedLevel, finalScore) => {
     if (over) return;
 
@@ -906,11 +933,20 @@ const completeLevelAndAwardCredits = async (completedLevel, finalScore) => {
         try {
             result = await response.json();
         } catch (error) {
-            throw new Error("Flask returned an invalid response.");
+            throw new Error(
+                response.redirected || response.status === 401
+                    ? "Your session expired. Please log in again."
+                    : `Server returned an invalid response (${response.status}).`
+            );
         }
 
+        console.log("Reward API status:", response.status, result);
+
         if (!response.ok || !result.success) {
-            throw new Error(result.message || `Could not save reward (${response.status}).`);
+            throw new Error(
+                result.message || result.error ||
+                `Could not save reward (${response.status}).`
+            );
         }
 
         const earned = Math.max(0, Number(result.earned) || 0);
@@ -953,7 +989,7 @@ const completeLevelAndAwardCredits = async (completedLevel, finalScore) => {
 
         over = false;
 
-        status("⚠️ Reward could not be saved. Check your connection and try again.", "lose");
+        status("⚠️ Reward could not be saved: " + error.message, "lose");
 
         const retry = makeButton("Retry Saving Reward", () => {
             retry.remove();
@@ -2595,6 +2631,8 @@ function gamePuzzle2048() {
         return false;
     }
 
+    let locked = false;
+
     function move(direction) {
         if (over) return;
 
@@ -2649,8 +2687,6 @@ function gamePuzzle2048() {
             loseLater("No moves remain. Try again.", 700);
         }
     }
-
-    let locked = false;
 
     const safeMove = dir => { if (!locked) move(dir); };
 
@@ -3749,5 +3785,31 @@ function boot() {
 
 window.EduVisionGame = { boot, registry: GAME_REGISTRY };
 
-boot();
+/* Load the real unlocked level from the database first, so cleared browser
+   data or a new device never makes you replay levels that were already paid. */
+async function syncLevelFromServer() {
+    if (!Levels.gameId) return;
+
+    try {
+        const response = await fetch(
+            `/api/game-progress/${encodeURIComponent(Levels.gameId)}`,
+            {
+                credentials: "same-origin",
+                headers: { "X-Requested-With": "XMLHttpRequest" }
+            }
+        );
+
+        if (!response.ok) return;
+
+        const data = await response.json();
+
+        if (data && data.ok) {
+            Levels.setLevel(data.unlocked_level, data.completed_levels);
+        }
+    } catch (error) {
+        console.warn("Could not sync level from server:", error);
+    }
+}
+
+syncLevelFromServer().finally(boot);
 });

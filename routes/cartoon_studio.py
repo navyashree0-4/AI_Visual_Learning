@@ -1,385 +1,1009 @@
-"""
-routes/cartoon_studio.py  -  AI Cartoon & Animation Studio (blueprint "cartoon")
 
-Pages / API
-  GET  /cartoon-studio                          the studio page
-  POST /api/cartoon/story                       prompt -> story (Ollama, free)
-  POST /api/cartoon/regenerate-scene            rewrite one scene (Ollama, free)
-  POST /api/cartoon/generate                    start the animation job (charges credits)
-  GET  /api/cartoon/status/<job_id>             live progress + previews + final links
-  GET  /cartoon-studio/asset/<job_id>/<name>    character / scene pictures of a running job
-  GET  /cartoon-studio/export/<video_id>/<preset>   TikTok / Reels / Shorts / Instagram / YouTube file
-
-It reuses the credit, activity and video-record functions of app.py through app.config
-(see the small block added to app.py), and saves the finished movie into the same
-`generated_videos` table as educational videos, so it shows up in "My Generated Videos".
-"""
 import json
 import logging
-import os
 import re
 import shutil
 import threading
 import time
 import uuid
-from functools import wraps
+
 from pathlib import Path
+from functools import wraps
 
 from flask import (
-    Blueprint, current_app, flash, jsonify, redirect, render_template, request,
-    send_file, send_from_directory, session, url_for,
+    Blueprint, current_app, jsonify, redirect, render_template,
+    request, send_file, send_from_directory, session, url_for
 )
 from werkzeug.utils import secure_filename
 
 from services import cartoon_generator as cg
 
+
 cartoon_bp = Blueprint("cartoon", __name__)
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parent.parent
 WORK_ROOT = ROOT / "cartoon_work"
 GENERATED_DIR = ROOT / "static" / "generated"
 EXPORT_DIR = GENERATED_DIR / "exports"
-WORK_ROOT.mkdir(parents=True, exist_ok=True)
-GENERATED_DIR.mkdir(parents=True, exist_ok=True)
-EXPORT_DIR.mkdir(parents=True, exist_ok=True)
 
-# Free mode (CARTOON_MODE=free) costs NO credits. Only the paid fal.ai mode charges per scene.
-COST_PER_SCENE = 0 if cg.FREE_MODE else max(1, int(os.getenv("CARTOON_CREDITS_PER_SCENE", "5")))
-MAX_IMAGE_MB, MAX_AUDIO_MB = 10, 15
+for folder in (WORK_ROOT, GENERATED_DIR, EXPORT_DIR):
+    folder.mkdir(parents=True, exist_ok=True)
+
+DURATION_COSTS = {
+    "Short": 5,
+    "Medium": 10,
+    "Long": 15,
+}
+
+DURATION_SCENES = {
+    "Short": 3,
+    "Medium": 5,
+    "Long": 8,
+}
+
+ALLOWED_IMAGES = {".jpg", ".jpeg", ".png"}
+ALLOWED_AUDIO = {".mp3", ".wav", ".m4a", ".ogg"}
+
+MAX_IMAGE_SIZE = 10 * 1024 * 1024
+MAX_AUDIO_SIZE = 15 * 1024 * 1024
+
+ID_RE = re.compile(r"^[a-f0-9]{32}$")
+ASSET_RE = re.compile(r"^(char|scene)_\d{1,2}\.(jpg|jpeg|png)$")
 
 JOBS = {}
 JOBS_LOCK = threading.Lock()
-_ASSET_RE = re.compile(r"^(char|scene)_\d{1,2}\.jpg$")
-_ID_RE = re.compile(r"^[a-f0-9]{32}$")
 
 
-# ------------------------------------------------------------------ helpers
-def studio_login_required(view):
-    @wraps(view)
-    def wrapped(*args, **kwargs):
-        if "user_id" not in session:
-            if request.path.startswith("/api/"):
-                return jsonify(ok=False, error="Your session expired. Please log in again."), 401
-            flash("Please log in to continue.", "warning")
-            return redirect(url_for("login", next=request.path))
-        return view(*args, **kwargs)
-    return wrapped
+# =========================================================
+# AUTHENTICATION
+# =========================================================
+
+def login_required(api=False):
+
+    def decorator(function):
+
+        @wraps(function)
+        def wrapper(*args, **kwargs):
+
+            if not session.get("user_id"):
+                if api:
+                    return jsonify(
+                        ok=False,
+                        error="Please log in first."
+                    ), 401
+
+                return redirect(url_for("login"))
+
+            return function(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
 
 
-def _hooks():
-    """Functions of app.py, registered in app.config. Returns a plain dict (safe to use in threads)."""
-    cfg = current_app.config
-    keys = ("CHARGE_CREDITS", "REFUND_CREDITS", "GET_USER_CREDITS", "SAVE_VIDEO_RECORD",
-            "LOG_ACTIVITY", "BUMP_VIDEO_PROGRESS", "GET_VIDEO_FOR_USER")
-    missing = [k for k in keys if k not in cfg]
-    if missing:
-        raise RuntimeError("app.py is missing the Cartoon Studio hooks: " + ", ".join(missing))
-    return {k: cfg[k] for k in keys}
+# =========================================================
+# APP HOOKS
+# =========================================================
+
+def get_hooks():
+
+    names = (
+        "CHARGE_CREDITS",
+        "REFUND_CREDITS",
+        "GET_USER_CREDITS",
+        "SAVE_VIDEO_RECORD",
+        "LOG_ACTIVITY",
+        "BUMP_VIDEO_PROGRESS",
+        "GET_VIDEO_FOR_USER",
+    )
+
+    hooks = {}
+
+    for name in names:
+        function = current_app.config.get(name)
+
+        if not callable(function):
+            raise RuntimeError(
+                f"Missing app.py configuration: {name}"
+            )
+
+        hooks[name] = function
+
+    return hooks
 
 
-def _json_body():
-    data = request.get_json(silent=True)
-    return data if isinstance(data, dict) else {}
+def get_balance(hooks, user_id):
+    return int(hooks["GET_USER_CREDITS"](user_id) or 0)
 
 
-def _opt(value, allowed, default):
-    return value if value in allowed else default
+def charge(hooks, user_id, amount):
 
-
-def _prune_jobs():
-    cutoff = time.time() - 2 * 3600
-    with JOBS_LOCK:
-        old = [k for k, v in JOBS.items() if v["created"] < cutoff and v["status"] in ("done", "failed")]
-        for k in old:
-            JOBS.pop(k, None)
-    for p in WORK_ROOT.iterdir():
-        try:
-            if p.is_dir() and p.stat().st_mtime < cutoff:
-                shutil.rmtree(p, ignore_errors=True)
-        except OSError:
-            pass
-
-
-# ------------------------------------------------------------------ pages
-@cartoon_bp.route("/cartoon-studio")
-@studio_login_required
-def cartoon_studio():
-    hooks = _hooks()
-    return render_template(
-        "cartoon_studio.html",
-        user_name=session.get("user_name", "Student"),
-        credits=hooks["GET_USER_CREDITS"](session["user_id"]),
-        cost_per_scene=COST_PER_SCENE,
-        scenes_by_duration=cg.DURATION_SCENES,
-        styles=cg.STYLES,
-        presets={k: v[2] for k, v in cg.SOCIAL_PRESETS.items()},
-        fal_ready=cg.animation_ready(),
+    # Your app.py charge_credits returns True or False.
+    return bool(
+        hooks["CHARGE_CREDITS"](user_id, amount)
     )
 
 
-# ------------------------------------------------------------------ story APIs (free, local Ollama)
-@cartoon_bp.route("/api/cartoon/story", methods=["POST"])
-@studio_login_required
-def api_story():
-    data = _json_body()
+def refund(hooks, user_id, amount):
+
     try:
-        story = cg.generate_story(
-            data.get("prompt", ""),
-            _opt(data.get("style"), cg.STYLES, "3D"),
-            _opt(data.get("language"), cg.LANGUAGES, "English"),
-            _opt(data.get("duration"), cg.DURATION_SCENES, "Medium"),
+        hooks["REFUND_CREDITS"](user_id, amount)
+        logger.info(
+            "Refunded %s credits to user %s",
+            amount,
+            user_id,
         )
-        return jsonify(ok=True, story=story)
-    except cg.StudioError as exc:
-        return jsonify(ok=False, error=str(exc)), 422
-    except Exception as exc:
-        current_app.logger.exception("Story generation failed")
-        return jsonify(ok=False, error=f"Story generation failed: {type(exc).__name__}"), 500
 
-
-@cartoon_bp.route("/api/cartoon/regenerate-scene", methods=["POST"])
-@studio_login_required
-def api_regenerate_scene():
-    data = _json_body()
-    try:
-        index = int(data.get("index", -1))
-        scene = cg.regenerate_scene(
-            data.get("story"), index, data.get("instruction", ""),
-            _opt(data.get("style"), cg.STYLES, "3D"),
-            _opt(data.get("language"), cg.LANGUAGES, "English"),
+    except Exception:
+        logger.exception(
+            "Credit refund failed for user %s",
+            user_id,
         )
-        return jsonify(ok=True, scene=scene)
-    except (TypeError, ValueError) as exc:
-        status = 422 if isinstance(exc, cg.StudioError) else 400
-        return jsonify(ok=False, error=str(exc) if isinstance(exc, cg.StudioError) else "Invalid request."), status
-    except Exception as exc:
-        current_app.logger.exception("Scene regeneration failed")
-        return jsonify(ok=False, error=f"Scene regeneration failed: {type(exc).__name__}"), 500
 
 
-# ------------------------------------------------------------------ animation job
-def _save_upload(file, kind, folder):
+# =========================================================
+# STORY VALIDATION
+# =========================================================
+
+def clean_story(value):
+
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError:
+            raise ValueError("Invalid story data.")
+
+    if not isinstance(value, dict):
+        raise ValueError("Invalid story.")
+
+    story = cg.sanitize_story(value)
+
+    if not isinstance(story, dict):
+        raise ValueError("Could not prepare your story.")
+
+    scenes = story.get("scenes")
+
+    if not isinstance(scenes, list) or not scenes:
+        raise ValueError("Your story must contain scenes.")
+
+    if len(scenes) > 14:
+        raise ValueError("Too many scenes.")
+
+    return story
+
+
+def get_duration(story, requested):
+
+    if requested not in DURATION_COSTS:
+        requested = story.get("duration", "Medium")
+
+    if requested not in DURATION_COSTS:
+        raise ValueError("Invalid video duration.")
+
+    return requested
+
+
+# =========================================================
+# FILE UPLOADS
+# =========================================================
+
+def save_upload(file, folder, kind):
+
     if not file or not file.filename:
         return None
-    name = secure_filename(file.filename)
-    ext = Path(name).suffix.lower()
-    allowed = {".jpg", ".jpeg", ".png"} if kind == "image" else {".mp3", ".wav", ".m4a", ".ogg"}
-    if ext not in allowed:
-        raise cg.StudioError("Image uploads must be JPG, JPEG or PNG; audio uploads MP3, WAV, M4A or OGG.")
-    limit = (MAX_IMAGE_MB if kind == "image" else MAX_AUDIO_MB) * 1024 * 1024
-    file.stream.seek(0, os.SEEK_END)
-    size = file.stream.tell()
-    file.stream.seek(0)
-    if size > limit:
-        raise cg.StudioError(f"The {kind} file is larger than {limit // 1024 // 1024} MB.")
-    dest = Path(folder) / f"upload_{kind}{ext}"
-    file.save(str(dest))
-    return str(dest)
+
+    filename = secure_filename(file.filename)
+
+    if not filename:
+        raise ValueError("Invalid uploaded filename.")
+
+    extension = Path(filename).suffix.lower()
+
+    if kind == "image":
+        allowed = ALLOWED_IMAGES
+        maximum = MAX_IMAGE_SIZE
+    else:
+        allowed = ALLOWED_AUDIO
+        maximum = MAX_AUDIO_SIZE
+
+    if extension not in allowed:
+        raise ValueError(
+            f"Unsupported {kind} file format."
+        )
+
+    data = file.read(maximum + 1)
+
+    if not data:
+        raise ValueError("Uploaded file is empty.")
+
+    if len(data) > maximum:
+        raise ValueError(
+            f"{kind.title()} file exceeds the size limit."
+        )
+
+    destination = folder / f"user_{kind}{extension}"
+    destination.write_bytes(data)
+
+    return str(destination)
 
 
-def _worker(job_id, user_id, story, opts, work_dir, hooks, cost):
-    def progress(pct, msg):
-        with JOBS_LOCK:
-            job = JOBS.get(job_id)
-            if job:
-                job.update(status="running", percent=max(job["percent"], min(99, int(pct))), message=str(msg))
+# =========================================================
+# JOB MANAGEMENT
+# =========================================================
 
-    def asset(kind, index, filename):
-        with JOBS_LOCK:
-            job = JOBS.get(job_id)
-            if job:
-                job["assets"].append({"kind": kind, "index": index, "name": filename})
-
-    charged, created = cost > 0, None
-    try:
-        result = cg.generate_movie(
-            story, opts["style"], opts["language"], opts["aspect_ratio"], work_dir, GENERATED_DIR, job_id,
-            burn_subs=opts["subtitles"], music=opts["music"], sfx=opts["sfx"],
-            user_image=opts.get("image"), user_audio=opts.get("audio"),
-            progress=progress, asset=asset)
-        created = Path(result["path"])
-
-        video_id = hooks["SAVE_VIDEO_RECORD"](user_id, {
-            "title": result["title"], "style": f"Cartoon Studio: {opts['style']}",
-            "language": opts["language"], "difficulty": "Cartoon", "audience": "Cartoon Studio",
-            "aspect_ratio": opts["aspect_ratio"], "filename": result["filename"],
-            "duration_seconds": result["duration_seconds"], "subtitles": opts["subtitles"],
-            "highlights": False, "music": opts["music"], "script_text": result["script_text"],
-        })
-        if not video_id:
-            raise RuntimeError("The movie was made, but its database record could not be saved.")
-
-        charged, created = False, None
-        hooks["LOG_ACTIVITY"](user_id, "video")
-        hooks["BUMP_VIDEO_PROGRESS"](user_id)
-        minutes, seconds = divmod(int(result["duration_seconds"]), 60)
-        with JOBS_LOCK:
-            job = JOBS.get(job_id)
-            if job:
-                job.update(status="done", percent=100, message="Your cartoon movie is ready!",
-                           result={"video_id": video_id, "filename": result["filename"], "title": result["title"],
-                                   "duration": f"{minutes}m {seconds:02d}s", "scenes": result["scene_count"]})
-    except Exception as exc:
-        if isinstance(exc, cg.StudioError):
-            message = str(exc)
-        else:
-            log.exception("Cartoon generation failed")
-            message = f"Cartoon generation failed ({type(exc).__name__}: {str(exc)[:200]})"
-        with JOBS_LOCK:
-            job = JOBS.get(job_id)
-            if job:
-                job.update(status="failed", error=message + " Your credits were refunded.")
-    finally:
-        if charged:
-            try:
-                hooks["REFUND_CREDITS"](user_id, cost)
-            except Exception:
-                pass
-        if created is not None:
-            try:
-                created.unlink(missing_ok=True)
-            except OSError:
-                pass
-        # free disk: keep only the small preview pictures
-        try:
-            for f in Path(work_dir).iterdir():
-                if f.is_dir():
-                    shutil.rmtree(f, ignore_errors=True)
-                elif f.suffix.lower() != ".jpg" or f.name.startswith("upload_"):
-                    f.unlink(missing_ok=True)
-        except OSError:
-            pass
-
-
-@cartoon_bp.route("/api/cartoon/generate", methods=["POST"])
-@studio_login_required
-def api_generate():
-    user_id = session["user_id"]
-    hooks = _hooks()
-    _prune_jobs()
+def update_job(job_id, **values):
 
     with JOBS_LOCK:
-        for job in JOBS.values():
-            if job["user_id"] == user_id and job["status"] in ("queued", "running"):
-                return jsonify(ok=False, error="A cartoon is already being made for you. "
-                                               "Please wait for it to finish."), 409
-    try:
-        cg.check_ready()
-        try:
-            story = cg.sanitize_story(json.loads(request.form.get("story", "")))
-        except (TypeError, ValueError) as exc:
-            if isinstance(exc, cg.StudioError):
-                raise
-            raise cg.StudioError("The story could not be read. Generate the story again.") from exc
+        job = JOBS.get(job_id)
 
-        opts = {
-            "style": _opt(request.form.get("style"), cg.STYLES, "3D"),
-            "language": _opt(request.form.get("language"), cg.LANGUAGES, "English"),
-            "aspect_ratio": _opt(request.form.get("aspect_ratio"), cg.SIZES, "16:9"),
-            "subtitles": request.form.get("subtitles") == "on",
-            "music": request.form.get("music") == "on",
-            "sfx": request.form.get("sfx") == "on",
+        if job:
+            job.update(values)
+            job["updated_at"] = time.time()
+
+
+def find_job(job_id):
+
+    with JOBS_LOCK:
+        return JOBS.get(job_id)
+
+
+def make_preview_url(job_id, filename):
+
+    return url_for(
+        "cartoon.cartoon_asset",
+        job_id=job_id,
+        name=filename,
+    )
+
+
+# =========================================================
+# STUDIO PAGE
+# =========================================================
+
+@cartoon_bp.route("/cartoon-studio")
+@login_required()
+def cartoon_studio():
+
+    hooks = get_hooks()
+
+    return render_template(
+        "cartoon_studio.html",
+        user_name=session.get("user_name", "Student"),
+        credits=get_balance(hooks, session["user_id"]),
+        cost_per_scene=0,
+        cost_by_duration=DURATION_COSTS,
+        duration_costs=DURATION_COSTS,
+        scenes_by_duration=DURATION_SCENES,
+        styles=getattr(
+            cg,
+            "STYLES",
+            ["3D", "2D Flat", "Anime", "Watercolor"],
+        ),
+        presets=getattr(cg, "SOCIAL_PRESETS", {}),
+        # Local generation is supported; the HTML should not
+        # disable generation just because FAL_KEY is absent.
+        fal_ready=True,
+    )
+
+
+# =========================================================
+# STORY API
+# =========================================================
+
+@cartoon_bp.route("/api/cartoon/story", methods=["POST"])
+@login_required(api=True)
+def api_story():
+
+    try:
+        data = request.get_json(silent=True) or {}
+
+        prompt = str(data.get("prompt", "")).strip()
+        style = data.get("style", "3D")
+        language = data.get("language", "English")
+        duration = data.get("duration", "Medium")
+
+        if len(prompt) < 5:
+            raise ValueError("Please enter a longer story idea.")
+
+        if duration not in DURATION_SCENES:
+            raise ValueError("Invalid duration.")
+
+        if style not in getattr(
+            cg, "STYLES",
+            ["3D", "2D Flat", "Anime", "Watercolor"]
+        ):
+            raise ValueError("Invalid cartoon style.")
+
+        if language not in getattr(
+            cg, "LANGUAGES",
+            ["English", "Kannada", "Hindi"]
+        ):
+            raise ValueError("Invalid language.")
+
+        story = cg.generate_story(
+            prompt,
+            style,
+            language,
+            duration,
+        )
+
+        story = clean_story(story)
+        story["duration"] = duration
+
+        return jsonify(
+            ok=True,
+            story=story,
+            cost=DURATION_COSTS[duration],
+            credits_by_duration=DURATION_COSTS,
+        )
+
+    except ValueError as exc:
+        return jsonify(ok=False, error=str(exc)), 400
+
+    except Exception:
+        logger.exception("Story generation error.")
+        return jsonify(
+            ok=False,
+            error="Could not generate your story."
+        ), 500
+
+
+# =========================================================
+# REGENERATE SCENE API
+# =========================================================
+
+@cartoon_bp.route(
+    "/api/cartoon/regenerate-scene",
+    methods=["POST"]
+)
+@login_required(api=True)
+def api_regenerate_scene():
+
+    try:
+        data = request.get_json(silent=True) or {}
+
+        story = clean_story(data.get("story"))
+        index = int(data.get("index", -1))
+
+        if not 0 <= index < len(story["scenes"]):
+            raise ValueError("Invalid scene number.")
+
+        scene = cg.regenerate_scene(
+            story,
+            index,
+            str(data.get("instruction", "")),
+            data.get("style", "3D"),
+            data.get("language", "English"),
+        )
+
+        return jsonify(ok=True, scene=scene)
+
+    except ValueError as exc:
+        return jsonify(ok=False, error=str(exc)), 400
+
+    except Exception:
+        logger.exception("Scene regeneration error.")
+        return jsonify(
+            ok=False,
+            error="Could not regenerate this scene."
+        ), 500
+
+
+# =========================================================
+# GENERATION WORKER
+# =========================================================
+
+def generation_worker(
+    job_id,
+    user_id,
+    story,
+    options,
+    work_dir,
+    hooks,
+    cost,
+):
+
+    charged = True
+    final_path = None
+
+    preview_dir = work_dir / "previews"
+    preview_dir.mkdir(exist_ok=True)
+
+    def progress(percent, message="Generating video..."):
+
+        try:
+            percent = max(0, min(100, int(percent)))
+        except (TypeError, ValueError):
+            percent = 0
+
+        update_job(
+            job_id,
+            percent=percent,
+            message=str(message),
+        )
+
+    def asset(name, path=None):
+
+        # Support callbacks supplied as asset(path) or
+        # asset(name, path).
+        if path is None:
+            path = name
+            name = Path(str(path)).name
+
+        name = Path(str(name)).name
+
+        if not ASSET_RE.match(name):
+            return
+
+        source = Path(str(path))
+
+        if not source.exists():
+            return
+
+        destination = preview_dir / name
+
+        try:
+            if source.resolve() != destination.resolve():
+                shutil.copy2(source, destination)
+
+            current = find_job(job_id) or {}
+            assets = dict(current.get("assets", {}))
+            assets[name] = make_preview_url(job_id, name)
+
+            update_job(job_id, assets=assets)
+
+        except Exception:
+            logger.exception("Could not save preview %s", name)
+
+    try:
+
+        progress(5, "Preparing your cartoon...")
+
+        cg.check_ready()
+
+        progress(10, "Creating cartoon scenes...")
+
+        result = cg.generate_movie(
+            story=story,
+            style=options["style"],
+            language=options["language"],
+            aspect_ratio=options["aspect_ratio"],
+            work_dir=str(work_dir),
+            final_dir=str(GENERATED_DIR),
+            job_id=job_id,
+            burn_subs=options["subtitles"],
+            music=options["music"],
+            sfx=options["sfx"],
+            user_image=options["user_image"],
+            user_audio=options["user_audio"],
+            progress=progress,
+            asset=asset,
+        )
+
+        if not isinstance(result, dict):
+            raise RuntimeError("Invalid video generator result.")
+
+        filename = secure_filename(
+            str(result.get("filename", ""))
+        )
+
+        if not filename:
+            raise RuntimeError("Generated filename is invalid.")
+
+        final_path = Path(
+            result.get("path") or GENERATED_DIR / filename
+        ).resolve()
+
+        if final_path.parent != GENERATED_DIR.resolve():
+            raise RuntimeError("Invalid generated video location.")
+
+        if not final_path.is_file():
+            raise RuntimeError("Generated video file was not found.")
+
+        progress(85, "Saving video to your account...")
+
+        metadata = {
+            "title": str(
+                result.get("title")
+                or story.get("title")
+                or "Cartoon Lesson"
+            )[:150],
+            "style": options["style"],
+            "language": options["language"],
+            "difficulty": "Beginner",
+            "audience": "School Students",
+            "aspect_ratio": options["aspect_ratio"],
+            "filename": filename,
+            "duration_seconds": result.get("duration_seconds", 0),
+            "subtitles": options["subtitles"],
+            "highlights": True,
+            "music": options["music"],
+            "script_text": result.get("script_text", ""),
         }
-        cost = len(story["scenes"]) * COST_PER_SCENE
-        if cost > 0 and hooks["GET_USER_CREDITS"](user_id) < cost:
-            return jsonify(ok=False, error=f"This movie needs {cost} credits "
-                                           f"({len(story['scenes'])} scenes x {COST_PER_SCENE}). "
-                                           "Play a learning game to earn more, or choose a shorter movie."), 402
+
+        video_id = hooks["SAVE_VIDEO_RECORD"](
+            user_id,
+            metadata,
+        )
+
+        if not video_id:
+            raise RuntimeError(
+                "Video could not be saved to My Generated Videos."
+            )
+
+        # Saved successfully: the charge is now final.
+        charged = False
+
+        try:
+            hooks["LOG_ACTIVITY"](user_id, "video")
+        except Exception:
+            logger.exception("Activity logging failed.")
+
+        try:
+            hooks["BUMP_VIDEO_PROGRESS"](user_id)
+        except Exception:
+            logger.exception("Progress update failed.")
+
+        credits = get_balance(hooks, user_id)
+
+        progress(100, "Your cartoon movie is ready!")
+
+        update_job(
+            job_id,
+            status="done",
+            percent=100,
+            result={
+                "video_id": video_id,
+                "filename": filename,
+                "title": metadata["title"],
+                "duration": result.get("duration_seconds", 0),
+                "scenes": result.get(
+                    "scene_count",
+                    len(story["scenes"]),
+                ),
+                "credits": credits,
+            },
+        )
+
+    except Exception as exc:
+
+        logger.exception("Cartoon job %s failed.", job_id)
+
+        if charged:
+            refund(hooks, user_id, cost)
+
+        if final_path and final_path.exists():
+            try:
+                final_path.unlink()
+            except OSError:
+                logger.exception("Failed to remove incomplete video.")
+
+        update_job(
+            job_id,
+            status="failed",
+            error=str(exc),
+            credits=get_balance(hooks, user_id),
+            message="Video generation failed.",
+        )
+
+    finally:
+
+        # Keep previews for the preview route.
+        # Remove uploaded files and temporary generator files.
+        for item in list(work_dir.iterdir()):
+
+            if item.name == "previews":
+                continue
+
+            try:
+                if item.is_dir():
+                    shutil.rmtree(item, ignore_errors=True)
+                else:
+                    item.unlink(missing_ok=True)
+            except OSError:
+                logger.exception("Temporary file cleanup failed.")
+
+
+# =========================================================
+# GENERATE API
+# =========================================================
+
+@cartoon_bp.route(
+    "/api/cartoon/generate",
+    methods=["POST"]
+)
+@login_required(api=True)
+def api_generate():
+
+    user_id = session["user_id"]
+    charged = False
+    work_dir = None
+
+    try:
+
+        hooks = get_hooks()
+
+        with JOBS_LOCK:
+            for job in JOBS.values():
+                if (
+                    job.get("user_id") == user_id
+                    and job.get("status") in ("queued", "running")
+                ):
+                    return jsonify(
+                        ok=False,
+                        error="A video is already generating."
+                    ), 409
+
+        story = clean_story(request.form.get("story", ""))
+
+        duration = get_duration(
+            story,
+            request.form.get("duration"),
+        )
+
+        expected_scenes = DURATION_SCENES[duration]
+
+        if len(story["scenes"]) != expected_scenes:
+            raise ValueError(
+                f"{duration} videos must contain "
+                f"{expected_scenes} scenes. Generate the story again."
+            )
+
+        cost = DURATION_COSTS[duration]
+
+        style = request.form.get("style", "3D")
+        language = request.form.get("language", "English")
+
+        if style not in getattr(
+            cg, "STYLES",
+            ["3D", "2D Flat", "Anime", "Watercolor"]
+        ):
+            raise ValueError("Invalid style.")
+
+        if language not in getattr(
+            cg, "LANGUAGES",
+            ["English", "Kannada", "Hindi"]
+        ):
+            raise ValueError("Invalid language.")
+
+        aspect_ratio = request.form.get("aspect_ratio", "16:9")
+
+        if aspect_ratio not in ("16:9", "9:16", "1:1"):
+            aspect_ratio = "16:9"
+
+        def checked(name, default=True):
+            value = request.form.get(name)
+            if value is None:
+                return default
+            return value.lower() in ("1", "true", "yes", "on")
+
+        balance = get_balance(hooks, user_id)
+
+        if balance < cost:
+            return jsonify(
+                ok=False,
+                error=f"This video costs {cost} credits. Your balance is {balance}.",
+                credits=balance,
+                cost=cost,
+            ), 400
+
+        if not charge(hooks, user_id, cost):
+            return jsonify(
+                ok=False,
+                error="Credit deduction failed. Please try again.",
+                credits=get_balance(hooks, user_id),
+            ), 400
+
+        charged = True
 
         job_id = uuid.uuid4().hex
         work_dir = WORK_ROOT / job_id
         work_dir.mkdir(parents=True, exist_ok=True)
+
         try:
-            opts["image"] = _save_upload(request.files.get("image"), "image", work_dir)
-            opts["audio"] = _save_upload(request.files.get("audio"), "audio", work_dir)
+            user_image = save_upload(
+                request.files.get("image"),
+                work_dir,
+                "image",
+            )
+
+            user_audio = save_upload(
+                request.files.get("audio"),
+                work_dir,
+                "audio",
+            )
+
         except Exception:
-            shutil.rmtree(work_dir, ignore_errors=True)
+            refund(hooks, user_id, cost)
+            charged = False
             raise
 
-        if cost > 0 and not hooks["CHARGE_CREDITS"](user_id, cost):
-            shutil.rmtree(work_dir, ignore_errors=True)
-            return jsonify(ok=False, error=f"You need {cost} credits to make this movie."), 402
-    except cg.StudioError as exc:
-        return jsonify(ok=False, error=str(exc)), 400
-    except Exception as exc:
-        current_app.logger.exception("Could not start cartoon job")
-        return jsonify(ok=False, error=f"Could not start the movie: {type(exc).__name__}"), 500
-
-    with JOBS_LOCK:
-        JOBS[job_id] = {"user_id": user_id, "status": "queued", "percent": 1, "message": "Starting",
-                        "error": "", "result": None, "assets": [], "created": time.time()}
-    threading.Thread(target=_worker, args=(job_id, user_id, story, opts, work_dir, hooks, cost),
-                     daemon=True).start()
-    session["credits"] = hooks["GET_USER_CREDITS"](user_id)
-    return jsonify(ok=True, job_id=job_id, cost=cost, credits=session["credits"])
-
-
-@cartoon_bp.route("/api/cartoon/status/<job_id>")
-@studio_login_required
-def api_status(job_id):
-    with JOBS_LOCK:
-        job = JOBS.get(job_id)
-        job = json.loads(json.dumps({k: v for k, v in job.items()})) if job else None
-    if not job or job["user_id"] != session["user_id"]:
-        return jsonify(ok=False, error="This movie job was not found. Check My Generated Videos."), 404
-
-    payload = {
-        "ok": True, "status": job["status"], "percent": job["percent"], "message": job["message"],
-        "error": job["error"],
-        "assets": [{"kind": a["kind"], "index": a["index"],
-                    "url": url_for("cartoon.job_asset", job_id=job_id, name=a["name"])} for a in job["assets"]],
-    }
-    if job["status"] == "done" and job["result"]:
-        r = job["result"]
-        hooks = _hooks()
-        session["credits"] = hooks["GET_USER_CREDITS"](session["user_id"])
-        payload["result"] = {
-            "title": r["title"], "duration": r["duration"], "scenes": r["scenes"], "credits": session["credits"],
-            "video_url": url_for("generated_video_file", filename=r["filename"]),
-            "download_url": url_for("download_generated_video", video_id=r["video_id"]),
-            "quiz_url": url_for("video_quiz.video_quiz_page", video_id=r["video_id"]),
-            "exports": [{"preset": k, "label": v[2],
-                         "url": url_for("cartoon.export_video", video_id=r["video_id"], preset=k)}
-                        for k, v in cg.SOCIAL_PRESETS.items()],
+        options = {
+            "style": style,
+            "language": language,
+            "aspect_ratio": aspect_ratio,
+            "subtitles": checked("subtitles"),
+            "music": checked("music"),
+            "sfx": checked("sfx"),
+            "user_image": user_image,
+            "user_audio": user_audio,
         }
-    return jsonify(payload)
+
+        with JOBS_LOCK:
+            JOBS[job_id] = {
+                "user_id": user_id,
+                "status": "queued",
+                "percent": 0,
+                "message": "Starting your video...",
+                "error": None,
+                "assets": {},
+                "result": None,
+                "created_at": time.time(),
+                "updated_at": time.time(),
+            }
+
+        thread = threading.Thread(
+            target=generation_worker,
+            args=(
+                job_id,
+                user_id,
+                story,
+                options,
+                work_dir,
+                hooks,
+                cost,
+            ),
+            daemon=True,
+        )
+
+        try:
+            thread.start()
+        except Exception:
+            with JOBS_LOCK:
+                JOBS.pop(job_id, None)
+            raise
+
+        charged = False  # Worker now owns the refund responsibility.
+
+        return jsonify(
+            ok=True,
+            job_id=job_id,
+            cost=cost,
+            duration=duration,
+            credits=get_balance(hooks, user_id),
+        )
+
+    except ValueError as exc:
+
+        if charged:
+            refund(get_hooks(), user_id, cost)
+
+        if work_dir:
+            shutil.rmtree(work_dir, ignore_errors=True)
+
+        return jsonify(ok=False, error=str(exc)), 400
+
+    except Exception:
+
+        logger.exception("Could not start cartoon generation.")
+
+        if charged:
+            try:
+                refund(get_hooks(), user_id, cost)
+            except Exception:
+                logger.exception("Could not refund failed job startup.")
+
+        if work_dir:
+            shutil.rmtree(work_dir, ignore_errors=True)
+
+        return jsonify(
+            ok=False,
+            error="Could not start video generation."
+        ), 500
 
 
-@cartoon_bp.route("/cartoon-studio/asset/<job_id>/<name>")
-@studio_login_required
-def job_asset(job_id, name):
-    if not _ID_RE.match(job_id) or not _ASSET_RE.match(name):
-        return ("Not found", 404)
-    with JOBS_LOCK:
-        job = JOBS.get(job_id)
-        owner = job["user_id"] if job else None
-    if owner != session["user_id"]:
-        return ("Not found", 404)
-    return send_from_directory(str(WORK_ROOT / job_id), name, max_age=0)
+# =========================================================
+# JOB STATUS
+# =========================================================
+
+@cartoon_bp.route(
+    "/api/cartoon/status/<job_id>"
+)
+@login_required(api=True)
+def api_status(job_id):
+
+    if not ID_RE.match(job_id):
+        return jsonify(ok=False, error="Invalid job ID."), 400
+
+    job = find_job(job_id)
+
+    if not job or job["user_id"] != session["user_id"]:
+        return jsonify(ok=False, error="Job not found."), 404
+
+    response = {
+        "ok": True,
+        "status": job["status"],
+        "percent": job["percent"],
+        "message": job["message"],
+        "error": job.get("error"),
+        "assets": [
+            {
+                "url": url,
+                "title": name.replace("_", " ").split(".")[0],
+            }
+            for name, url in job.get("assets", {}).items()
+        ],
+    }
+
+    if job["status"] == "failed":
+        response["credits"] = job.get("credits")
+
+    if job["status"] == "done":
+
+        result = dict(job["result"])
+        video_id = result["video_id"]
+        filename = result["filename"]
+
+        result["video_url"] = url_for(
+            "static",
+            filename="generated/" + filename,
+        )
+
+        result["download_url"] = url_for(
+            "cartoon.download_video",
+            video_id=video_id,
+        )
+
+        try:
+            result["quiz_url"] = url_for(
+                "video_quiz.video_quiz_page",
+                video_id=video_id,
+            )
+        except Exception:
+            result["quiz_url"] = None
+
+        exports = {}
+
+        for preset in getattr(cg, "SOCIAL_PRESETS", {}):
+            exports[preset] = url_for(
+                "cartoon.export_video",
+                video_id=video_id,
+                preset=preset,
+            )
+
+        result["exports"] = exports
+        response["result"] = result
+
+    return jsonify(response)
 
 
-# ------------------------------------------------------------------ social export
-@cartoon_bp.route("/cartoon-studio/export/<int:video_id>/<preset>")
-@studio_login_required
+# =========================================================
+# PREVIEW IMAGE ROUTE
+# =========================================================
+
+@cartoon_bp.route(
+    "/cartoon-studio/asset/<job_id>/<name>"
+)
+@login_required()
+def cartoon_asset(job_id, name):
+
+    if not ID_RE.match(job_id) or not ASSET_RE.match(name):
+        return "Invalid asset", 400
+
+    job = find_job(job_id)
+
+    if not job or job["user_id"] != session["user_id"]:
+        return "Asset not found", 404
+
+    folder = WORK_ROOT / job_id / "previews"
+
+    if not (folder / name).is_file():
+        return "Preview not found", 404
+
+    return send_from_directory(str(folder), name)
+
+
+# =========================================================
+# VIDEO DOWNLOAD
+# =========================================================
+
+@cartoon_bp.route(
+    "/cartoon-studio/download/<int:video_id>"
+)
+@login_required()
+def download_video(video_id):
+
+    hooks = get_hooks()
+
+    record = hooks["GET_VIDEO_FOR_USER"](
+        video_id,
+        session["user_id"],
+    )
+
+    if not record:
+        return "Video not found", 404
+
+    filename = secure_filename(
+        str(record.get("filename", ""))
+    )
+
+    if not filename:
+        return "Invalid video filename", 400
+
+    path = GENERATED_DIR / filename
+
+    if not path.is_file():
+        return "Video file not found", 404
+
+    return send_file(
+        path,
+        as_attachment=True,
+        download_name=filename,
+        mimetype="video/mp4",
+    )
+
+
+# =========================================================
+# SOCIAL MEDIA EXPORT
+# =========================================================
+
+@cartoon_bp.route(
+    "/cartoon-studio/export/<int:video_id>/<preset>"
+)
+@login_required()
 def export_video(video_id, preset):
-    if preset not in cg.SOCIAL_PRESETS:
-        return ("Unknown export format.", 404)
-    hooks = _hooks()
-    video = hooks["GET_VIDEO_FOR_USER"](video_id, session["user_id"])
-    if not video:
-        return ("Not found", 404)
-    filename = Path(video.get("filename") or "").name
-    src = GENERATED_DIR / filename
-    if not filename or not src.is_file():
-        flash("This video file is no longer available.", "error")
-        return redirect(url_for("my_generated_videos"))
-    dst = EXPORT_DIR / f"{src.stem}_{preset}.mp4"
+
     try:
-        if not dst.is_file():
-            cg.export_for_platform(src, dst, preset)
-    except cg.StudioError as exc:
-        flash(str(exc), "error")
-        return redirect(url_for("cartoon.cartoon_studio"))
-    nice = secure_filename(video.get("title") or "cartoon")[:50] or "cartoon"
-    return send_file(str(dst), as_attachment=True, download_name=f"{nice}_{preset}.mp4", mimetype="video/mp4")
+
+        hooks = get_hooks()
+
+        presets = getattr(cg, "SOCIAL_PRESETS", {})
+
+        if preset not in presets:
+            return "Invalid export preset", 400
+
+        record = hooks["GET_VIDEO_FOR_USER"](
+            video_id,
+            session["user_id"],
+        )
+
+        if not record:
+            return "Video not found", 404
+
+        filename = secure_filename(
+            str(record.get("filename", ""))
+        )
+
+        source = GENERATED_DIR / filename
+
+        if not source.is_file():
+            return "Source video not found", 404
+
+        output_name = (
+            f"{Path(filename).stem}_{secure_filename(preset)}.mp4"
+        )
+
+        destination = EXPORT_DIR / output_name
+
+        if not destination.is_file():
+
+            cg.export_for_platform(
+                str(source),
+                str(destination),
+                preset,
+            )
+
+        if not destination.is_file():
+            return "Export could not be created", 500
+
+        return send_file(
+            destination,
+            as_attachment=True,
+            download_name=output_name,
+            mimetype="video/mp4",
+        )
+
+    except Exception:
+        logger.exception("Social export failed.")
+        return "Could not export this video.", 500
