@@ -1,1750 +1,938 @@
-
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Cartoon & Animation Studio | EduVision</title>
-
-    <style>
-        :root {
-            --bg: #f4f5ff;
-            --card: #ffffff;
-            --ink: #202044;
-            --muted: #777b99;
-            --primary: #7164ed;
-            --primary-dark: #5547d5;
-            --purple-light: #eeecff;
-            --yellow: #ffda70;
-            --green: #159c70;
-            --red: #dc5050;
-            --border: #e8e7f3;
-            --shadow: 0 12px 35px rgba(42, 35, 105, .08);
-            --radius: 20px;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            background: var(--bg);
-            color: var(--ink);
-            font-family: Arial, Helvetica, sans-serif;
-            min-height: 100vh;
-        }
-
-        button, input, textarea, select {
-            font: inherit;
-        }
-
-        button {
-            cursor: pointer;
-        }
-
-        .page {
-            max-width: 1250px;
-            margin: auto;
-            padding: 28px 22px 60px;
-        }
-
-        .topbar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 16px;
-            margin-bottom: 28px;
-            flex-wrap: wrap;
-        }
-
-        .brand {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .brand-icon {
-            width: 48px;
-            height: 48px;
-            display: grid;
-            place-items: center;
-            background: var(--primary);
-            color: white;
-            border-radius: 15px;
-            font-size: 25px;
-        }
-
-        .brand h1 {
-            font-size: 21px;
-        }
-
-        .brand p {
-            color: var(--muted);
-            font-size: 12px;
-            margin-top: 4px;
-        }
-
-        .top-actions {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .credit-pill {
-            background: white;
-            border: 1px solid var(--border);
-            padding: 11px 16px;
-            border-radius: 30px;
-            font-weight: 700;
-            box-shadow: var(--shadow);
-        }
-
-        .credit-pill span {
-            color: var(--primary);
-        }
-
-        .back-link {
-            text-decoration: none;
-            background: white;
-            border: 1px solid var(--border);
-            color: var(--ink);
-            border-radius: 30px;
-            padding: 11px 16px;
-            font-weight: 700;
-        }
-
-        .hero {
-            padding: 32px;
-            border-radius: 25px;
-            background: linear-gradient(120deg, #6558df, #9385fa);
-            color: white;
-            margin-bottom: 25px;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .hero::after {
-            content: "🎬";
-            position: absolute;
-            right: 45px;
-            top: 22px;
-            font-size: 90px;
-            opacity: .18;
-        }
-
-        .hero h2 {
-            font-size: clamp(25px, 4vw, 36px);
-            margin-bottom: 10px;
-        }
-
-        .hero p {
-            max-width: 650px;
-            line-height: 1.7;
-            opacity: .94;
-        }
-
-        .steps {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 12px;
-            margin-bottom: 25px;
-        }
-
-        .step {
-            background: white;
-            border: 1px solid var(--border);
-            padding: 15px;
-            border-radius: 15px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            color: var(--muted);
-            font-size: 13px;
-            font-weight: 700;
-        }
-
-        .step-number {
-            width: 29px;
-            height: 29px;
-            border-radius: 50%;
-            display: grid;
-            place-items: center;
-            background: #f0efff;
-            color: var(--primary);
-        }
-
-        .step.active {
-            border-color: var(--primary);
-            color: var(--primary);
-            box-shadow: var(--shadow);
-        }
-
-        .step.active .step-number {
-            background: var(--primary);
-            color: white;
-        }
-
-        .layout {
-            display: grid;
-            grid-template-columns: minmax(0, 1.5fr) minmax(280px, .8fr);
-            gap: 22px;
-            align-items: start;
-        }
-
-        .panel {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 25px;
-            box-shadow: var(--shadow);
-            margin-bottom: 20px;
-        }
-
-        .panel h3 {
-            font-size: 19px;
-            margin-bottom: 7px;
-        }
-
-        .panel-description {
-            color: var(--muted);
-            font-size: 13px;
-            line-height: 1.6;
-            margin-bottom: 22px;
-        }
-
-        .field {
-            margin-bottom: 19px;
-        }
-
-        .field label {
-            display: block;
-            font-size: 13px;
-            font-weight: 700;
-            margin-bottom: 9px;
-        }
-
-        .field small {
-            color: var(--muted);
-            display: block;
-            margin-top: 7px;
-            line-height: 1.5;
-        }
-
-        input[type="text"], textarea, select {
-            width: 100%;
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 13px 14px;
-            background: #fcfcff;
-            color: var(--ink);
-            outline: none;
-        }
-
-        textarea {
-            min-height: 125px;
-            resize: vertical;
-            line-height: 1.6;
-        }
-
-        input:focus, textarea:focus, select:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(113, 100, 237, .1);
-        }
-
-        .two-columns {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-        }
-
-        .three-columns {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-        }
-
-        .package {
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 15px 10px;
-            text-align: center;
-            background: #fcfcff;
-            cursor: pointer;
-            transition: .2s;
-        }
-
-        .package input {
-            display: none;
-        }
-
-        .package strong {
-            display: block;
-            margin-bottom: 6px;
-            font-size: 14px;
-        }
-
-        .package span {
-            font-size: 12px;
-            color: var(--muted);
-        }
-
-        .package.selected {
-            border: 2px solid var(--primary);
-            background: var(--purple-light);
-        }
-
-        .upload-box {
-            display: block;
-            border: 2px dashed #d8d5f3;
-            padding: 19px;
-            text-align: center;
-            border-radius: 14px;
-            background: #fafaff;
-            cursor: pointer;
-        }
-
-        .upload-box:hover {
-            border-color: var(--primary);
-        }
-
-        .upload-box strong {
-            display: block;
-            font-size: 13px;
-            margin-bottom: 5px;
-        }
-
-        .upload-box span {
-            color: var(--muted);
-            font-size: 12px;
-        }
-
-        .upload-box input {
-            display: none;
-        }
-
-        .file-name {
-            color: var(--green);
-            font-size: 12px;
-            margin-top: 8px;
-            overflow-wrap: anywhere;
-        }
-
-        .check-row {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin: 13px 0;
-            font-size: 13px;
-        }
-
-        .check-row input {
-            accent-color: var(--primary);
-            width: 17px;
-            height: 17px;
-        }
-
-        .primary-btn, .secondary-btn {
-            border: none;
-            border-radius: 12px;
-            padding: 14px 19px;
-            font-weight: 700;
-            transition: .2s;
-        }
-
-        .primary-btn {
-            background: var(--primary);
-            color: white;
-        }
-
-        .primary-btn:hover {
-            background: var(--primary-dark);
-            transform: translateY(-1px);
-        }
-
-        .primary-btn:disabled {
-            opacity: .5;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .secondary-btn {
-            background: var(--purple-light);
-            color: var(--primary-dark);
-        }
-
-        .full-btn {
-            width: 100%;
-        }
-
-        .cost-card {
-            background: #faf9ff;
-            border: 1px solid var(--border);
-            border-radius: 15px;
-            padding: 18px;
-            margin: 20px 0;
-        }
-
-        .cost-line {
-            display: flex;
-            justify-content: space-between;
-            gap: 10px;
-            margin: 8px 0;
-            font-size: 13px;
-        }
-
-        .cost-line.total {
-            border-top: 1px solid var(--border);
-            padding-top: 12px;
-            margin-top: 13px;
-            font-weight: 800;
-            font-size: 16px;
-        }
-
-        .cost-line.total strong {
-            color: var(--primary);
-        }
-
-        .hint-card {
-            background: #fff9e8;
-            border: 1px solid #f4e6b9;
-            border-radius: 15px;
-            padding: 17px;
-            font-size: 13px;
-            line-height: 1.7;
-            color: #6e5b28;
-            margin-bottom: 18px;
-        }
-
-        .scene-list {
-            display: grid;
-            gap: 13px;
-        }
-
-        .scene-card {
-            border: 1px solid var(--border);
-            border-radius: 15px;
-            padding: 15px;
-            background: #fdfdff;
-        }
-
-        .scene-heading {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 10px;
-        }
-
-        .scene-heading strong {
-            font-size: 13px;
-        }
-
-        .scene-card textarea {
-            min-height: 90px;
-            margin-bottom: 10px;
-        }
-
-        .scene-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        .mini-btn {
-            border: 1px solid var(--border);
-            background: white;
-            color: var(--ink);
-            padding: 8px 11px;
-            border-radius: 9px;
-            font-size: 12px;
-            font-weight: 700;
-        }
-
-        .mini-btn:hover {
-            border-color: var(--primary);
-            color: var(--primary);
-        }
-
-        .status-panel {
-            display: none;
-        }
-
-        .progress-track {
-            height: 11px;
-            background: #eeedfa;
-            border-radius: 20px;
-            overflow: hidden;
-            margin: 15px 0;
-        }
-
-        .progress-bar {
-            height: 100%;
-            width: 0%;
-            background: linear-gradient(90deg, #7164ed, #a99eff);
-            border-radius: 20px;
-            transition: width .4s;
-        }
-
-        .status-message {
-            color: var(--muted);
-            font-size: 13px;
-            line-height: 1.6;
-        }
-
-        .result-video {
-            width: 100%;
-            border-radius: 14px;
-            background: #17172c;
-            margin-top: 15px;
-        }
-
-        .result-actions {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin-top: 15px;
-        }
-
-        .result-actions a {
-            text-decoration: none;
-            display: inline-block;
-        }
-
-        .asset-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-            margin-top: 15px;
-        }
-
-        .asset-grid img {
-            width: 100%;
-            border-radius: 12px;
-            border: 1px solid var(--border);
-        }
-
-        .message {
-            display: none;
-            border-radius: 12px;
-            padding: 13px 15px;
-            font-size: 13px;
-            line-height: 1.6;
-            margin-bottom: 17px;
-        }
-
-        .message.error {
-            display: block;
-            background: #fff0f0;
-            color: #a83333;
-        }
-
-        .message.success {
-            display: block;
-            background: #eafaf3;
-            color: #14754f;
-        }
-
-        .hidden {
-            display: none !important;
-        }
-
-        .muted {
-            color: var(--muted);
-        }
-
-        .right-sticky {
-            position: sticky;
-            top: 18px;
-        }
-
-        @media(max-width: 850px) {
-            .layout {
-                grid-template-columns: 1fr;
-            }
-
-            .right-sticky {
-                position: static;
-            }
-        }
-
-        @media(max-width: 560px) {
-            .page {
-                padding: 17px 12px 40px;
-            }
-
-            .hero {
-                padding: 24px;
-            }
-
-            .hero::after {
-                right: 10px;
-                font-size: 60px;
-            }
-
-            .steps {
-                grid-template-columns: repeat(2, 1fr);
-            }
-
-            .two-columns {
-                grid-template-columns: 1fr;
-                gap: 0;
-            }
-
-            .three-columns {
-                grid-template-columns: 1fr;
-            }
-
-            .panel {
-                padding: 18px;
-            }
-        }
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cartoon Studio | EduVision</title>
+<style>
+:root{
+  --ink:#1f1b3d; --paper:#fbfaff; --card:#ffffff; --line:#e1ddf5;
+  --violet:#5546e8; --violet-dark:#4335cb; --sun:#ffc83d; --coral:#e8513c; --mint:#12906f;
+  --muted:#645f82; --soft:#f0eeff;
+  --head:ui-rounded,'SF Pro Rounded','Arial Rounded MT Bold','Segoe UI Variable Display','Trebuchet MS','Noto Sans','Noto Sans Kannada','Noto Sans Devanagari',system-ui,sans-serif;
+  --body:system-ui,-apple-system,'Segoe UI',Roboto,'Noto Sans','Noto Sans Kannada','Noto Sans Devanagari',Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{scroll-padding-top:80px}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.55}
+a{color:var(--violet)}
+h1,h2,h3{font-family:var(--head);line-height:1.15;margin:0}
+h1{font-size:clamp(2rem,5vw,3.1rem);font-weight:800}
+h2{font-size:1.5rem;font-weight:700;margin:34px 0 12px}
+h3{font-size:1.15rem;font-weight:700}
+p{margin:0 0 12px}
+
+.top{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:20px;flex-wrap:wrap;
+  padding:12px clamp(16px,4vw,40px);background:var(--ink);color:#fff}
+.brand{font-family:var(--head);font-weight:800;font-size:1.3rem;color:#fff;text-decoration:none;margin-right:auto}
+.brand b{color:var(--sun)}
+.top nav{display:flex;gap:18px;flex-wrap:wrap}
+.top nav a{color:#d9d5ff;text-decoration:none;font-weight:600}
+.top nav a:hover{color:#fff}
+.pill{background:var(--sun);color:var(--ink);font-weight:800;padding:5px 14px;border-radius:99px;white-space:nowrap}
+
+main{max-width:920px;margin:0 auto;padding:28px clamp(16px,4vw,32px) 140px}
+
+.hero{position:relative;overflow:hidden;border-radius:22px;padding:30px clamp(18px,4vw,34px) 28px;margin-bottom:22px;
+  background:linear-gradient(135deg,#5546e8 0%,#7b5cff 55%,#b06bff 100%);color:#fff}
+.hero h1{color:#fff}
+.hero p{max-width:56ch;color:#ece9ff;margin:10px 0 0}
+.hero .float{position:absolute;font-size:2.2rem;opacity:.9;animation:bob 4s ease-in-out infinite;user-select:none;pointer-events:none}
+.f1{right:6%;top:14%}.f2{right:20%;bottom:10%;animation-delay:-1.2s;font-size:1.7rem!important}
+.f3{right:34%;top:8%;animation-delay:-2.4s;font-size:1.5rem!important}
+@keyframes bob{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(-12px) rotate(6deg)}}
+.steps{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;padding:0;list-style:none}
+.steps li{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);border-radius:99px;padding:5px 14px;font-weight:700;font-size:.9rem}
+.steps li b{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--sun);color:var(--ink);margin-right:7px;font-size:.8rem}
+
+.panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px}
+.hint{color:var(--muted);font-size:.95rem}
+.field{display:block;margin-bottom:14px}
+.field .lbl{display:block;font-weight:700;margin-bottom:5px;font-size:.95rem}
+input[type=text],textarea,select{width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;
+  font:inherit;color:var(--ink);background:#fff}
+textarea{resize:vertical;min-height:48px}
+input[type=text]:focus,textarea:focus,select:focus{outline:3px solid #c9c3ff;border-color:var(--violet)}
+:focus-visible{outline:3px solid var(--violet);outline-offset:2px}
+input[type=file]{font:inherit;max-width:100%}
+.counter{display:flex;justify-content:space-between;gap:10px;font-size:.85rem;color:var(--muted);margin-top:4px}
+
+fieldset{border:0;margin:0 0 18px;padding:0}
+legend{font-weight:700;margin-bottom:8px;padding:0}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{position:relative}
+.chip input{position:absolute;opacity:0;inset:0;width:100%;height:100%;margin:0;cursor:pointer}
+.chip span{display:block;padding:8px 15px;border:1.5px solid var(--line);border-radius:99px;background:#fff;font-weight:700;font-size:.95rem;transition:transform .12s}
+.chip:hover span{transform:translateY(-1px)}
+.chip small{display:block;font-weight:600;color:var(--muted);font-size:.8rem;line-height:1.2}
+.chip input:checked+span{background:var(--violet);border-color:var(--violet);color:#fff}
+.chip input:checked+span small{color:#e4e1ff}
+.chip input:focus-visible+span{outline:3px solid var(--violet);outline-offset:2px}
+
+/* style swatches: each style shows its own look */
+.chips.styles .chip span{border-radius:16px;padding:8px 15px 8px 12px;display:flex;align-items:center;gap:10px}
+.sw{flex:none;width:34px;height:34px;border-radius:10px;border:2px solid rgba(0,0,0,.12)}
+.sw-3D{background:radial-gradient(circle at 30% 28%,#fff 0 12%,#ff9d6c 28%,#e8513c 70%,#8d2616);border-radius:50%}
+.sw-2D\ Flat,.sw-2DFlat{background:linear-gradient(90deg,#ffc83d 50%,#5546e8 50%)}
+.sw-Anime{background:repeating-linear-gradient(115deg,#ff5fa2 0 6px,#fff 6px 9px,#42c5ff 9px 15px)}
+.sw-Watercolor{background:radial-gradient(circle at 30% 35%,#9fd8ff,transparent 55%),radial-gradient(circle at 70% 65%,#ffc2d9,transparent 55%),#f6f1e6}
+.sw-Storybook{background:repeating-linear-gradient(45deg,#e8c38a 0 4px,#f6e3bd 4px 8px)}
+.sw-Pixelart{background:conic-gradient(#12906f 25%,#ffc83d 0 50%,#5546e8 0 75%,#e8513c 0);image-rendering:pixelated}
+.stylebar{margin-top:14px;padding:14px 16px;background:var(--soft);border:1px solid #d6d1ff;border-radius:14px}
+.stylebar legend{font-size:.95rem}
+
+.btn{display:inline-block;border:0;border-radius:11px;padding:12px 22px;font:inherit;font-weight:800;cursor:pointer;
+  text-decoration:none;text-align:center}
+.btn.primary{background:var(--violet);color:#fff}
+.btn.primary:hover:not(:disabled){background:var(--violet-dark)}
+.btn.ghost{background:var(--soft);color:var(--violet-dark)}
+.btn.ghost:hover:not(:disabled){background:#e3dfff}
+.btn.small{padding:7px 14px;font-size:.9rem}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+.chars{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.char{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;position:relative}
+.char .avatar{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-family:var(--head);font-weight:800;
+  font-size:1.3rem;color:#fff;margin-bottom:10px;box-shadow:0 3px 0 rgba(0,0,0,.15)}
+.char .field{margin-bottom:10px}
+
+.scenes{display:grid;gap:18px}
+.scene{display:grid;grid-template-columns:64px 1fr;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.strip{background-color:var(--ink);
+  background-image:radial-gradient(circle at 9px 12px,var(--paper) 4px,transparent 4.5px),
+                   radial-gradient(circle at 55px 12px,var(--paper) 4px,transparent 4.5px);
+  background-size:64px 24px;background-repeat:repeat-y;color:var(--sun);
+  font-family:var(--head);font-weight:800;font-size:1.7rem;text-align:center;padding-top:14px}
+.scene-body{padding:18px}
+.scene-head{display:flex;gap:10px;align-items:flex-end;margin-bottom:6px}
+.scene-head .field{flex:1;margin:0}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.say{display:grid;grid-template-columns:150px 1fr 120px;gap:8px;margin-bottom:8px}
+.rewrite{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;padding-top:14px;border-top:1px dashed var(--line)}
+.rewrite input{flex:1;min-width:200px}
+.sub{font-weight:700;font-size:.95rem;margin:4px 0 6px}
+
+.opts{display:grid;gap:10px}
+.check{display:flex;gap:10px;align-items:flex-start;font-weight:600}
+.check input{margin-top:5px;width:18px;height:18px;accent-color:var(--violet)}
+.check small{display:block;color:var(--muted);font-weight:400}
+
+.makebar{position:fixed;left:0;right:0;bottom:0;z-index:15;background:#fff;border-top:2px solid var(--ink);
+  display:flex;gap:16px;align-items:center;justify-content:center;flex-wrap:wrap;padding:12px clamp(16px,4vw,32px)}
+.makeinfo{margin-right:auto;max-width:520px}
+.makeinfo strong{display:block;font-family:var(--head);font-size:1.15rem}
+.makeinfo span{color:var(--muted);font-size:.9rem}
+.makeinfo .low{color:var(--coral);font-weight:700}
+
+.banner{padding:12px 16px;border-radius:12px;background:#fff3d6;border:1px solid #f1d58a;margin-bottom:18px;font-weight:600}
+.banner.demo{background:var(--soft);border-color:#cfc9ff;color:var(--violet-dark)}
+
+.bar{height:22px;border-radius:99px;background:var(--soft);overflow:hidden;margin:18px 0 10px}
+.bar>div{height:100%;width:1%;border-radius:99px;transition:width .8s ease;
+  background:repeating-linear-gradient(45deg,#5546e8 0 14px,#7b6bff 14px 28px);background-size:40px 40px;animation:stripes 1s linear infinite}
+@keyframes stripes{to{background-position:40px 0}}
+.pmsg{font-family:var(--head);font-size:1.3rem;font-weight:700}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:20px}
+.gallery figure{margin:0;background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;animation:pop .35s ease}
+@keyframes pop{from{transform:scale(.85);opacity:0}to{transform:none;opacity:1}}
+.gallery img{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;background:var(--soft)}
+.gallery figcaption{padding:6px 10px;font-size:.85rem;font-weight:700;text-transform:capitalize}
+
+video{width:100%;max-height:70vh;background:#000;border-radius:14px}
+.demo-video{aspect-ratio:16/9;border-radius:14px;display:grid;place-items:center;text-align:center;color:#fff;padding:20px;
+  background:linear-gradient(135deg,#1f1b3d,#5546e8)}
+.demo-video span{font-size:3.5rem;display:block}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}
+.exports{display:flex;gap:8px;flex-wrap:wrap}
+.meta{color:var(--muted);margin:6px 0 0}
+.error-box{background:#fff0ed;border:1px solid #f3c3bb;border-radius:14px;padding:18px}
+
+.toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%) translateY(20px);z-index:40;max-width:min(560px,92vw);
+  background:var(--ink);color:#fff;padding:12px 18px;border-radius:12px;font-weight:600;opacity:0;pointer-events:none;
+  transition:opacity .2s,transform .2s}
+.toast.show{opacity:1;transform:translateX(-50%)}
+.toast.error{background:var(--coral)}
+
+
+.thumbs{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
+.thumb{position:relative;width:92px}
+.thumb img{display:block;width:92px;height:92px;object-fit:cover;border-radius:12px;border:2px solid var(--line)}
+.thumb b{position:absolute;left:6px;top:6px;background:var(--sun);color:var(--ink);border-radius:99px;min-width:22px;height:22px;display:grid;place-items:center;font-size:.8rem}
+.thumb button{position:absolute;right:4px;top:4px;width:24px;height:24px;border:0;border-radius:50%;background:var(--coral);color:#fff;font-weight:800;cursor:pointer;line-height:1}
+.thumb small{display:block;text-align:center;color:var(--muted);font-size:.75rem;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* polish */
+h1,h2,h3{letter-spacing:-.01em}
+.hero{background-image:radial-gradient(rgba(255,255,255,.18) 1.5px,transparent 1.5px),linear-gradient(135deg,#5546e8 0%,#7b5cff 55%,#b06bff 100%);
+  background-size:22px 22px,100% 100%;box-shadow:0 14px 34px rgba(85,70,232,.28)}
+.panel,.char,.scene{box-shadow:0 2px 0 rgba(31,27,61,.04),0 10px 24px rgba(31,27,61,.06)}
+.btn{transition:transform .12s,box-shadow .12s}
+.btn.primary{box-shadow:0 4px 0 var(--violet-dark)}
+.btn.primary:hover:not(:disabled){transform:translateY(-1px)}
+.btn.primary:active:not(:disabled){transform:translateY(3px);box-shadow:0 1px 0 var(--violet-dark)}
+.chip input:checked+span{box-shadow:0 3px 0 var(--violet-dark)}
+
+@media (max-width:700px){
+  .two{grid-template-columns:1fr}
+  .say{grid-template-columns:1fr}
+  .scene{grid-template-columns:48px 1fr}
+  .strip{background-size:48px 24px;font-size:1.3rem;
+    background-image:radial-gradient(circle at 7px 12px,var(--paper) 3.5px,transparent 4px),
+                     radial-gradient(circle at 41px 12px,var(--paper) 3.5px,transparent 4px)}
+  .makeinfo{margin-right:0;width:100%}
+  .makebar .btn{flex:1}
+  .hero .float{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  .bar>div,.toast,.hero .float,.gallery figure{transition:none;animation:none}
+}
+</style>
 </head>
-
 <body>
 
-{% set initial_credits = credits|default(0)|int %}
+<header class="top">
+  <a class="brand" href="/dashboard">Edu<b>Vision</b> Cartoon Studio</a>
+  <nav aria-label="Main">
+    <a href="/dashboard">Dashboard</a>
+    <a href="/my-videos">My videos</a>
+    <a href="/game">Games</a>
+  </nav>
+  <span class="pill" title="Your credit balance"><span id="credits">0</span> credits</span>
+</header>
 
-<div class="page">
+<main>
+  <div class="banner demo" id="demoBanner" hidden>
+    Preview mode: this page was opened without the server, so you are seeing sample data.
+    Everything works here, but no real movie is made.
+  </div>
+  <div class="banner" id="healthBanner" role="alert" hidden></div>
 
-    <header class="topbar">
-        <div class="brand">
-            <div class="brand-icon">🎨</div>
-            <div>
-                <h1>EduVision Studio</h1>
-                <p>AI Cartoon & Animation Studio</p>
-            </div>
-        </div>
-
-        <div class="top-actions">
-            <div class="credit-pill">
-                🪙 Credits: <span id="creditValue">{{ initial_credits }}</span>
-            </div>
-            <a class="back-link" href="{{ url_for('dashboard') if 'dashboard' in current_app.view_functions else '/' }}">
-                ← Dashboard
-            </a>
-        </div>
-    </header>
-
-    <section class="hero">
-        <h2>Turn your ideas into animated videos ✨</h2>
-        <p>
-            Create educational cartoons, animated stories and explainer videos.
-            Write your idea, build scenes, generate your animation and export
-            videos in social-media-friendly formats.
-        </p>
-    </section>
-
-    <div class="steps">
-        <div class="step active" id="stepIdea">
-            <span class="step-number">1</span> Your Idea
-        </div>
-        <div class="step" id="stepStory">
-            <span class="step-number">2</span> Story & Scenes
-        </div>
-        <div class="step" id="stepAnimate">
-            <span class="step-number">3</span> Animation
-        </div>
-        <div class="step" id="stepWatch">
-            <span class="step-number">4</span> Watch & Export
-        </div>
+  <!-- 1. IDEA -->
+  <section id="stage-idea" aria-labelledby="idea-title">
+    <div class="hero">
+      <span class="float f1" aria-hidden="true">🎬</span>
+      <span class="float f2" aria-hidden="true">⭐</span>
+      <span class="float f3" aria-hidden="true">🚀</span>
+      <h1 id="idea-title">What is your cartoon about?</h1>
+      <p>Describe an idea in a sentence or two. We write the story first, you can change anything,
+        and credits are only used when you press Make my movie.</p>
+      <ol class="steps" aria-label="How it works">
+        <li><b>1</b>Share an idea</li>
+        <li><b>2</b>Edit the story</li>
+        <li><b>3</b>Watch your movie</li>
+      </ol>
     </div>
+    <form id="ideaForm" class="panel" autocomplete="off" novalidate>
+      <label class="field">
+        <span class="lbl">Your idea</span>
+        <textarea id="prompt" rows="4" maxlength="800" autocomplete="off" placeholder="Type your cartoon idea here"></textarea>
+        <span class="counter"><span>Short and simple works best.</span><span id="count">0 / 800</span></span>
+      </label>
+      <fieldset><legend>Cartoon style</legend><div class="chips styles" id="styleChips"></div></fieldset>
+      <fieldset><legend>Spoken language</legend><div class="chips" id="langChips"></div></fieldset>
+      <fieldset><legend>Length</legend><div class="chips" id="durChips"></div></fieldset>
+      <fieldset><legend>Screen shape</legend><div class="chips" id="aspectChips"></div></fieldset>
+      <button class="btn primary" id="storyBtn" type="submit">Write my story</button>
+    </form>
+  </section>
 
-    <div id="messageBox" class="message"></div>
-
-    <div class="layout">
-
-        <main>
-
-            <!-- IDEA SECTION -->
-            <section class="panel" id="ideaPanel">
-                <h3>💡 Create your animation idea</h3>
-                <p class="panel-description">
-                    Describe the topic or story you want to turn into a cartoon video.
-                </p>
-
-                <div class="field">
-                    <label for="prompt">What should your video explain?</label>
-                    <textarea id="prompt" placeholder="Example: Explain photosynthesis through a story about a little green plant. Show sunlight, water, roots, leaves and how the plant makes its food. Use simple language and real-life examples."></textarea>
-                    <small>
-                        Tip: Mention the characters, topic, examples and what viewers should learn.
-                    </small>
-                </div>
-
-                <div class="two-columns">
-                    <div class="field">
-                        <label for="style">Animation style</label>
-                        <select id="style">
-                            {% for style in styles|default(['3D', '2D Flat', 'Anime', 'Watercolor']) %}
-                            <option value="{{ style }}">{{ style }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <div class="field">
-                        <label for="language">Video language</label>
-                        <select id="language">
-                            <option value="English">English</option>
-                            <option value="Kannada">Kannada</option>
-                            <option value="Hindi">Hindi</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="field">
-                    <label>Choose video duration</label>
-
-                    <div class="three-columns">
-                        <label class="package">
-                            <input type="radio" name="duration" value="Short">
-                            <strong>Short</strong>
-                            <span>3 scenes · 5 credits</span>
-                        </label>
-
-                        <label class="package selected">
-                            <input type="radio" name="duration" value="Medium" checked>
-                            <strong>Medium</strong>
-                            <span>5 scenes · 10 credits</span>
-                        </label>
-
-                        <label class="package">
-                            <input type="radio" name="duration" value="Long">
-                            <strong>Long</strong>
-                            <span>8 scenes · 15 credits</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="two-columns">
-                    <div class="field">
-                        <label for="aspectRatio">Video format</label>
-                        <select id="aspectRatio">
-                            <option value="16:9">Landscape (16:9)</option>
-                            <option value="9:16">Portrait (9:16)</option>
-                            <option value="1:1">Square (1:1)</option>
-                        </select>
-                    </div>
-
-                    <div class="field">
-                        <label for="audience">Target audience</label>
-                        <select id="audience">
-                            <option value="Kids">Kids</option>
-                            <option value="School Students">School Students</option>
-                            <option value="College Students" selected>College Students</option>
-                            <option value="Teachers">Teachers</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="field">
-                    <label>Upload a reference image (optional)</label>
-                    <label class="upload-box">
-                        <strong>🖼️ Choose image</strong>
-                        <span>JPG, JPEG or PNG · Maximum 10 MB</span>
-                        <input type="file" id="referenceImage" accept=".jpg,.jpeg,.png,image/jpeg,image/png">
-                        <div class="file-name" id="imageFileName"></div>
-                    </label>
-                </div>
-
-                <div class="field">
-                    <label>Upload narration audio (optional)</label>
-                    <label class="upload-box">
-                        <strong>🎙️ Choose audio</strong>
-                        <span>MP3, WAV, M4A or OGG · Maximum 15 MB</span>
-                        <input type="file" id="narrationAudio" accept=".mp3,.wav,.m4a,.ogg,audio/*">
-                        <div class="file-name" id="audioFileName"></div>
-                    </label>
-                </div>
-
-                <button class="primary-btn full-btn" id="generateStoryBtn" type="button">
-                    Generate Story & Scenes →
-                </button>
-            </section>
-
-            <!-- STORY SECTION -->
-            <section class="panel hidden" id="storyPanel">
-                <h3>📖 Your animation story</h3>
-                <p class="panel-description">
-                    Review the generated story and edit the scenes before creating your video.
-                </p>
-
-                <div class="field">
-                    <label for="storyTitle">Video title</label>
-                    <input type="text" id="storyTitle" placeholder="Enter video title">
-                </div>
-
-                <div class="field">
-                    <label for="storySummary">Story summary</label>
-                    <textarea id="storySummary" placeholder="Your story summary will appear here."></textarea>
-                </div>
-
-                <div class="field">
-                    <label>Scenes</label>
-                    <div class="scene-list" id="sceneList"></div>
-                    <small class="muted">
-                        You can edit or remove scenes. The selected duration package price stays fixed.
-                    </small>
-                </div>
-
-                <div class="result-actions">
-                    <button class="secondary-btn" id="backToIdeaBtn" type="button">← Back</button>
-                    <button class="secondary-btn" id="regenerateStoryBtn" type="button">↻ Regenerate story</button>
-                    <button class="primary-btn" id="continueBtn" type="button">Continue to animation →</button>
-                </div>
-            </section>
-
-            <!-- ANIMATION SECTION -->
-            <section class="panel hidden" id="animationPanel">
-                <h3>🎬 Animation settings</h3>
-                <p class="panel-description">
-                    Select the finishing options for your educational cartoon.
-                </p>
-
-                <label class="check-row">
-                    <input type="checkbox" id="subtitles" checked>
-                    Add subtitles to the video
-                </label>
-
-                <label class="check-row">
-                    <input type="checkbox" id="music" checked>
-                    Add background music
-                </label>
-
-                <label class="check-row">
-                    <input type="checkbox" id="sfx" checked>
-                    Add sound effects
-                </label>
-
-                <div class="hint-card">
-                    <strong>💡 Before generating</strong><br>
-                    Check your story and uploaded files. Your selected package has a fixed credit cost.
-                    Credits are charged by the server and refunded if generation fails.
-                </div>
-
-                <div class="result-actions">
-                    <button class="secondary-btn" id="backToStoryBtn" type="button">← Edit story</button>
-                    <button class="primary-btn" id="generateVideoBtn" type="button">
-                        ✨ Generate Cartoon Video
-                    </button>
-                </div>
-            </section>
-
-            <!-- PROGRESS SECTION -->
-            <section class="panel status-panel" id="statusPanel">
-                <h3>⏳ Creating your animation</h3>
-                <p class="panel-description">
-                    Your scenes are being processed. Please keep this page open.
-                </p>
-
-                <div class="progress-track">
-                    <div class="progress-bar" id="progressBar"></div>
-                </div>
-
-                <div class="cost-line">
-                    <span id="progressPercent">0%</span>
-                    <strong id="progressLabel">Preparing...</strong>
-                </div>
-
-                <p class="status-message" id="statusMessage">
-                    Starting animation...
-                </p>
-
-                <div class="asset-grid" id="assetGrid"></div>
-            </section>
-
-            <!-- RESULT SECTION -->
-            <section class="panel hidden" id="resultPanel">
-                <h3>🎉 Your video is ready!</h3>
-                <p class="panel-description" id="resultDescription">
-                    Your cartoon animation has been generated successfully.
-                </p>
-
-                <video id="resultVideo" class="result-video" controls playsinline></video>
-
-                <div class="result-actions">
-                    <a class="primary-btn" id="downloadVideo" href="#" download>
-                        ↓ Download video
-                    </a>
-                    <a class="secondary-btn" id="quizLink" href="#">
-                        Take video quiz
-                    </a>
-                </div>
-
-                <div class="field" style="margin-top:25px">
-                    <label>Social media export</label>
-                    <p class="panel-description">
-                        Export your finished animation in formats suitable for different platforms.
-                    </p>
-
-                    <div class="two-columns">
-                        <div>
-                            <label for="exportPreset">Choose format</label>
-                            <select id="exportPreset">
-                                <option value="youtube">YouTube Landscape</option>
-                                <option value="reels">Instagram Reels</option>
-                                <option value="shorts">YouTube Shorts</option>
-                                <option value="square">Square Social Post</option>
-                                <option value="tiktok">TikTok Portrait</option>
-                            </select>
-                        </div>
-                        <div style="display:flex;align-items:end">
-                            <button class="primary-btn full-btn" id="exportBtn" type="button">
-                                Export video
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <button class="secondary-btn full-btn" id="createAnotherBtn" type="button">
-                    + Create another animation
-                </button>
-            </section>
-
-        </main>
-
-        <!-- RIGHT SIDEBAR -->
-        <aside class="right-sticky">
-
-            <section class="panel">
-                <h3>🪙 Credit summary</h3>
-                <p class="panel-description">
-                    Your animation package cost.
-                </p>
-
-                <div class="cost-card">
-                    <div class="cost-line">
-                        <span>Selected duration</span>
-                        <strong id="selectedDuration">Medium</strong>
-                    </div>
-
-                    <div class="cost-line">
-                        <span>Number of scenes</span>
-                        <strong id="selectedScenes">5</strong>
-                    </div>
-
-                    <div class="cost-line total">
-                        <span>Generation cost</span>
-                        <strong id="selectedCost">10 credits</strong>
-                    </div>
-                </div>
-
-                <div class="cost-line">
-                    <span>Available balance</span>
-                    <strong id="availableCredits">{{ initial_credits }}</strong>
-                </div>
-
-                <p class="muted" id="creditHint" style="font-size:12px;line-height:1.6;margin-top:12px">
-                    Credits are charged when you start generating the video.
-                </p>
-            </section>
-
-            <section class="panel">
-                <h3>🌟 Creation tips</h3>
-                <div class="hint-card">
-                    <strong>1. Explain the topic</strong><br>
-                    Write what your cartoon should teach.
-                </div>
-
-                <div class="hint-card">
-                    <strong>2. Add a real-life example</strong><br>
-                    Examples help students understand difficult concepts.
-                </div>
-
-                <div class="hint-card">
-                    <strong>3. Review the scenes</strong><br>
-                    Edit the story before generating the final video.
-                </div>
-            </section>
-
-        </aside>
+  <!-- 2. STORY -->
+  <section id="stage-story" aria-labelledby="story-title" hidden>
+    <h1 id="story-title">Check your story</h1>
+    <p class="hint" style="margin:10px 0 0;max-width:62ch">
+      Change anything you like. Setting and action describe the picture, so keep those in English.
+      Narration and spoken lines are read aloud in <strong id="langName">English</strong>.
+      Your movie will be drawn in <strong id="styleName">3D</strong> style.
+    </p>
+    <div class="stylebar">
+      <fieldset style="margin:0"><legend>Drawing style (you can switch it here, the story stays)</legend>
+        <div class="chips styles" id="styleChips2"></div></fieldset>
     </div>
-</div>
-
-<script>
-"use strict";
-
-const CFG = {
-    initialCredits: {{ initial_credits|tojson }},
-    storyUrl: "/api/cartoon/story",
-    regenerateSceneUrl: "/api/cartoon/regenerate-scene",
-    generateUrl: "/api/cartoon/generate",
-    statusUrl: "/api/cartoon/status/",
-    creditsUrl: "/api/credits",
-    exportUrl: "/cartoon-studio/export/",
-    loginUrl: "/login"
-};
-
-const PACKAGES = {
-    Short: { scenes: 3, credits: 5 },
-    Medium: { scenes: 5, credits: 10 },
-    Long: { scenes: 8, credits: 15 }
-};
-
-let currentStory = null;
-let currentJobId = null;
-let pollingTimer = null;
-let currentVideoId = null;
-let currentVideoUrl = null;
-let lastAssets = [];
-
-const $ = id => document.getElementById(id);
-
-function showMessage(message, type = "error") {
-    const box = $("messageBox");
-    box.textContent = message;
-    box.className = "message " + type;
-    box.scrollIntoView({ behavior: "smooth", block: "nearest" });
-}
-
-function clearMessage() {
-    const box = $("messageBox");
-    box.textContent = "";
-    box.className = "message";
-}
-
-function setCredits(value) {
-    const amount = Math.max(0, Number(value) || 0);
-    $("creditValue").textContent = amount;
-    $("availableCredits").textContent = amount;
-    CFG.initialCredits = amount;
-    updateCost();
-}
-
-async function refreshCredits() {
-    try {
-        const response = await fetch(CFG.creditsUrl, {
-            credentials: "same-origin"
-        });
-
-        if (response.status === 401) {
-            window.location.href = CFG.loginUrl;
-            return;
-        }
-
-        const data = await response.json();
-
-        if (response.ok && data.credits !== undefined) {
-            setCredits(data.credits);
-        }
-    } catch (error) {
-        console.warn("Could not refresh credits:", error);
-    }
-}
-
-function selectedDuration() {
-    return document.querySelector('input[name="duration"]:checked')?.value || "Medium";
-}
-
-function getPackage() {
-    return PACKAGES[selectedDuration()] || PACKAGES.Medium;
-}
-
-function updateCost() {
-    const duration = selectedDuration();
-    const pack = getPackage();
-
-    $("selectedDuration").textContent = duration;
-    $("selectedScenes").textContent = pack.scenes;
-    $("selectedCost").textContent = pack.credits + " credits";
-
-    const enough = CFG.initialCredits >= pack.credits;
-    const button = $("generateVideoBtn");
-
-    if (button) {
-        button.disabled = !enough;
-    }
-
-    $("creditHint").textContent = enough
-        ? "Credits are charged when you start generating the video."
-        : "You do not have enough credits for this package.";
-}
-
-function updatePackageSelection() {
-    document.querySelectorAll(".package").forEach(label => {
-        const input = label.querySelector("input");
-        label.classList.toggle("selected", input.checked);
-    });
-
-    updateCost();
-}
-
-document.querySelectorAll('input[name="duration"]').forEach(input => {
-    input.addEventListener("change", updatePackageSelection);
-});
-
-$("referenceImage").addEventListener("change", event => {
-    $("imageFileName").textContent =
-        event.target.files[0]?.name || "";
-});
-
-$("narrationAudio").addEventListener("change", event => {
-    $("audioFileName").textContent =
-        event.target.files[0]?.name || "";
-});
-
-function setStep(active) {
-    const ids = ["stepIdea", "stepStory", "stepAnimate", "stepWatch"];
-
-    ids.forEach((id, index) => {
-        $(id).classList.toggle("active", index === active - 1);
-    });
-}
-
-function showPanel(panelId) {
-    [
-        "ideaPanel",
-        "storyPanel",
-        "animationPanel",
-        "statusPanel",
-        "resultPanel"
-    ].forEach(id => {
-        $(id).classList.add("hidden");
-    });
-
-    $(panelId).classList.remove("hidden");
-    $(panelId).scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
-function validatePrompt() {
-    const prompt = $("prompt").value.trim();
-
-    if (prompt.length < 10) {
-        showMessage("Please enter a more detailed idea (at least 10 characters).");
-        return false;
-    }
-
-    return true;
-}
-
-async function readJsonResponse(response) {
-    let data;
-
-    try {
-        data = await response.json();
-    } catch {
-        throw new Error("The server returned an invalid response. Check your Flask terminal.");
-    }
-
-    if (response.status === 401) {
-        window.location.href = CFG.loginUrl;
-        throw new Error("Please log in again.");
-    }
-
-    if (!response.ok || data.success === false || data.ok === false) {
-        throw new Error(data.error || data.message || "Request failed.");
-    }
-
-    return data;
-}
-
-function normalizeStory(data) {
-    let story = data.story || data.data || data;
-
-    if (typeof story === "string") {
-        try {
-            story = JSON.parse(story);
-        } catch {
-            throw new Error("The story response is not valid JSON.");
-        }
-    }
-
-    if (!story || !Array.isArray(story.scenes)) {
-        throw new Error("The server did not return a valid scene list.");
-    }
-
-    story.title = story.title || "My Educational Cartoon";
-    story.summary = story.summary || story.description || "";
-
-    story.scenes = story.scenes.map((scene, index) => {
-        if (typeof scene === "string") {
-            return {
-                narration: scene,
-                visual: "",
-                title: "Scene " + (index + 1)
-            };
-        }
-
-        return {
-            ...scene,
-            narration: scene.narration || scene.text || scene.script || "",
-            visual: scene.visual || scene.image_prompt || scene.description || "",
-            title: scene.title || "Scene " + (index + 1)
-        };
-    });
-
-    return story;
-}
-
-function escapeHtml(value) {
-    return String(value ?? "").replace(/[&<>"']/g, char => ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#39;"
-    })[char]);
-}
-
-function renderScenes() {
-    const container = $("sceneList");
-    container.innerHTML = "";
-
-    currentStory.scenes.forEach((scene, index) => {
-        const card = document.createElement("div");
-        card.className = "scene-card";
-
-        const heading = document.createElement("div");
-        heading.className = "scene-heading";
-
-        const title = document.createElement("strong");
-        title.textContent = "Scene " + (index + 1);
-
-        const remove = document.createElement("button");
-        remove.type = "button";
-        remove.className = "mini-btn";
-        remove.textContent = "Remove";
-        remove.addEventListener("click", () => removeScene(index));
-
-        heading.append(title, remove);
-
-        const narrationLabel = document.createElement("label");
-        narrationLabel.textContent = "Narration";
-
-        const narration = document.createElement("textarea");
-        narration.value = scene.narration || "";
-        narration.placeholder = "Enter narration for this scene";
-
-        narration.addEventListener("input", () => {
-            currentStory.scenes[index].narration = narration.value;
-        });
-
-        const visualLabel = document.createElement("label");
-        visualLabel.textContent = "Visual description";
-
-        const visual = document.createElement("textarea");
-        visual.value = scene.visual || "";
-        visual.placeholder = "Describe what viewers should see";
-
-        visual.addEventListener("input", () => {
-            currentStory.scenes[index].visual = visual.value;
-        });
-
-        const actions = document.createElement("div");
-        actions.className = "scene-actions";
-
-        const regenerate = document.createElement("button");
-        regenerate.type = "button";
-        regenerate.className = "mini-btn";
-        regenerate.textContent = "↻ Regenerate scene";
-        regenerate.addEventListener("click", () => regenerateScene(index));
-
-        actions.appendChild(regenerate);
-
-        card.append(
-            heading,
-            narrationLabel,
-            narration,
-            visualLabel,
-            visual,
-            actions
-        );
-
-        container.appendChild(card);
-    });
-
-    if (!currentStory.scenes.length) {
-        container.textContent = "No scenes available. Generate the story again.";
-    }
-}
-
-function removeScene(index) {
-    if (currentStory.scenes.length <= 1) {
-        showMessage("At least one scene is required.");
-        return;
-    }
-
-    currentStory.scenes.splice(index, 1);
-    renderScenes();
-}
-
-async function generateStory() {
-    clearMessage();
-
-    if (!validatePrompt()) return;
-
-    const button = $("generateStoryBtn");
-    button.disabled = true;
-    button.textContent = "Creating your story...";
-
-    try {
-        const response = await fetch(CFG.storyUrl, {
-            method: "POST",
-            credentials: "same-origin",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                prompt: $("prompt").value.trim(),
-                style: $("style").value,
-                language: $("language").value,
-                duration: selectedDuration(),
-                audience: $("audience").value
-            })
-        });
-
-        const data = await readJsonResponse(response);
-        currentStory = normalizeStory(data);
-
-        $("storyTitle").value = currentStory.title;
-        $("storySummary").value = currentStory.summary;
-
-        renderScenes();
-        setStep(2);
-        showPanel("storyPanel");
-        showMessage("Your story is ready. Review your scenes.", "success");
-
-    } catch (error) {
-        showMessage(error.message);
-    } finally {
-        button.disabled = false;
-        button.textContent = "Generate Story & Scenes →";
-    }
-}
-
-async function regenerateStory() {
-    if (!validatePrompt()) return;
-
-    $("generateStoryBtn").disabled = true;
-
-    try {
-        const response = await fetch(CFG.storyUrl, {
-            method: "POST",
-            credentials: "same-origin",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                prompt: $("prompt").value.trim(),
-                style: $("style").value,
-                language: $("language").value,
-                duration: selectedDuration(),
-                audience: $("audience").value
-            })
-        });
-
-        const data = await readJsonResponse(response);
-        currentStory = normalizeStory(data);
-
-        $("storyTitle").value = currentStory.title;
-        $("storySummary").value = currentStory.summary;
-
-        renderScenes();
-        showMessage("A new story has been created.", "success");
-
-    } catch (error) {
-        showMessage(error.message);
-    } finally {
-        $("generateStoryBtn").disabled = false;
-    }
-}
-
-async function regenerateScene(index) {
-    const scene = currentStory?.scenes[index];
-
-    if (!scene) return;
-
-    const instruction = prompt(
-        "What should be changed in this scene?",
-        "Make the explanation clearer and more engaging."
-    );
-
-    if (instruction === null) return;
-
-    try {
-        const response = await fetch(CFG.regenerateSceneUrl, {
-            method: "POST",
-            credentials: "same-origin",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                story: currentStory,
-                scene: index,
-                instruction: instruction,
-                style: $("style").value,
-                language: $("language").value
-            })
-        });
-
-        const data = await readJsonResponse(response);
-
-        const replacement = data.scene || data.data || data;
-
-        if (typeof replacement === "string") {
-            currentStory.scenes[index].narration = replacement;
-        } else {
-            currentStory.scenes[index] = {
-                ...currentStory.scenes[index],
-                ...replacement,
-                narration: replacement.narration || replacement.text ||
-                    currentStory.scenes[index].narration,
-                visual: replacement.visual || replacement.image_prompt ||
-                    currentStory.scenes[index].visual
-            };
-        }
-
-        renderScenes();
-        showMessage("Scene updated successfully.", "success");
-
-    } catch (error) {
-        showMessage(error.message);
-    }
-}
-
-function validateStory() {
-    if (!currentStory || !currentStory.scenes?.length) {
-        showMessage("Please generate a story first.");
-        return false;
-    }
-
-    const title = $("storyTitle").value.trim();
-
-    if (!title) {
-        showMessage("Please enter a video title.");
-        return false;
-    }
-
-    for (let i = 0; i < currentStory.scenes.length; i++) {
-        const scene = currentStory.scenes[i];
-
-        if (!String(scene.narration || "").trim()) {
-            showMessage("Please add narration to Scene " + (i + 1) + ".");
-            return false;
-        }
-    }
-
-    currentStory.title = title;
-    currentStory.summary = $("storySummary").value.trim();
-
-    return true;
-}
-
-function updateProgress(percent, message) {
-    const value = Math.max(0, Math.min(100, Number(percent) || 0));
-
-    $("progressBar").style.width = value + "%";
-    $("progressPercent").textContent = value + "%";
-    $("progressLabel").textContent = value >= 100 ? "Completed" : "Working...";
-    $("statusMessage").textContent = message || "Creating your video...";
-}
-
-function renderAssets(assets) {
-    if (!Array.isArray(assets)) return;
-
-    lastAssets = assets;
-
-    const grid = $("assetGrid");
-    grid.innerHTML = "";
-
-    assets.forEach(asset => {
-        if (!asset || !asset.url) return;
-
-        const img = document.createElement("img");
-        img.src = asset.url;
-        img.alt = asset.kind || "Animation preview";
-        img.loading = "lazy";
-        grid.appendChild(img);
-    });
-}
-
-async function startVideoGeneration() {
-    clearMessage();
-
-    if (!validateStory()) return;
-
-    const pack = getPackage();
-
-    if (CFG.initialCredits < pack.credits) {
-        showMessage("You do not have enough credits. Please choose a smaller package.");
-        return;
-    }
-
-    const button = $("generateVideoBtn");
-    button.disabled = true;
-    button.textContent = "Starting generation...";
-
-    try {
-        const formData = new FormData();
-
-        formData.append("story", JSON.stringify(currentStory));
-        formData.append("style", $("style").value);
-        formData.append("language", $("language").value);
-        formData.append("duration", selectedDuration());
-        formData.append("aspect_ratio", $("aspectRatio").value);
-        formData.append("package_scenes", String(pack.scenes));
-        formData.append("package_cost", String(pack.credits));
-        formData.append("audience", $("audience").value);
-        formData.append("subtitles", $("subtitles").checked ? "1" : "0");
-        formData.append("music", $("music").checked ? "1" : "0");
-        formData.append("sfx", $("sfx").checked ? "1" : "0");
-
-        const imageFile = $("referenceImage").files[0];
-        const audioFile = $("narrationAudio").files[0];
-
-        if (imageFile) formData.append("image", imageFile);
-        if (audioFile) formData.append("audio", audioFile);
-
-        const response = await fetch(CFG.generateUrl, {
-            method: "POST",
-            credentials: "same-origin",
-            body: formData
-        });
-
-        const data = await readJsonResponse(response);
-
-        currentJobId = data.job_id || data.id;
-
-        if (!currentJobId) {
-            throw new Error("The server did not return a generation job ID.");
-        }
-
-        setStep(3);
-        showPanel("statusPanel");
-        updateProgress(0, data.message || "Your animation has started.");
-
-        await refreshCredits();
-        startPolling();
-
-    } catch (error) {
-        showMessage(error.message);
-        button.disabled = false;
-        button.textContent = "✨ Generate Cartoon Video";
-    }
-}
-
-function startPolling() {
-    if (pollingTimer) {
-        clearInterval(pollingTimer);
-    }
-
-    pollStatus();
-
-    pollingTimer = setInterval(pollStatus, 2500);
-}
-
-async function pollStatus() {
-    if (!currentJobId) return;
-
-    try {
-        const response = await fetch(
-            CFG.statusUrl + encodeURIComponent(currentJobId),
-            {
-                credentials: "same-origin",
-                cache: "no-store"
-            }
-        );
-
-        const data = await readJsonResponse(response);
-
-        updateProgress(
-            data.percent ?? data.progress ?? 0,
-            data.message || "Creating your video..."
-        );
-
-        renderAssets(data.assets || []);
-
-        const status = String(data.status || "").toLowerCase();
-
-        if (status === "done" || status === "completed" || status === "success") {
-            clearInterval(pollingTimer);
-            pollingTimer = null;
-
-            const result = data.result || data;
-
-            if (result.credits !== undefined) {
-                setCredits(result.credits);
-            } else {
-                await refreshCredits();
-            }
-
-            showResult(result);
-        }
-
-        if (status === "failed" || status === "error") {
-            clearInterval(pollingTimer);
-            pollingTimer = null;
-
-            await refreshCredits();
-
-            showMessage(
-                data.error || data.message || "Video generation failed. Please try again."
-            );
-
-            $("generateVideoBtn").disabled = false;
-            $("generateVideoBtn").textContent = "✨ Generate Cartoon Video";
-            setStep(2);
-            showPanel("storyPanel");
-        }
-
-    } catch (error) {
-        console.error("Status check failed:", error);
-        $("statusMessage").textContent =
-            "Connection interrupted. Trying again...";
-    }
-}
-
-function showResult(result) {
-    currentVideoId = result.video_id || result.id || null;
-    currentVideoUrl = result.video_url || result.url || null;
-
-    if (!currentVideoUrl) {
-        showMessage("Generation completed, but the server did not return a video URL.");
-        return;
-    }
-
-    $("resultVideo").src = currentVideoUrl;
-    $("downloadVideo").href = result.download_url || currentVideoUrl;
-    $("downloadVideo").setAttribute("download", result.filename || "eduvision-cartoon.mp4");
-
-    $("quizLink").href = result.quiz_url || "#";
-
-    $("resultDescription").textContent =
-        (result.title || "Your cartoon video") +
-        " is ready. Duration: " +
-        (result.duration || "Available in the video player.");
-
-    setStep(4);
-    showPanel("resultPanel");
-
-    showMessage("Your animation was generated successfully!", "success");
-    $("generateVideoBtn").disabled = false;
-    $("generateVideoBtn").textContent = "✨ Generate Cartoon Video";
-}
-
-async function exportVideo() {
-    if (!currentVideoId) {
-        showMessage("Video ID is missing. Please generate the video again.");
-        return;
-    }
-
-    const preset = $("exportPreset").value;
-    const button = $("exportBtn");
-
-    button.disabled = true;
-    button.textContent = "Exporting...";
-
-    try {
-        const response = await fetch(
-            CFG.exportUrl +
-            encodeURIComponent(currentVideoId) + "/" +
-            encodeURIComponent(preset),
-            {
-                method: "GET",
-                credentials: "same-origin"
-            }
-        );
-
-        if (response.status === 401) {
-            window.location.href = CFG.loginUrl;
-            return;
-        }
-
-        if (!response.ok) {
-            let message = "Could not export the video.";
-
-            try {
-                const data = await response.json();
-                message = data.error || data.message || message;
-            } catch {}
-
-            throw new Error(message);
-        }
-
-        const blob = await response.blob();
-        const objectUrl = URL.createObjectURL(blob);
-
-        const link = document.createElement("a");
-        link.href = objectUrl;
-        link.download = "eduvision-" + preset + ".mp4";
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-
-        URL.revokeObjectURL(objectUrl);
-
-        showMessage("Your exported video is ready.", "success");
-
-    } catch (error) {
-        showMessage(error.message);
-    } finally {
-        button.disabled = false;
-        button.textContent = "Export video";
-    }
-}
-
-function resetStudio() {
-    if (pollingTimer) {
-        clearInterval(pollingTimer);
-        pollingTimer = null;
-    }
-
-    currentStory = null;
-    currentJobId = null;
-    currentVideoId = null;
-    currentVideoUrl = null;
-    lastAssets = [];
-
-    $("prompt").value = "";
-    $("storyTitle").value = "";
-    $("storySummary").value = "";
-    $("referenceImage").value = "";
-    $("narrationAudio").value = "";
-    $("imageFileName").textContent = "";
-    $("audioFileName").textContent = "";
-    $("sceneList").innerHTML = "";
-    $("assetGrid").innerHTML = "";
-    $("resultVideo").removeAttribute("src");
-    $("resultVideo").load();
-
-    $("generateVideoBtn").disabled = false;
-    $("generateVideoBtn").textContent = "✨ Generate Cartoon Video";
-
-    clearMessage();
-    setStep(1);
-    showPanel("ideaPanel");
-    refreshCredits();
-}
-
-$("generateStoryBtn").addEventListener("click", generateStory);
-$("regenerateStoryBtn").addEventListener("click", regenerateStory);
-
-$("backToIdeaBtn").addEventListener("click", () => {
-    setStep(1);
-    showPanel("ideaPanel");
-});
-
-$("continueBtn").addEventListener("click", () => {
-    if (!validateStory()) return;
-    setStep(3);
-    showPanel("animationPanel");
-});
-
-$("backToStoryBtn").addEventListener("click", () => {
-    setStep(2);
-    showPanel("storyPanel");
-});
-
-$("generateVideoBtn").addEventListener("click", startVideoGeneration);
-$("exportBtn").addEventListener("click", exportVideo);
-$("createAnotherBtn").addEventListener("click", resetStudio);
-
-updatePackageSelection();
-refreshCredits();
+    <div id="storyRoot"></div>
+
+    <h2>Movie options</h2>
+    <div class="panel opts">
+      <label class="check"><input type="checkbox" id="opt-subs" checked>
+        <span>Subtitles<small>Show the spoken words on screen.</small></span></label>
+      <label class="check"><input type="checkbox" id="opt-music" checked>
+        <span>Background music<small>Soft music under the voices.</small></span></label>
+      <label class="check"><input type="checkbox" id="opt-sfx" checked>
+        <span>Sound effects<small>Whooshes, birds and other effects chosen for each scene.</small></span></label>
+      <div class="field" style="margin:6px 0 0">
+        <span class="lbl">Your own pictures (optional)</span>
+        <input type="file" id="file-image" accept=".jpg,.jpeg,.png" multiple>
+        <span class="hint">Pick as many as you like, up to <b id="maxPics">5</b> (one per scene). JPG or PNG, 10 MB each.
+          Picture 1 becomes scene 1, picture 2 becomes scene 2, and so on.</span>
+        <div class="thumbs" id="thumbs"></div>
+      </div>
+      <label class="field" style="margin:0">
+        <span class="lbl">Your own music (optional)</span>
+        <input type="file" id="file-audio" accept=".mp3,.wav,.m4a,.ogg">
+        <span class="hint">MP3, WAV, M4A or OGG, up to 15 MB. Used instead of the default music.</span>
+      </label>
+    </div>
+    <div class="row"><button type="button" class="btn ghost" id="backIdea">Change my idea</button></div>
+
+    <div class="makebar" id="makebar">
+      <div class="makeinfo">
+        <strong id="costLine"></strong>
+        <span id="costSub"></span>
+      </div>
+      <a class="btn ghost" id="earn" href="/game" hidden>Play games to earn credits</a>
+      <button type="button" class="btn primary" id="makeBtn">Make my movie</button>
+    </div>
+  </section>
+
+  <!-- 3. PROGRESS -->
+  <section id="stage-progress" aria-labelledby="prog-title" hidden>
+    <h1 id="prog-title">Making your movie</h1>
+    <p class="hint" style="margin:10px 0 0;max-width:62ch">
+      Animation takes a few minutes. Keep this page open, or come back later: your movie will also appear in My videos.
+    </p>
+    <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="1" id="barWrap"><div id="bar"></div></div>
+    <div class="pmsg" id="pmsg" aria-live="polite">Starting</div>
+    <div id="gallery-wrap" hidden>
+      <h2>Pictures so far</h2>
+      <div class="gallery" id="gallery"></div>
+    </div>
+    <div class="error-box" id="failBox" hidden>
+      <h3>The movie could not be finished</h3>
+      <p id="failMsg"></p>
+      <button class="btn primary" type="button" id="failBack">Back to my story</button>
+    </div>
+  </section>
+
+  <!-- 4. RESULT -->
+  <section id="stage-result" aria-labelledby="res-title" hidden>
+    <h1 id="res-title">Your movie is ready 🎉</h1>
+    <div id="resultRoot"></div>
+  </section>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script type="application/json" id="cfg-data">
+{"costByDuration": {{ duration_costs|tojson }}, "scenesByDuration": {{ scenes_by_duration|tojson }}, "styles": {{ styles|tojson }}, "falReady": {{ fal_ready|tojson }}, "credits": {{ credits|tojson }}}
 </script>
 
+<script>
+(function(){
+'use strict';
+
+const DEMO_CFG = {
+  costByDuration: { Short: 5, Medium: 10, Long: 15 },
+  scenesByDuration: { Short: 3, Medium: 5, Long: 8 },
+  styles: ['3D', '2D Flat', 'Anime', 'Watercolor'],
+  falReady: true,
+  credits: 60
+};
+let CFG, DEMO = false;
+try {
+  CFG = JSON.parse(document.getElementById('cfg-data').textContent);
+  if (!CFG || !CFG.styles || !CFG.scenesByDuration || !CFG.costByDuration) throw new Error('bad config');
+} catch (e) { CFG = DEMO_CFG; DEMO = true; }
+
+const URLS = {
+  story: "/api/cartoon/story",
+  regen: "/api/cartoon/regenerate-scene",
+  generate: "/api/cartoon/generate",
+  status: "/api/cartoon/status/__ID__",
+  credits: "/api/credits",
+  health: "/api/cartoon/health"
+};
+
+const LANGUAGES = ['English','Kannada','Hindi'];
+const ASPECTS = [['16:9','Widescreen','16:9'],['9:16','Phone','9:16'],['1:1','Square','1:1']];
+const VOICES = [['female','Woman'],['male','Man'],['child','Child'],['deep','Deep voice']];
+const EMOTIONS = ['happy','sad','angry','surprised','scared','excited','calm','curious','proud'];
+const SFX = [['','No sound effect'],['whoosh','Whoosh'],['magic','Magic'],['boing','Boing'],['roar','Roar'],
+             ['birds','Birds'],['water','Water'],['pop','Pop'],['footsteps','Footsteps'],['wind','Wind']];
+const STYLE_HINTS = {
+  '3D': 'Glossy 3D movie look',
+  '2D Flat': 'Flat colors, clean lines',
+  'Anime': 'Japanese anime look',
+  'Watercolor': 'Soft painted look',
+  'Storybook': 'Hand-drawn book look',
+  'Pixel art': 'Retro game look'
+};
+const AVATAR_COLORS = ['#5546e8','#e8513c','#12906f','#d9822b','#c13d94','#2b7bd9'];
+
+const state = { story:null, style:CFG.styles[0] || '3D', language:'English', aspect:'16:9', duration:'Medium',
+                images:[], jobId:null, timer:null, fails:0, seen:new Set(), credits:CFG.credits };
+
+const $ = (s, r) => (r || document).querySelector(s);
+
+function h(tag, attrs){
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === false || v == null) continue;
+    if (k === 'class') el.className = v;
+    else if (k === 'text') el.textContent = v;
+    else if (k.slice(0,2) === 'on') el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  for (const kid of Array.prototype.slice.call(arguments, 2).flat()) {
+    if (kid == null || kid === false) continue;
+    el.append(kid.nodeType ? kid : document.createTextNode(kid));
+  }
+  return el;
+}
+
+let toastTimer;
+function toast(msg, kind){
+  const t = $('#toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (kind || '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = 'toast'; }, 6500);
+}
+
+function currentCost(){ return CFG.costByDuration[state.duration] || 0; }
+
+function formatDuration(v){
+  const n = Number(v);
+  if (!isFinite(n) || n <= 0) return String(v || '');
+  const m = Math.floor(n / 60), s = Math.round(n % 60);
+  return m + ':' + String(s).padStart(2, '0');
+}
+
+/* ---------- preview-mode fake server (each style looks different) ---------- */
+const demo = { start:0, scenes:0, title:'', style:'3D' };
+function svgCard(emoji, hue, style){
+  let bg, extra = '', filt = '';
+  const t = '<text x="150" y="190" font-size="120" text-anchor="middle">' + emoji + '</text>';
+  if (style === '3D') {
+    bg = '<defs><radialGradient id="g" cx="35%" cy="30%"><stop offset="0" stop-color="hsl(' + hue + ',90%,92%)"/><stop offset="1" stop-color="hsl(' + hue + ',60%,45%)"/></radialGradient></defs><rect width="300" height="300" fill="url(#g)"/>';
+    extra = '<ellipse cx="150" cy="268" rx="80" ry="12" fill="rgba(0,0,0,.28)"/>';
+  } else if (style === '2D Flat') {
+    bg = '<rect width="300" height="300" fill="hsl(' + hue + ',75%,70%)"/><rect y="200" width="300" height="100" fill="hsl(' + hue + ',60%,50%)"/>';
+  } else if (style === 'Anime') {
+    let lines = '';
+    for (let i = 0; i < 18; i++) lines += '<line x1="150" y1="150" x2="' + (150 + 300 * Math.cos(i * Math.PI / 9)) + '" y2="' + (150 + 300 * Math.sin(i * Math.PI / 9)) + '" stroke="#fff" stroke-opacity=".55" stroke-width="5"/>';
+    bg = '<rect width="300" height="300" fill="hsl(' + hue + ',95%,65%)"/>' + lines;
+  } else if (style === 'Watercolor') {
+    bg = '<defs><filter id="b"><feGaussianBlur stdDeviation="14"/></filter></defs><rect width="300" height="300" fill="#f7f1e4"/><g filter="url(#b)"><circle cx="90" cy="100" r="85" fill="hsl(' + hue + ',70%,75%)"/><circle cx="220" cy="210" r="90" fill="hsl(' + ((hue + 70) % 360) + ',70%,80%)"/></g>';
+    filt = ' opacity=".85"';
+  } else {
+    bg = '<rect width="300" height="300" fill="hsl(' + hue + ',70%,82%)"/>';
+  }
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300">' + bg + extra + '<g' + filt + '>' + t + '</g></svg>';
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+}
+function demoStory(prompt, duration, style){
+  const n = CFG.scenesByDuration[duration] || 4;
+  const topic = prompt.split(/[.!?]/)[0].slice(0, 60) || 'A big adventure';
+  const heroName = 'Pip', friendName = 'Luna';
+  const beats = [
+    ['Once upon a time', 'A cosy hilltop village at sunrise', 'Pip wakes up and spots something unusual in the sky.', 'birds'],
+    ['A big problem', 'A windy meadow with tall grass', 'Pip and Luna discover that something important is missing.', 'wind'],
+    ['The journey begins', 'A winding forest path with glowing lanterns', 'The friends set off together, a little nervous but brave.', 'footsteps'],
+    ['A tricky moment', 'A shimmering river with stepping stones', 'The stones wobble, and Pip has to think of a clever plan.', 'water'],
+    ['Help from a friend', 'A sunny clearing full of curious animals', 'A stranger offers help, and the trio makes a new friend.', 'magic'],
+    ['The turning point', 'A tall hill under a rainbow', 'Pip tries one more time and finally succeeds.', 'pop'],
+    ['Celebration', 'The village square with colourful banners', 'Everyone cheers and shares a big happy meal.', 'whoosh'],
+    ['Happily ever after', 'The hilltop at golden sunset', 'Pip and Luna look at the stars, grateful for each other.', 'birds']
+  ];
+  const lines = ['Look at that! This is going to be amazing.', 'We can do it if we stay together.',
+                 'I was scared, but you made me brave.', 'Let us try again, one step at a time.'];
+  const emos = ['excited','curious','calm','proud','surprised','happy'];
+  const scenes = [];
+  for (let i = 0; i < n; i++) {
+    const b = (i === n - 1) ? beats[beats.length - 1] : beats[Math.min(i, beats.length - 1)];
+    scenes.push({
+      title: b[0], setting: b[1], action: b[2],
+      narration: 'Scene ' + (i + 1) + ': ' + b[2],
+      dialogue: [
+        { character: i % 2 ? friendName : heroName, line: lines[i % lines.length], emotion: emos[i % emos.length] }
+      ],
+      sfx: b[3]
+    });
+  }
+  return {
+    title: topic.replace(/^./, c => c.toUpperCase()),
+    logline: 'Two friends learn that courage grows when you share it.',
+    duration: duration,
+    style: style,
+    characters: [
+      { name: heroName, look: 'small round hero with big bright eyes and a red scarf', description: 'Shy but curious and kind.', voice: 'child' },
+      { name: friendName, look: 'tall cheerful friend with a yellow raincoat', description: 'Bold, funny and loyal.', voice: 'female' }
+    ],
+    scenes: scenes
+  };
+}
+function mock(url, opts){
+  return new Promise(resolve => setTimeout(() => {
+    const body = opts && typeof opts.body === 'string' ? JSON.parse(opts.body) : {};
+    if (url === URLS.story) return resolve({ ok:true, story:demoStory(body.prompt || '', body.duration, body.style) });
+    if (url === URLS.regen) {
+      const sc = JSON.parse(JSON.stringify(body.story.scenes[body.index]));
+      sc.narration = (body.instruction ? 'Rewritten (' + body.instruction + '): ' : 'Rewritten: ') + sc.action;
+      return resolve({ ok:true, scene:sc });
+    }
+    if (url === URLS.generate) {
+      const story = JSON.parse(opts.body.get('story'));
+      demo.start = Date.now(); demo.scenes = story.scenes.length; demo.title = story.title;
+      demo.style = opts.body.get('style') || state.style;
+      state.credits -= currentCost();
+      return resolve({ ok:true, job_id:'demo-1', credits:state.credits });
+    }
+    if (url.indexOf('/api/cartoon/status/') === 0) {
+      const pct = Math.min(100, Math.round((Date.now() - demo.start) / 120));
+      const msgs = ['Drawing the characters in ' + demo.style + ' style', 'Painting the scenes', 'Recording the voices', 'Adding music and effects', 'Putting it all together'];
+      const assets = [];
+      const shown = Math.floor(pct / 100 * demo.scenes);
+      for (let i = 0; i < shown; i++) {
+        assets.push({ url:svgCard(['🌄','🌲','🌊','🌈','🎉','🌟','🏡','🌙'][i % 8], 40 + i * 35, demo.style), title:'scene ' + i });
+      }
+      if (pct >= 100) return resolve({ ok:true, status:'done', percent:100, message:'Done', assets:assets, result:{
+        title:demo.title, duration:demo.scenes * 6, scenes:demo.scenes, credits:state.credits,
+        video_url:'', download_url:'#',
+        exports:{ 'Instagram Reel':'#', 'YouTube Short':'#', 'WhatsApp Status':'#' } } });
+      return resolve({ ok:true, status:'running', percent:pct, message:msgs[Math.min(4, Math.floor(pct / 20))], assets:assets });
+    }
+    if (url === URLS.credits) return resolve({ ok:true, credits:state.credits });
+    if (url === URLS.health) return resolve({ ok:true, checks:[] });
+    resolve({ ok:false, error:'Not available in preview mode.' });
+  }, 450));
+}
+
+async function api(url, opts){
+  if (DEMO) return mock(url, opts);
+  let res, data = {};
+  try { res = await fetch(url, opts); }
+  catch (e) { throw new Error('Could not reach the server. Check your connection and try again.'); }
+  try { data = await res.json(); } catch (e) { /* not JSON */ }
+  if (!res.ok || data.ok === false) {
+    throw new Error(data.error || data.message || ('Something went wrong (' + res.status + ').'));
+  }
+  return data;
+}
+
+function setCredits(n){
+  state.credits = Number(n) || 0;
+  $('#credits').textContent = state.credits;
+  if (state.story) updateCost();
+}
+async function refreshCredits(){
+  try { const d = await api(URLS.credits); setCredits(d.credits); } catch (e) { /* keep old value */ }
+}
+
+function showStage(name){
+  for (const s of ['idea','story','progress','result']) $('#stage-' + s).hidden = (s !== name);
+  window.scrollTo({ top: 0 });
+}
+
+/* ---------- choice chips ---------- */
+function chips(container, name, items, selected, onPick){
+  container.replaceChildren();
+  items.forEach(it => {
+    const input = h('input', { type:'radio', name:name, value:it.value });
+    input.checked = (it.value === selected);
+    input.addEventListener('change', () => onPick(it.value));
+    const label = h('span', {}, it.swatch ? h('i', { class:'sw sw-' + it.value.replace(/\s+/g, ''), 'aria-hidden':'true' }) : null,
+      h('b', { style:'font-weight:inherit;display:block' }, it.label, it.sub ? h('small', { text: it.sub }) : null));
+    container.append(h('label', { class:'chip' }, input, label));
+  });
+}
+
+/* The style can change at any time: the story text has no style in it,
+   the chosen style is applied by the server when the movie is made. */
+function pickStyle(v){
+  state.style = v;
+  renderStyleChips();
+  $('#styleName').textContent = v;
+  if (state.story) updateCost();
+}
+function renderStyleChips(){
+  const items = CFG.styles.map(s => ({ value:s, label:s, sub:STYLE_HINTS[s] || '', swatch:true }));
+  chips($('#styleChips'), 'style', items, state.style, pickStyle);
+  chips($('#styleChips2'), 'style2', items, state.style, pickStyle);
+}
+
+function buildIdeaForm(){
+  const prompt = $('#prompt');
+  prompt.value = '';
+  function updateCount(){ $('#count').textContent = prompt.value.length + ' / 800'; }
+  prompt.addEventListener('input', updateCount);
+  updateCount();
+
+  // Length and language change the story itself, so a new story is written.
+  const changed = () => { state.story = null; };
+
+  renderStyleChips();
+  chips($('#langChips'), 'language', LANGUAGES.map(l => ({ value:l, label:l })),
+    state.language, v => { state.language = v; changed(); });
+  const durations = Object.entries(CFG.scenesByDuration).sort((a, b) => a[1] - b[1]);
+  state.duration = (durations.find(d => d[0] === 'Medium') || durations[0])[0];
+  chips($('#durChips'), 'duration',
+    durations.map(([name, n]) => ({ value:name, label:name,
+      sub: n + ' scenes, ' + (CFG.costByDuration[name] || 0) + ' credits' })),
+    state.duration, v => { state.duration = v; changed(); });
+  chips($('#aspectChips'), 'aspect',
+    ASPECTS.map(a => ({ value:a[0], label:a[1], sub:a[2] })), state.aspect, v => state.aspect = v);
+}
+
+/* ---------- story editor ---------- */
+function field(label, get, set, opts){
+  opts = opts || {};
+  const input = opts.rows
+    ? h('textarea', { rows:opts.rows, maxlength:opts.max })
+    : h('input', { type:'text', maxlength:opts.max });
+  input.value = get() || '';
+  input.addEventListener('input', () => set(input.value));
+  if (opts.change) input.addEventListener('change', opts.change);
+  return h('label', { class:'field' }, h('span', { class:'lbl', text:label }), input);
+}
+
+function selectEl(options, value, onChange, label){
+  const sel = h('select', { 'aria-label':label });
+  options.forEach(o => {
+    const v = Array.isArray(o) ? o[0] : o, t = Array.isArray(o) ? o[1] : o;
+    sel.append(h('option', { value:v, text:t }));
+  });
+  sel.value = value;
+  sel.addEventListener('change', () => onChange(sel.value));
+  return sel;
+}
+
+function renderStory(){
+  const s = state.story, root = $('#storyRoot');
+  $('#langName').textContent = state.language;
+  $('#styleName').textContent = state.style;
+  renderStyleChips();
+  renderThumbs();
+  root.replaceChildren();
+
+  root.append(h('h2', { text:'Title' }),
+    h('div', { class:'panel' },
+      field('Movie title', () => s.title, v => { s.title = v; }, { max:100 }),
+      field('One-line summary', () => s.logline, v => { s.logline = v; }, { max:300 })));
+
+  const grid = h('div', { class:'chars' });
+  (s.characters || []).forEach((ch, ci) => {
+    let prev = ch.name;
+    const avatar = h('div', { class:'avatar', 'aria-hidden':'true', text:(ch.name || '?').charAt(0).toUpperCase() });
+    avatar.style.background = AVATAR_COLORS[ci % AVATAR_COLORS.length];
+    grid.append(h('div', { class:'char' },
+      avatar,
+      field('Name', () => ch.name, v => { ch.name = v; }, { max:60, change:() => {
+        const nn = (ch.name || '').trim();
+        if (!nn) { ch.name = prev; renderStory(); return; }
+        ch.name = nn;
+        s.scenes.forEach(sc => (sc.dialogue || []).forEach(d => { if (d.character === prev) d.character = nn; }));
+        prev = nn;
+        renderStory();
+      }}),
+      field('What they look like (English)', () => ch.look, v => { ch.look = v; }, { rows:2, max:300 }),
+      field('Personality', () => ch.description, v => { ch.description = v; }, { rows:2, max:300 }),
+      h('label', { class:'field' }, h('span', { class:'lbl', text:'Voice' }),
+        selectEl(VOICES, ch.voice, v => { ch.voice = v; }, 'Voice for ' + ch.name))));
+  });
+  root.append(h('h2', { text:'Characters' }), grid, h('h2', { text:'Scenes' }), h('div', { class:'scenes', id:'scenes' }));
+  renderScenes();
+  updateCost();
+}
+
+function renderScenes(){
+  const box = $('#scenes');
+  box.replaceChildren();
+  state.story.scenes.forEach((sc, i) => box.append(sceneCard(sc, i)));
+}
+
+function sceneCard(sc, i){
+  const s = state.story;
+  const names = (s.characters || []).map(c => c.name);
+  if (!Array.isArray(sc.dialogue)) sc.dialogue = [];
+
+  const dlg = h('div', {});
+  if (sc.dialogue.length) dlg.append(h('div', { class:'sub', text:'Spoken lines' }));
+  sc.dialogue.forEach((d, k) => {
+    const line = h('input', { type:'text', maxlength:120, 'aria-label':'Line ' + (k + 1) });
+    line.value = d.line || '';
+    line.addEventListener('input', () => { d.line = line.value; });
+    dlg.append(h('div', { class:'say' },
+      selectEl(names, d.character, v => { d.character = v; }, 'Who speaks line ' + (k + 1)),
+      line,
+      selectEl(EMOTIONS, d.emotion, v => { d.emotion = v; }, 'Feeling for line ' + (k + 1))));
+  });
+
+  const instr = h('input', { type:'text', maxlength:300, placeholder:'Optional: what should change? For example, make it funnier' });
+  const rewrite = h('button', { type:'button', class:'btn ghost small', text:'Rewrite this scene' });
+  rewrite.addEventListener('click', async () => {
+    const problem = validateStory();
+    if (problem) { toast(problem, 'error'); return; }
+    rewrite.disabled = true; rewrite.textContent = 'Rewriting';
+    try {
+      const d = await api(URLS.regen, { method:'POST', headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ story:s, index:i, instruction:instr.value,
+                               style:state.style, language:state.language }) });
+      s.scenes[i] = d.scene;
+      renderScenes();
+      toast('Scene ' + (i + 1) + ' rewritten.');
+    } catch (e) {
+      toast(e.message, 'error');
+      rewrite.disabled = false; rewrite.textContent = 'Rewrite this scene';
+    }
+  });
+
+  return h('article', { class:'scene' },
+    h('div', { class:'strip', 'aria-hidden':'true', text:String(i + 1) }),
+    h('div', { class:'scene-body' },
+      h('div', { class:'scene-head' },
+        field('Scene ' + (i + 1) + ' title', () => sc.title, v => { sc.title = v; }, { max:80 })),
+      h('div', { class:'two' },
+        field('Setting (English)', () => sc.setting, v => { sc.setting = v; }, { rows:2, max:300 }),
+        field('Action (English)', () => sc.action, v => { sc.action = v; }, { rows:2, max:400 })),
+      field('Narrator says', () => sc.narration, v => { sc.narration = v; }, { rows:2, max:250 }),
+      dlg,
+      h('label', { class:'field' }, h('span', { class:'lbl', text:'Sound effect' }),
+        selectEl(SFX, sc.sfx || '', v => { sc.sfx = v; }, 'Sound effect for scene ' + (i + 1))),
+      h('div', { class:'rewrite' }, instr, rewrite)));
+}
+
+function validateStory(){
+  const s = state.story;
+  if (!s || !s.scenes || !s.scenes.length) return 'The story needs at least one scene.';
+  for (let i = 0; i < s.scenes.length; i++) {
+    const sc = s.scenes[i];
+    const spoken = (sc.dialogue || []).some(d => (d.line || '').trim());
+    if (!(sc.narration || '').trim() && !spoken) return 'Scene ' + (i + 1) + ' needs narration or at least one spoken line.';
+  }
+  return '';
+}
+
+
+/* ---------- own pictures (many allowed) ---------- */
+function maxPictures(){ return (state.story && state.story.scenes.length) || CFG.scenesByDuration[state.duration] || 5; }
+function renderThumbs(){
+  $('#maxPics').textContent = maxPictures();
+  const box = $('#thumbs');
+  box.replaceChildren();
+  state.images.forEach((f, i) => {
+    const url = URL.createObjectURL(f);
+    const img = h('img', { src:url, alt:'Picture ' + (i + 1), onload:() => URL.revokeObjectURL(url) });
+    const rm = h('button', { type:'button', 'aria-label':'Remove picture ' + (i + 1), text:'×',
+      onclick:() => { state.images.splice(i, 1); renderThumbs(); } });
+    box.append(h('div', { class:'thumb' }, img, h('b', { text:String(i + 1) }), rm, h('small', { text:'Scene ' + (i + 1) })));
+  });
+}
+function addPictures(files){
+  const max = maxPictures();
+  for (const f of Array.from(files)) {
+    if (!/\.(jpe?g|png)$/i.test(f.name)) { toast(f.name + ' is not a JPG or PNG picture.', 'error'); continue; }
+    if (f.size > 10 * 1024 * 1024) { toast(f.name + ' is bigger than 10 MB.', 'error'); continue; }
+    if (state.images.length >= max) { toast('You can add up to ' + max + ' pictures for this movie.', 'error'); break; }
+    state.images.push(f);
+  }
+  $('#file-image').value = '';
+  renderThumbs();
+}
+
+/* ---------- cost bar ---------- */
+function updateCost(){
+  if (!state.story) return;
+  const n = state.story.scenes.length, cost = currentCost();
+  const enough = state.credits >= cost;
+  $('#costLine').textContent = state.duration + ' ' + state.style + ' movie: ' + n + (n === 1 ? ' scene' : ' scenes') + ' = ' + cost + ' credits';
+  const sub = $('#costSub');
+  sub.replaceChildren();
+  if (enough) sub.append('You have ' + state.credits + ' credits. Failed movies are refunded.');
+  else sub.append(h('span', { class:'low', text:'You need ' + (cost - state.credits) + ' more credits.' }),
+                  ' Play a game to earn them.');
+  if (!CFG.falReady) sub.append(' Animation is not set up yet, see the notice at the top.');
+  $('#earn').hidden = enough;
+  const btn = $('#makeBtn');
+  btn.disabled = !enough || !CFG.falReady;
+  btn.textContent = 'Make my movie';
+}
+
+/* ---------- actions ---------- */
+async function onIdeaSubmit(e){
+  e.preventDefault();
+  const prompt = $('#prompt').value.trim();
+  if (prompt.length < 5) { toast('Describe your idea in at least a short sentence.', 'error'); $('#prompt').focus(); return; }
+  const btn = $('#storyBtn');
+  btn.disabled = true; btn.textContent = 'Writing your story. This can take a minute';
+  try {
+    const d = await api(URLS.story, { method:'POST', headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ prompt:prompt, style:state.style, language:state.language, duration:state.duration }) });
+    state.story = d.story;
+    if (d.credits_by_duration) CFG.costByDuration = d.credits_by_duration;
+    renderStory();
+    showStage('story');
+  } catch (err) {
+    toast(err.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Write my story';
+  }
+}
+
+async function onMake(){
+  const problem = validateStory();
+  if (problem) { toast(problem, 'error'); return; }
+  const fd = new FormData();
+  fd.append('story', JSON.stringify(state.story));
+  fd.append('duration', state.duration);
+  fd.append('style', state.style);           // the style chosen right now
+  fd.append('language', state.language);
+  fd.append('aspect_ratio', state.aspect);
+  fd.append('subtitles', $('#opt-subs').checked ? 'on' : 'off');
+  fd.append('music', $('#opt-music').checked ? 'on' : 'off');
+  fd.append('sfx', $('#opt-sfx').checked ? 'on' : 'off');
+  const aud = $('#file-audio').files[0];
+  state.images.slice(0, maxPictures()).forEach(f => fd.append('images', f));
+  if (aud) fd.append('audio', aud);
+
+  const btn = $('#makeBtn');
+  btn.disabled = true; btn.textContent = 'Starting';
+  try {
+    const d = await api(URLS.generate, { method:'POST', body:fd });
+    setCredits(d.credits);
+    state.jobId = d.job_id;
+    try { sessionStorage.setItem('cartoonJob', JSON.stringify({ id:d.job_id, story:state.story, style:state.style })); } catch (e) {}
+    startProgress();
+  } catch (err) {
+    toast(err.message, 'error');
+    updateCost();
+  }
+}
+
+/* ---------- progress ---------- */
+function startProgress(){
+  state.seen = new Set(); state.fails = 0;
+  $('#gallery').replaceChildren(); $('#gallery-wrap').hidden = true; $('#failBox').hidden = true;
+  $('#bar').style.width = '1%'; $('#pmsg').textContent = 'Starting';
+  showStage('progress');
+  clearTimeout(state.timer);
+  tick();
+}
+
+function showAssets(list){
+  (list || []).forEach(a => {
+    if (state.seen.has(a.url)) return;
+    state.seen.add(a.url);
+    const caption = a.title || 'Picture';
+    $('#gallery-wrap').hidden = false;
+    $('#gallery').append(h('figure', {},
+      h('img', { src:a.url, alt:caption, loading:'lazy' }),
+      h('figcaption', { text:caption })));
+  });
+}
+
+async function tick(){
+  try {
+    const d = await api(URLS.status.replace('__ID__', encodeURIComponent(state.jobId)));
+    state.fails = 0;
+    const pct = Math.max(1, Math.min(100, d.percent || 1));
+    $('#bar').style.width = pct + '%';
+    $('#barWrap').setAttribute('aria-valuenow', pct);
+    $('#pmsg').textContent = d.message || 'Working';
+    showAssets(d.assets);
+    if (d.status === 'done' && d.result) { finish(d.result); return; }
+    if (d.status === 'failed') {
+      if (d.credits != null) setCredits(d.credits);
+      fail(d.error || 'The movie could not be finished. Your credits were refunded.');
+      return;
+    }
+  } catch (err) {
+    state.fails++;
+    if (/not found/i.test(err.message) || state.fails >= 6) { fail(err.message); return; }
+  }
+  state.timer = setTimeout(tick, DEMO ? 1200 : 3000);
+}
+
+function clearJob(){ try { sessionStorage.removeItem('cartoonJob'); } catch (e) {} }
+
+function fail(message){
+  clearJob();
+  $('#failMsg').textContent = message;
+  $('#failBox').hidden = false;
+  $('#pmsg').textContent = 'Stopped';
+  refreshCredits();
+}
+
+function finish(r){
+  clearJob();
+  if (r.credits != null) setCredits(r.credits);
+  const root = $('#resultRoot');
+  root.replaceChildren();
+  const player = r.video_url
+    ? h('video', { controls:true, preload:'metadata', playsinline:true, src:r.video_url })
+    : h('div', { class:'demo-video' }, h('div', {}, h('span', { text:'🎬' }), 'Your movie would play here.'));
+
+  let exportList = [];
+  if (Array.isArray(r.exports)) exportList = r.exports;
+  else if (r.exports) exportList = Object.entries(r.exports).map(([label, url]) => ({ label:label, url:url }));
+
+  const actions = [
+    h('a', { class:'btn primary', href:r.download_url, text:'Download movie' })
+  ];
+  if (r.quiz_url) actions.push(h('a', { class:'btn ghost', href:r.quiz_url, text:'Take a quiz about it' }));
+  actions.push(h('button', { class:'btn ghost', type:'button', text:'Make another cartoon', onclick:resetAll }));
+
+  root.append(
+    player,
+    h('h2', { text:r.title, style:'margin-top:20px' }),
+    h('p', { class:'meta', text:formatDuration(r.duration) + (r.duration ? ', ' : '') + r.scenes + (r.scenes === 1 ? ' scene' : ' scenes') }),
+    h('div', { class:'row' }, actions),
+    h('h3', { text:'Save for social media', style:'margin-top:22px' }),
+    h('p', { class:'hint', text:'Each button prepares a copy in the right shape. The first one can take a short while.' }),
+    h('div', { class:'exports' }, exportList.map(x =>
+      h('a', { class:'btn ghost small', href:x.url, text:x.label }))),
+    h('p', { class:'hint', style:'margin-top:22px' },
+      'Find this movie later in ', h('a', { href:"/my-videos", text:'My videos' }), '.'));
+  showStage('result');
+}
+
+function resetAll(){
+  state.story = null; state.jobId = null;
+  $('#storyRoot').replaceChildren();
+  state.images = []; renderThumbs(); $('#file-audio').value = '';
+  $('#prompt').value = ''; $('#count').textContent = '0 / 800';
+  showStage('idea');
+}
+
+/* ---------- setup check ---------- */
+async function checkSetup(){
+  try {
+    const d = await api(URLS.health);
+    const bad = (d.checks || []).filter(c => !c.ok);
+    if (!bad.length) return;
+    const box = $('#healthBanner');
+    box.replaceChildren(
+      h('strong', { text:'Setup needed before the studio can work:' }),
+      h('ul', { style:'margin:8px 0 0 18px;padding:0' },
+        bad.map(c => h('li', {}, h('b', { text:c.name + ': ' }), c.fix))));
+    box.hidden = false;
+  } catch (e) { /* the page still works without this notice */ }
+}
+
+/* ---------- start ---------- */
+$('#credits').textContent = state.credits;
+if (DEMO) $('#demoBanner').hidden = false;
+buildIdeaForm();
+$('#ideaForm').addEventListener('submit', onIdeaSubmit);
+$('#makeBtn').addEventListener('click', onMake);
+$('#file-image').addEventListener('change', e => addPictures(e.target.files));
+$('#backIdea').addEventListener('click', () => showStage('idea'));
+$('#failBack').addEventListener('click', () => { if (state.story) { renderStory(); showStage('story'); } else resetAll(); });
+showStage('idea');
+if (!DEMO) checkSetup();
+
+if (!DEMO) {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem('cartoonJob') || 'null');
+    if (saved && saved.id) {
+      state.jobId = saved.id; state.story = saved.story || null;
+      if (saved.style) state.style = saved.style;
+      if (state.story && state.story.duration) state.duration = state.story.duration;
+      renderStyleChips();
+      startProgress();
+    }
+  } catch (e) { clearJob(); }
+}
+})();
+</script>
 </body>
 </html>

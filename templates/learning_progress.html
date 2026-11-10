@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My Progress | EduVision</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <style>
+:root{
+  --bg:#f5f7ff; --card:#fff; --ink:#1d2342; --muted:#6a7192; --line:#e7eafa;
+  --blue:#3b82f6; --blue-soft:#e8f0ff; --purple:#6d5ef0; --purple-soft:#eeebff;
+  --green:#16b981; --green-soft:#dcf7ec; --amber:#f59e0b; --amber-soft:#fff3d6;
+  --shadow:0 6px 24px rgba(79,70,229,.08); --shadow-lg:0 14px 34px rgba(79,70,229,.16);
+  --r:20px;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Plus Jakarta Sans','Segoe UI',Arial,sans-serif;color:var(--ink);
+  background:radial-gradient(900px 380px at 100% -10%,#e4e0ff 0,transparent 60%),
+             radial-gradient(700px 320px at -10% 0,#dcecff 0,transparent 55%),var(--bg);
+  min-height:100vh;line-height:1.5}
+a{text-decoration:none;color:inherit}
+
+/* top bar */
+.topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:18px;padding:12px 28px;
+  background:rgba(255,255,255,.88);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.brand{font-weight:800;font-size:1.2rem;color:var(--purple);display:flex;gap:8px;align-items:center}
+.nav{display:flex;gap:4px;margin:0 auto}
+.nav a{display:flex;align-items:center;gap:7px;padding:9px 14px;border-radius:12px;color:var(--muted);font-weight:600;font-size:.92rem;transition:.2s}
+.nav a:hover{background:var(--purple-soft);color:var(--purple)}
+.nav a.active{background:var(--purple);color:#fff}
+.credit-pill{display:flex;gap:7px;align-items:center;background:var(--amber-soft);color:#a16207;font-weight:800;padding:8px 14px;border-radius:99px}
+
+.page{max-width:1120px;margin:0 auto;padding:30px 20px 70px}
+
+/* hero */
+.hero{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap;margin-bottom:26px}
+.eyebrow{margin:0 0 4px;color:var(--purple);font-weight:800;letter-spacing:.12em;text-transform:uppercase;font-size:.76rem}
+.hero h1{margin:0;font-size:clamp(1.5rem,3.4vw,2.1rem);line-height:1.2}
+.sub{margin:6px 0 0;color:var(--muted)}
+.btn{display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,var(--purple),var(--blue));color:#fff;
+  padding:12px 20px;border-radius:14px;font-weight:700;box-shadow:var(--shadow);transition:.2s}
+.btn:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+
+/* blocks + cards */
+.block{margin-bottom:26px}
+.block-title{display:flex;align-items:center;gap:10px;margin:0 0 14px;font-size:1.12rem}
+.block-title i{display:grid;place-items:center;width:34px;height:34px;border-radius:11px;background:var(--purple-soft);color:var(--purple);font-size:1rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:22px;box-shadow:var(--shadow);transition:.25s}
+.card:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg)}
+.card.block .block-title{margin-bottom:12px}
+.card-title{margin:0 0 14px;font-size:1rem;display:flex;gap:8px;align-items:center}
+.card-title.purple{color:var(--purple)} .card-title.blue{color:var(--blue)}
+.grid{display:grid;gap:16px}
+.stats{grid-template-columns:repeat(4,1fr)}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:26px}
+.block .two-col{margin-bottom:0}
+.two-col.wide-left{grid-template-columns:.8fr 1.2fr}
+
+/* overview stat cards */
+.stat{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:20px;box-shadow:var(--shadow);
+  display:flex;flex-direction:column;gap:12px;transition:.25s;position:relative;overflow:hidden}
+.stat:hover{transform:translateY(-4px);box-shadow:var(--shadow-lg)}
+.stat .ico{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;font-size:1.3rem}
+.stat .num{font-size:2rem;font-weight:800;line-height:1}
+.stat .lbl{color:var(--muted);font-weight:600;font-size:.9rem}
+.c-purple{background:var(--purple-soft);color:var(--purple)}
+.c-blue{background:var(--blue-soft);color:var(--blue)}
+.c-green{background:var(--green-soft);color:#0d9467}
+.c-amber{background:var(--amber-soft);color:#b45309}
+
+.big-line{display:flex;align-items:baseline;gap:10px;margin-bottom:6px}
+.big-line strong{font-size:2.4rem;color:var(--purple);line-height:1}
+.big-line span{color:var(--muted);font-weight:600}
+.mini-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+.mini{background:#f8f9ff;border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center}
+.mini b{display:block;font-size:1.35rem}
+.mini span{font-size:.76rem;color:var(--muted);font-weight:600}
+
+/* lists */
+.list,.timeline{list-style:none;margin:0;padding:0}
+.list li{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--line)}
+.list li:first-child{border-top:0}
+.li-ico{flex:none;width:38px;height:38px;border-radius:12px;display:grid;place-items:center}
+.li-main{flex:1;min-width:0}
+.li-main b{display:block;font-size:.93rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.li-main small{color:var(--muted)}
+.chip{flex:none;font-weight:800;font-size:.82rem;padding:5px 11px;border-radius:99px}
+.bar{height:6px;border-radius:9px;background:var(--line);margin-top:6px;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:9px;background:linear-gradient(90deg,var(--blue),var(--green));width:0;transition:width .9s ease}
+
+/* credits */
+.credit-card{background:linear-gradient(135deg,var(--purple),var(--blue));color:#fff;border:0}
+.credit-card .cc-label{opacity:.85;font-weight:600}
+.credit-card .cc-balance{font-size:3rem;font-weight:800;line-height:1.1;margin:4px 0 16px;display:flex;align-items:center;gap:10px}
+.cc-rows{display:grid;gap:8px}
+.cc-row{display:flex;justify-content:space-between;background:rgba(255,255,255,.16);padding:10px 14px;border-radius:12px;font-weight:600;font-size:.9rem}
+
+/* badges */
+.badges{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.badge{border:1px solid var(--line);border-radius:16px;padding:14px;text-align:center;background:#fafbff;transition:.25s}
+.badge:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+.badge .bi-wrap{width:52px;height:52px;margin:0 auto 8px;border-radius:50%;display:grid;place-items:center;font-size:1.4rem;background:#eceefb;color:#a3a9c9}
+.badge.on{background:linear-gradient(180deg,#fff,var(--green-soft));border-color:#b7ecd5}
+.badge.on .bi-wrap{background:linear-gradient(135deg,var(--green),#34d399);color:#fff}
+.badge b{display:block;font-size:.88rem}
+.badge small{display:block;color:var(--muted);font-size:.75rem;margin-top:2px}
+
+/* timeline */
+.timeline li{display:flex;gap:14px;padding:12px 0;position:relative}
+.timeline li:not(:last-child)::after{content:"";position:absolute;left:19px;top:52px;bottom:-2px;width:2px;background:var(--line)}
+.timeline .when{color:var(--muted);font-size:.78rem;white-space:nowrap}
+
+.empty{color:var(--muted);text-align:center;padding:16px 8px;font-size:.9rem}
+.state{text-align:center;padding:60px 20px;color:var(--muted)}
+.state button{margin-top:12px;border:0;cursor:pointer;font:inherit}
+.spinner{width:38px;height:38px;border:4px solid var(--purple-soft);border-top-color:var(--purple);border-radius:50%;margin:0 auto 12px;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.fade-in{animation:fade .5s ease both}
+@keyframes fade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+@media(max-width:900px){
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .two-col,.two-col.wide-left{grid-template-columns:1fr}
+}
+@media(max-width:720px){
+  .topbar{padding:10px 14px;flex-wrap:wrap;gap:8px}
+  .nav{order:3;width:100%;overflow-x:auto;margin:0}
+  .nav a span{display:none}.nav a{padding:10px 14px}
+  .credit-pill{margin-left:auto}
+}
+@media(max-width:420px){.stats{grid-template-columns:1fr 1fr;gap:10px}.mini-stats{grid-template-columns:1fr 1fr 1fr}.stat .num{font-size:1.6rem}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+  </style>
+</head>
+<body>
+{% macro tone(p) %}{{ 'c-green' if p >= 75 else ('c-blue' if p >= 40 else 'c-amber') }}{% endmacro %}
+{% macro row(icon, color, title, sub, chip='', chip_color='c-purple') %}
+  <li><span class="li-ico {{ color }}"><i class="bi {{ icon }}"></i></span>
+    <div class="li-main"><b>{{ title }}</b><small>{{ sub }}</small></div>
+    {% if chip %}<span class="chip {{ chip_color }}">{{ chip }}</span>{% endif %}</li>
+{% endmacro %}
+
+<header class="topbar">
+  <a class="brand" href="{{ url_for('dashboard') }}"><i class="bi bi-mortarboard-fill"></i> EduVision</a>
+  <nav class="nav">
+    <a href="{{ url_for('dashboard') }}"><i class="bi bi-grid"></i><span>Dashboard</span></a>
+    <a href="{{ url_for('dashboard') }}#my-videos"><i class="bi bi-play-circle"></i><span>Videos</span></a>
+    <a href="{{ url_for('games') }}"><i class="bi bi-controller"></i><span>Games</span></a>
+    <a href="{{ aptitude_url }}"><i class="bi bi-lightning-charge"></i><span>Aptitude</span></a>
+    <a class="active" href="{{ url_for('learning_progress') }}"><i class="bi bi-bar-chart-line"></i><span>My Progress</span></a>
+  </nav>
+  <div class="credit-pill" title="Your credits"><i class="bi bi-coin"></i> <span>{{ credits }}</span></div>
+</header>
+
+<main class="page">
+  <section class="hero">
+    <div>
+      <p class="eyebrow">My Progress</p>
+      <h1>Hi {{ user_name }}, here's how you're learning</h1>
+      <p class="sub">Your videos, games, quizzes and rewards in one place.</p>
+    </div>
+    <a class="btn" href="{{ url_for('generate_video_page') }}"><i class="bi bi-plus-circle"></i> New video</a>
+  </section>
+
+  {% if load_failed %}
+  <div class="state"><i class="bi bi-exclamation-circle" style="font-size:2rem;color:#f59e0b"></i>
+    <p>We could not load all your progress right now. Please refresh in a moment.</p></div>
+  {% endif %}
+
+  <!-- 1. Learning Overview -->
+  <section class="block">
+    <h2 class="block-title"><i class="bi bi-speedometer2"></i> Learning Overview</h2>
+    <div class="grid stats">
+      <div class="stat"><span class="ico c-purple"><i class="bi bi-camera-video"></i></span>
+        <span class="num" data-n="{{ data.overview.videos }}">{{ data.overview.videos }}</span><span class="lbl">Videos Generated</span></div>
+      <div class="stat"><span class="ico c-green"><i class="bi bi-controller"></i></span>
+        <span class="num" data-n="{{ data.overview.games }}">{{ data.overview.games }}</span><span class="lbl">Games Completed</span></div>
+      <div class="stat"><span class="ico c-blue"><i class="bi bi-patch-question"></i></span>
+        <span class="num" data-n="{{ data.overview.quizzes }}">{{ data.overview.quizzes }}</span><span class="lbl">Quizzes Attempted</span></div>
+      <div class="stat"><span class="ico c-amber"><i class="bi bi-lightning-charge"></i></span>
+        <span class="num" data-n="{{ data.overview.aptitude }}">{{ data.overview.aptitude }}</span><span class="lbl">Aptitude Tests</span></div>
+    </div>
+  </section>
+
+  <div class="two-col">
+    <!-- 2. Video Progress -->
+    <section class="block card">
+      <h2 class="block-title"><i class="bi bi-camera-video"></i> Video Progress</h2>
+      <div class="big-line"><strong>{{ data.videos.total }}</strong><span>videos generated</span></div>
+      <ul class="list">
+        {% for v in data.videos.recent %}
+          {{ row('bi-play-btn-fill', 'c-purple', v.title, v.style ~ ' · ' ~ v.language ~ ' · ' ~ (v.at|pp_date)) }}
+        {% else %}<li class="empty">No videos yet. Generate your first lesson!</li>{% endfor %}
+      </ul>
+    </section>
+
+    <!-- 3. Game Progress -->
+    <section class="block card">
+      <h2 class="block-title"><i class="bi bi-controller"></i> Game Progress</h2>
+      <div class="mini-stats">
+        <div class="mini"><b>{{ data.games.played }}</b><span>Games played</span></div>
+        <div class="mini"><b>{{ data.games.levels }}</b><span>Levels done</span></div>
+        <div class="mini"><b>{{ data.games.highest }}%</b><span>Highest score</span></div>
+      </div>
+      {% set maxlv = [1] %}{% for g in data.games.list %}{% if g.levels > maxlv[0] %}{% set _ = maxlv.__setitem__(0, g.levels) %}{% endif %}{% endfor %}
+      <ul class="list">
+        {% for g in data.games.list %}
+        <li><span class="li-ico c-green"><i class="bi bi-joystick"></i></span>
+          <div class="li-main"><b>{{ g.name }}</b><small>{{ g.plays }} plays · {{ g.levels }} levels</small>
+            <div class="bar"><i style="width: {{ (g.levels * 100 // maxlv[0]) }}%"></i></div></div>
+          <span class="chip c-green">Best {{ g.best }}</span></li>
+        {% else %}<li class="empty">Play a game to see your scores here.</li>{% endfor %}
+      </ul>
+    </section>
+  </div>
+
+  <!-- 4. Quiz & Aptitude Performance -->
+  <section class="block">
+    <h2 class="block-title"><i class="bi bi-clipboard2-data"></i> Quiz &amp; Aptitude Performance</h2>
+    <div class="two-col">
+      <div class="card">
+        <h3 class="card-title purple"><i class="bi bi-patch-question"></i> Video Quizzes</h3>
+        <div class="mini-stats">
+          <div class="mini"><b>{{ data.quizzes.attempted }}</b><span>Attempted</span></div>
+          <div class="mini"><b>{{ data.quizzes.average }}%</b><span>Average</span></div>
+          <div class="mini"><b>{{ data.quizzes.highest }}%</b><span>Highest</span></div>
+        </div>
+        <ul class="list">
+          {% for r in data.quizzes.recent %}
+            {{ row('bi-check2-circle', tone(r.pct), r.title, r.score ~ '/' ~ r.total ~ ' correct · ' ~ (r.at|pp_date), r.pct ~ '%', tone(r.pct)) }}
+          {% else %}<li class="empty">Take a quiz from one of your videos.</li>{% endfor %}
+        </ul>
+      </div>
+      <div class="card">
+        <h3 class="card-title blue"><i class="bi bi-lightning-charge"></i> Aptitude Arena</h3>
+        <div class="mini-stats">
+          <div class="mini"><b>{{ data.aptitude.attempted }}</b><span>Attempted</span></div>
+          <div class="mini"><b>{{ data.aptitude.average }}%</b><span>Average</span></div>
+          <div class="mini"><b>{{ data.aptitude.highest }}%</b><span>Highest</span></div>
+        </div>
+        <ul class="list">
+          {% for r in data.aptitude.recent %}
+            {% if r.pct is none %}{{ row('bi-lightning-charge-fill', 'c-blue', r.label, r.at|pp_date) }}
+            {% else %}{{ row('bi-lightning-charge-fill', tone(r.pct), r.label, r.at|pp_date, r.pct ~ '%', tone(r.pct)) }}{% endif %}
+          {% else %}<li class="empty">Try a test in Aptitude Arena.</li>{% endfor %}
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. Achievements & Credits -->
+  <section class="block">
+    <h2 class="block-title"><i class="bi bi-award"></i> Achievements &amp; Credits</h2>
+    <div class="two-col wide-left">
+      <div class="card credit-card">
+        <div class="cc-label">Current credit balance</div>
+        <div class="cc-balance"><i class="bi bi-coin"></i>{{ data.credits.balance }}</div>
+        <div class="cc-rows">
+          <div class="cc-row"><span>Earned from games</span><span>+{{ data.credits.from_games }}</span></div>
+          <div class="cc-row"><span>Earned from quizzes</span><span>+{{ data.credits.from_quizzes }}</span></div>
+          <div class="cc-row"><span>Total rewards earned</span><span>+{{ data.credits.total_earned }}</span></div>
+        </div>
+      </div>
+      <div class="card"><div class="badges">
+        {% for b in data.achievements %}
+        <div class="badge {{ 'on' if b.unlocked else '' }}" title="{{ b.desc }}">
+          <div class="bi-wrap"><i class="bi {{ b.icon if b.unlocked else 'bi-lock' }}"></i></div>
+          <b>{{ b.name }}</b><small>{{ 'Unlocked' if b.unlocked else b.desc }}</small></div>
+        {% endfor %}
+      </div></div>
+    </div>
+  </section>
+
+  <!-- 6. Recent Activity -->
+  <section class="block card">
+    <h2 class="block-title"><i class="bi bi-clock-history"></i> Recent Activity</h2>
+    <ul class="timeline">
+      {% set icons = {'video': ('bi-camera-video','c-purple'), 'game': ('bi-controller','c-green'), 'quiz': ('bi-patch-check','c-blue'), 'aptitude': ('bi-lightning-charge','c-amber')} %}
+      {% for a in data.activity %}
+      {% set ic = icons.get(a.type, icons['video']) %}
+      <li><span class="li-ico {{ ic[1] }}"><i class="bi {{ ic[0] }}"></i></span>
+        <div class="li-main"><b>{{ a.title }}</b><small>{{ a.detail }}</small></div>
+        <span class="when">{{ a.at|pp_date }}</span></li>
+      {% else %}<li class="empty">Your recent activity will appear here.</li>{% endfor %}
+    </ul>
+  </section>
+</main>
+
+<script>
+  /* Optional count-up animation. The numbers are already on the page without it. */
+  document.querySelectorAll(".num[data-n]").forEach(function (el) {
+    var target = parseInt(el.getAttribute("data-n"), 10) || 0, start = performance.now();
+    if (target <= 0) return;
+    (function tick(now) {
+      var t = Math.min(1, (now - start) / 700);
+      el.textContent = Math.round(target * (1 - Math.pow(1 - t, 3)));
+      if (t < 1) requestAnimationFrame(tick);
+    })(start);
+  });
+</script>
+</body>
+</html>

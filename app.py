@@ -21,7 +21,7 @@ from functools import wraps
 import uuid
 
 from flask import (
-    Flask, abort, flash, jsonify, redirect, render_template,
+    Flask, abort, current_app, flash, jsonify, redirect, render_template,
     render_template_string, request, send_from_directory, session, url_for,
 )
 import mysql.connector
@@ -31,6 +31,12 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
 from services.video_generator import extract_text, generate_video_package
+
+try:
+    # Same limit as the generator (default 7 minutes, change with MAX_VIDEO_MINUTES in .env).
+    from services.video_generator import MAX_VIDEO_MINUTES as GEN_MAX_VIDEO_MINUTES
+except ImportError:
+    GEN_MAX_VIDEO_MINUTES = 7
 
 try:
     from game_data import GAMES as DATA_GAMES, build_payload as data_build_payload
@@ -46,6 +52,19 @@ except ImportError:
     from routes.learning import learning_bp  # if learning.py lives in routes/
 
 app = Flask(__name__)
+
+# Always pick up edited templates and never let the browser keep an old copy of a page.
+app.config["TEMPLATES_AUTO_RELOAD"] = True
+app.jinja_env.auto_reload = True
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
+
+
+@app.after_request
+def _no_cache_for_pages(response):
+    if response.mimetype == "text/html":
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+    return response
 
 app.secret_key = os.getenv("FLASK_SECRET_KEY") or secrets.token_hex(32)
 if not os.getenv("FLASK_SECRET_KEY"):
@@ -106,12 +125,16 @@ def tutor_url_for_video(video_id):
     if not video_id:
         return "/ai-tutor/"
     try:
-        return url_for("ai_tutor.tutor_home", video_id=video_id)
+        return url_for("ai_tutor.tutor_page", video_id=video_id)
     except BuildError:
         return f"/ai-tutor/?video_id={int(video_id)}"
 
 
 app.jinja_env.globals["tutor_url_for_video"] = tutor_url_for_video
+
+# Some templates (e.g. cartoon_studio.html) use `current_app.view_functions`.
+# Flask does not give templates `current_app` by default, so expose it here.
+app.jinja_env.globals["current_app"] = current_app
 
 
 # ============================================================
@@ -465,9 +488,9 @@ def inject_cartoon_helpers():
 
 
 CARTOON_SCENES_BY_DURATION = {"Short": 3, "Medium": 5, "Long": 8}
-# These names are sent to /api/cartoon/story as they are. Make sure they match
-# the styles your routes/cartoon_studio.py accepts.
-CARTOON_STYLES = ["3D", "2D Flat", "Anime", "Watercolor"]
+# These must match the styles in services/cartoon_generator.py (STYLES). The dashboard
+# uses this list to tell cartoon movies apart from educational lessons.
+CARTOON_STYLES = ["2D", "3D", "Anime", "Storybook", "Kids Cartoon", "Fantasy"]
 
 
 def _cartoon_ready():
@@ -485,8 +508,10 @@ if "cartoon.cartoon_studio" not in app.view_functions:
             "cartoon_studio.html",
             credits=get_user_credits(session["user_id"]),
             cost_per_scene=CARTOON_CREDITS_PER_SCENE,
+            cost_by_duration={"Short": 5, "Medium": 10, "Long": 15},
             scenes_by_duration=CARTOON_SCENES_BY_DURATION,
             styles=CARTOON_STYLES,
+            presets={},
             fal_ready=_cartoon_ready(),
         )
 
@@ -510,6 +535,43 @@ def calculate_streak(active_days):
         streak += 1
         today -= timedelta(days=1)
     return streak
+
+
+def get_game_days(user_id):
+    """Dates on which the user played at least one game (used for the daily streak).
+
+    Only games count: game plays, game levels, game activity rows and Aptitude Arena tests.
+    Logging in or generating a video does NOT extend the streak.
+    """
+    days = set()
+    connection = get_db_connection()
+    if connection is None:
+        return days
+    cursor = None
+    try:
+        cursor = connection.cursor(dictionary=True)
+        for sql in (
+            "SELECT DISTINCT DATE(played_at) AS d FROM game_plays WHERE user_id = %s",
+            "SELECT DISTINCT DATE(created_at) AS d FROM game_level_rewards WHERE user_id = %s",
+            "SELECT DISTINCT activity_date AS d FROM user_activity "
+            "WHERE user_id = %s AND activity_type = 'game'",
+        ):
+            for row in _pp_query(cursor, sql, (user_id,)):
+                if row.get("d") is not None:
+                    days.add(row["d"])
+        for attempt in _pp_aptitude_attempts(cursor, user_id):
+            if attempt.get("at"):
+                try:
+                    days.add(datetime.fromisoformat(attempt["at"]).date())
+                except ValueError:
+                    pass
+    except Error as exc:
+        app.logger.warning("Game days query failed: %s", exc)
+    finally:
+        if cursor is not None:
+            cursor.close()
+        connection.close()
+    return days
 
 
 def load_dashboard_data(user_id):
@@ -579,47 +641,9 @@ def load_dashboard_data(user_id):
 @app.route("/my-videos")
 @login_required
 def my_generated_videos():
-    user_id = session.get("user_id")
-
-    connection = get_db_connection()
-    if connection is None:
-        flash("Database connection failed.", "error")
-        return redirect(url_for("dashboard"))
-
-    cursor = None
-    try:
-        cursor = connection.cursor(dictionary=True)
-        cursor.execute(
-            """
-            SELECT
-                id,
-                title,
-                title AS prompt,
-                description,
-                video_style,
-                language,
-                filename,
-                filename AS file_name,
-                created_at
-            FROM generated_videos
-            WHERE user_id = %s
-            ORDER BY created_at DESC
-            """,
-            (user_id,),
-        )
-        videos = cursor.fetchall()
-        # Each video card gets an "Ask AI Tutor" link tied to that video.
-        for video in videos:
-            video["tutor_url"] = tutor_url_for_video(video.get("id"))
-        return render_template("my_generated_videos.html", videos=videos)
-    except Error as exc:
-        app.logger.error("Could not load videos: %s", exc)
-        flash("Unable to load generated videos.", "error")
-        return redirect(url_for("dashboard"))
-    finally:
-        if cursor:
-            cursor.close()
-        connection.close()
+    # The video library lives on the dashboard ("My Generated Videos" section),
+    # so this URL simply sends people there.
+    return redirect(url_for("dashboard") + "#my-videos")
 
 
 # Serve a generated video belonging to the logged-in user
@@ -690,10 +714,75 @@ def download_generated_video(video_id):
     filename = Path(video.get("filename") or "").name
     if not filename or not (GENERATED_DIR / filename).is_file():
         flash("This video file is no longer available.", "error")
-        return redirect(url_for("my_generated_videos"))
+        return redirect(url_for("dashboard") + "#my-videos")
     nice_name = secure_filename(video.get("title") or "lesson")[:60] or "lesson"
     return send_from_directory(
         str(GENERATED_DIR), filename, as_attachment=True, download_name=nice_name + ".mp4"
+    )
+
+
+# ---- Open one saved cartoon movie (used by "Open in Studio" on the dashboard) ----
+CARTOON_MOVIE_PAGE = """
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{ title }} | EduVision Cartoon Studio</title>
+<style>
+body{margin:0;font-family:'Segoe UI',Arial,sans-serif;background:#fbfaff;color:#1f1b3d}
+.top{display:flex;align-items:center;gap:16px;padding:12px 28px;background:#1f1b3d;color:#fff}
+.top a{color:#d9d5ff;text-decoration:none;font-weight:600}
+.brand{margin-right:auto;font-weight:800;font-size:1.2rem;color:#fff!important}
+main{max-width:900px;margin:0 auto;padding:28px 20px 60px}
+video{width:100%;max-height:70vh;background:#000;border-radius:14px}
+h1{margin:20px 0 4px}.meta{color:#645f82}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+.btn{padding:12px 22px;border-radius:11px;font-weight:800;text-decoration:none}
+.primary{background:#5546e8;color:#fff}.ghost{background:#f0eeff;color:#4335cb}
+</style></head><body>
+<header class="top">
+  <a class="brand" href="{{ dashboard_url }}">EduVision Cartoon Studio</a>
+  <a href="{{ dashboard_url }}#my-videos">My videos</a>
+</header>
+<main>
+  <video controls preload="metadata" src="{{ video_url }}"></video>
+  <h1>{{ title }}</h1>
+  <p class="meta">{{ style }} &middot; {{ language }}{% if created %} &middot; {{ created }}{% endif %}</p>
+  <div class="row">
+    <a class="btn primary" href="{{ download_url }}">Download movie</a>
+    <a class="btn ghost" href="{{ studio_url }}">Make another cartoon</a>
+    <a class="btn ghost" href="{{ dashboard_url }}#my-videos">Back to my videos</a>
+  </div>
+</main></body></html>
+"""
+
+
+@app.route("/cartoon-movie/<int:video_id>")
+@login_required
+def cartoon_movie_page(video_id):
+    """Open one saved cartoon movie (owner only). Cartoon movies have no quiz."""
+    video = get_video_for_user(video_id, session["user_id"])
+    if not video:
+        abort(404)
+    filename = Path(video.get("filename") or "").name
+    if not filename or not (GENERATED_DIR / filename).is_file():
+        flash("This movie file is no longer available.", "error")
+        return redirect(url_for("dashboard") + "#my-videos")
+
+    try:
+        studio_url = url_for("cartoon.cartoon_studio")
+    except BuildError:
+        studio_url = "/cartoon-studio"
+
+    created = video.get("created_at")
+    return render_template_string(
+        CARTOON_MOVIE_PAGE,
+        title=video.get("title") or "Cartoon Movie",
+        style=(video.get("video_style") or "Cartoon").replace("_", " ").title(),
+        language=(video.get("language") or "English").title(),
+        created=created.strftime("%d %b %Y") if hasattr(created, "strftime") else "",
+        video_url=url_for("generated_video_file", filename=filename),
+        download_url=url_for("download_generated_video", video_id=video_id),
+        studio_url=studio_url,
+        dashboard_url=url_for("dashboard"),
     )
 
 
@@ -706,7 +795,7 @@ def delete_generated_video(video_id):
     connection = get_db_connection()
     if connection is None:
         flash("Database connection failed.", "error")
-        return redirect(url_for("my_generated_videos"))
+        return redirect(url_for("dashboard") + "#my-videos")
 
     cursor = None
     filename = None
@@ -721,7 +810,7 @@ def delete_generated_video(video_id):
 
         if not record:
             flash("Video not found.", "error")
-            return redirect(url_for("my_generated_videos"))
+            return redirect(url_for("dashboard") + "#my-videos")
 
         filename = record[0]
 
@@ -748,7 +837,7 @@ def delete_generated_video(video_id):
             cursor.close()
         connection.close()
 
-    return redirect(url_for("my_generated_videos"))
+    return redirect(url_for("dashboard") + "#my-videos")
 
 
 # ============================================================
@@ -1634,6 +1723,53 @@ def generated_video(filename):
     return send_from_directory(str(GENERATED_DIR), filename)
 
 
+# The dashboard template no longer contains the video form, cartoon promo or game hub.
+# This safety net removes any leftover <section> that still contains these headings,
+# using proper open/close tag counting (works with nested sections).
+_DASHBOARD_REMOVE_PHRASES = [
+    "BRING YOUR IDEAS TO LIFE",
+    "Create something amazing",
+    "STORIES THAT MOVE",
+    "AI Cartoon & Animation Studio",
+    "AI Cartoon &amp; Animation Studio",
+]
+_SECTION_TAG = re.compile(r"<(/?)section\b", re.I)
+
+
+def _strip_sections_with_text(html, phrases):
+    for phrase in phrases:
+        search_from = 0
+        while True:
+            idx = html.lower().find(phrase.lower(), search_from)
+            if idx == -1:
+                break
+            start = html.rfind("<section", 0, idx)
+            if start == -1:
+                search_from = idx + len(phrase)
+                continue
+            depth, end = 0, None
+            for m in _SECTION_TAG.finditer(html, start):
+                depth += -1 if m.group(1) else 1
+                if depth == 0:
+                    end = html.find(">", m.end()) + 1
+                    break
+            # Only remove if the section really wraps the phrase.
+            if end is None or end <= idx:
+                search_from = idx + len(phrase)
+                continue
+            html = html[:start] + html[end:]
+            search_from = start
+    return html
+
+
+def _clean_dashboard_html(html):
+    """Keep the dashboard clean: no video form, cartoon promo or game hub on the main page.
+
+    Generate Educational Video and Create Cartoon Movie stay in the sidebar.
+    """
+    return _strip_sections_with_text(html, _DASHBOARD_REMOVE_PHRASES)
+
+
 @app.route("/dashboard")
 @login_required
 def dashboard():
@@ -1691,6 +1827,13 @@ def dashboard():
 
     session["credits"] = data["credits"]
 
+    # Daily streak: counts only days with a played game. Missing a day breaks it.
+    game_days = get_game_days(user_id)
+    today = date.today()
+    streak_value = calculate_streak(game_days)
+    played_today = today in game_days
+    week_days = [(today - timedelta(days=6 - i)) in game_days for i in range(7)]
+
     # Build the "My Generated Videos" library
     generated_videos = []
 
@@ -1701,10 +1844,20 @@ def dashboard():
         if not filename or not (GENERATED_DIR / filename).is_file():
             continue
 
+        # Cartoon movies are saved with a cartoon style (3D, 2D, Anime, ...).
+        style_name = str(video.get("style") or "Educational")
+        is_cartoon = (
+            style_name.strip().lower() in {c.lower() for c in CARTOON_STYLES}
+            or "cartoon" in style_name.lower()
+        )
+
         generated_videos.append({
             "id": video.get("id"),
-            "title": video.get("title") or "Untitled Lesson",
-            "video_style": video.get("style") or "Educational",
+            "title": video.get("title") or ("Cartoon Movie" if is_cartoon else "Untitled Lesson"),
+            "video_type": "cartoon" if is_cartoon else "educational",
+            "cartoon_style": style_name if is_cartoon else "",
+            "download_url": url_for("download_generated_video", video_id=video.get("id")),
+            "video_style": style_name,
             "language": video.get("language") or "English",
             "filename": filename,
             "url": url_for("generated_video", filename=filename),
@@ -1736,7 +1889,7 @@ def dashboard():
         for video in generated_videos[:5]
     ]
 
-    return render_template(
+    page_html = render_template(
         "dashboard.html",
         user_name=session.get("user_name", "Learner"),
         user_email=session.get("user_email", ""),
@@ -1755,8 +1908,10 @@ def dashboard():
         quizzes_completed=quizzes_completed,
         games_played=games_played,
         learning_progress=learning_progress_value,
-        learning_streak=data["streak"],
-        streak=data["streak"],
+        learning_streak=streak_value,
+        streak=streak_value,
+        daily_done=played_today,
+        week_days=week_days,
         recent_activities=recent_activities,
         games=GAMES,
         progress={
@@ -1766,6 +1921,7 @@ def dashboard():
             "games_played": games_played,
         },
     )
+    return _clean_dashboard_html(page_html)
 
 
 @app.route("/ask_question", methods=["POST"])
@@ -1786,10 +1942,15 @@ def ask_question():
 # VIDEO GENERATION
 # ============================================================
 # Two ways in:
-#   POST /generate_video/start          (AJAX) starts a background job -> {job_id}
-#   GET  /generate_video/status/<id>    (AJAX) live percent, message, result or error
-#   POST /generate_video                (plain form, e.g. dashboard quick form) waits and redirects
-# Both share _parse_video_form() and _execute_video_job().
+#   POST /generate_video/start          (AJAX) charges the credits, starts a background job -> {job_id, credits}
+#   GET  /generate_video/status/<id>    (AJAX) live percent, message, credits, result or error
+#   GET  /generate_video/active         (AJAX) the user's running job, if any (page refresh)
+#   POST /generate_video/cancel         (AJAX) stops the job and refunds the credits
+#   POST /generate_video                (plain form) waits and redirects
+#
+# CREDITS: the cost is deducted the moment generation starts (inside /start), and the
+# live balance is returned with every status poll. It is refunded automatically when the
+# video fails or is cancelled. A video that finishes keeps the charge.
 
 ALLOWED_UPLOADS = {".pdf", ".txt", ".png", ".jpg", ".jpeg"}
 IMAGE_UPLOADS = {".png", ".jpg", ".jpeg"}
@@ -1800,9 +1961,27 @@ VALID_DIFFICULTIES = {"Beginner", "Intermediate", "Advanced"}
 VALID_AUDIENCES = {"Kids", "School Students", "College Students", "Teachers"}
 VALID_ASPECTS = {"16:9", "9:16"}
 VALID_DURATIONS = {"Short", "Medium", "Long"}
+VALID_VOICES = {"Female", "Male"}
+# Longest video a user can ask for (type any number of minutes from 1 up to this).
+MAX_VIDEO_MINUTES = max(1, int(os.getenv("MAX_VIDEO_MINUTES", str(GEN_MAX_VIDEO_MINUTES))))
+
+
+def _is_on(value):
+    """Checkbox helper: unchecked boxes are missing; checked ones send 'on' (or true/1/yes)."""
+    return str(value or "").strip().lower() in ("on", "true", "1", "yes")
+
+
+class JobCancelled(BaseException):
+    """Raised inside a video job when the user pressed Cancel.
+
+    It derives from BaseException on purpose: the generator only swallows Exception
+    in its progress reporting, so this passes straight through and stops the job.
+    """
+
 
 VIDEO_JOBS = {}
-VIDEO_JOBS_LOCK = threading.Lock()
+VIDEO_JOBS_LOCK = threading.RLock()
+JOB_STALE_SECONDS = 600   # a job with no progress for 10 minutes is treated as dead
 
 
 def _cleanup_files(paths):
@@ -1816,15 +1995,26 @@ def _cleanup_files(paths):
 def _parse_video_form(form, files):
     """Validate the form, save uploads to temp files and return (params, temp_paths).
 
+    Every look/sound choice is optional: an empty or missing value falls back to a default.
     Raises ValueError with a user-friendly message.
     """
     topic = (form.get("topic") or form.get("prompt") or "").strip()[:1000]
-    style = form.get("video_style", "Educational")
-    language = form.get("language", "English")
+    style = form.get("video_style") or "Educational"
+    language = form.get("language") or "English"
     audience = form.get("audience_level") or form.get("audience") or "School Students"
-    difficulty = form.get("difficulty", "Beginner")
-    aspect_ratio = form.get("aspect_ratio", "16:9")
-    duration = form.get("duration", "Medium")
+    difficulty = form.get("difficulty") or "Beginner"
+    aspect_ratio = form.get("aspect_ratio") or "16:9"
+    duration = form.get("duration") or "Medium"          # old Short / Medium / Long still works
+    voice = form.get("voice") or "Female"
+    minutes_raw = (form.get("duration_minutes") or "").strip()
+    duration_minutes = None
+    if minutes_raw:
+        try:
+            duration_minutes = int(float(minutes_raw))
+        except ValueError:
+            raise ValueError("Video length must be a whole number of minutes.")
+        if not 1 <= duration_minutes <= MAX_VIDEO_MINUTES:
+            raise ValueError(f"Video length must be between 1 and {MAX_VIDEO_MINUTES} minutes.")
 
     if style not in VALID_STYLES:
         raise ValueError("Please select a valid video style.")
@@ -1837,7 +2027,9 @@ def _parse_video_form(form, files):
     if aspect_ratio not in VALID_ASPECTS:
         raise ValueError("Please select a valid aspect ratio.")
     if duration not in VALID_DURATIONS:
-        raise ValueError("Please select Short, Medium or Long duration.")
+        raise ValueError("Please select a valid video length.")
+    if voice not in VALID_VOICES:
+        raise ValueError("Please select Female or Male voice.")
 
     uploads = [f for f in (files.getlist("files") + files.getlist("file")) if f and f.filename]
     if len(uploads) > MAX_UPLOAD_FILES:
@@ -1910,9 +2102,11 @@ def _parse_video_form(form, files):
         "difficulty": difficulty,
         "aspect_ratio": aspect_ratio,
         "duration": duration,
-        "subtitles": form.get("subtitles") == "on",
-        "highlights": form.get("highlight_concepts") == "on",
-        "music": form.get("background_music") == "on",
+        "duration_minutes": duration_minutes,
+        "voice": voice,
+        "subtitles": _is_on(form.get("subtitles")),
+        "highlights": _is_on(form.get("highlight_concepts")),
+        "music": _is_on(form.get("background_music")),
         "image_path": image_path,
     }
     return params, temp_paths
@@ -1924,20 +2118,38 @@ def _call_generator(**kwargs):
     return generate_video_package(**{k: v for k, v in kwargs.items() if k in accepted})
 
 
-def _execute_video_job(user_id, params, temp_paths, progress=None):
-    """Charge credits, build the video, save it. Refunds and cleans up on any failure.
+def _release_job_charge(job_id):
+    """Clear the 'credits are held for this job' flag.
 
+    Returns True only the first time it is called for a job that still held credits, so the
+    refund (or the final keep) can never happen twice.
+    """
+    with VIDEO_JOBS_LOCK:
+        job = VIDEO_JOBS.get(job_id)
+        if job and job.get("charged"):
+            job["charged"] = False
+            return True
+    return False
+
+
+def _execute_video_job(user_id, params, temp_paths, progress=None, job_id=None):
+    """Build the video and save it. Refunds and cleans up on any failure.
+
+    job_id given  -> the credits were ALREADY deducted in /generate_video/start.
+    job_id None   -> (plain form) the credits are deducted here.
     Runs in a worker thread or the request thread, so it must not touch `session`.
     """
-    charged = False
+    pre_charged = job_id is not None
+    charged_here = False
     created_file = None
     try:
-        if not charge_credits(user_id, VIDEO_COST):
-            raise ValueError(
-                f"You need {VIDEO_COST} credits to generate a video. "
-                "Play a learning game to earn more."
-            )
-        charged = True
+        if not pre_charged:
+            if not charge_credits(user_id, VIDEO_COST):
+                raise ValueError(
+                    f"You need {VIDEO_COST} credits to generate a video. "
+                    "Play a learning game to earn more."
+                )
+            charged_here = True
 
         result = _call_generator(
             source_text=params["source_text"],
@@ -1951,6 +2163,8 @@ def _execute_video_job(user_id, params, temp_paths, progress=None):
             music=params["music"],
             image_path=params["image_path"],
             duration=params["duration"],
+            duration_minutes=params.get("duration_minutes"),
+            voice=params.get("voice", "Female"),
             progress=progress,
         )
         created_file = Path(result["path"])
@@ -1966,8 +2180,12 @@ def _execute_video_job(user_id, params, temp_paths, progress=None):
         if not video_id:
             raise RuntimeError("The video was generated, but its database record could not be saved.")
 
-        charged = False
-        created_file = None  # saved successfully, keep the file
+        # Saved successfully: keep the charge and keep the file.
+        if pre_charged:
+            _release_job_charge(job_id)
+        else:
+            charged_here = False
+        created_file = None
         log_activity(user_id, "video")
         bump_video_progress(user_id)
 
@@ -1983,7 +2201,10 @@ def _execute_video_job(user_id, params, temp_paths, progress=None):
             "duration": f"{minutes}m {seconds:02d}s",
         }
     finally:
-        if charged:
+        if pre_charged:
+            if _release_job_charge(job_id):          # still held -> it failed or was cancelled
+                refund_credits(user_id, VIDEO_COST)
+        elif charged_here:
             refund_credits(user_id, VIDEO_COST)
         if created_file is not None:
             try:
@@ -2000,33 +2221,70 @@ def _friendly_error(exc):
     return f"Video generation failed. Your credits were refunded. ({text})"
 
 
+def _active_job_id(user_id):
+    """Return the id of this user's live job (call with VIDEO_JOBS_LOCK held).
+
+    A job that made no progress for JOB_STALE_SECONDS is closed and its credits refunded.
+    """
+    now = time.time()
+    for jid, job in list(VIDEO_JOBS.items()):
+        if job["user_id"] != user_id or job["status"] not in ("queued", "running"):
+            continue
+        if now - job.get("updated", job["created"]) > JOB_STALE_SECONDS:
+            job.update(status="failed", cancelled=True, finished=now,
+                       error="The previous video stopped responding. Your credits were refunded.")
+            if _release_job_charge(jid):
+                refund_credits(user_id, VIDEO_COST)
+            continue
+        return jid
+    return None
+
+
 def _video_job_worker(job_id, user_id, params, temp_paths):
     def progress(percent, message):
         with VIDEO_JOBS_LOCK:
             job = VIDEO_JOBS.get(job_id)
-            if job:
+            if job is None or job.get("cancelled"):
+                cancelled = True
+            else:
+                cancelled = False
                 job["status"] = "running"
                 job["percent"] = max(job["percent"], min(99, int(percent)))
                 job["message"] = str(message)
+                job["updated"] = time.time()
+        if cancelled:
+            raise JobCancelled()
 
     try:
-        info = _execute_video_job(user_id, params, temp_paths, progress)
+        info = _execute_video_job(user_id, params, temp_paths, progress, job_id=job_id)
         with VIDEO_JOBS_LOCK:
             job = VIDEO_JOBS.get(job_id)
-            if job:
-                job.update(status="done", percent=100, message="Your video is ready!", result=info)
-    except Exception as exc:
+            if job and not job.get("cancelled"):
+                job.update(status="done", percent=100, message="Your video is ready!", result=info,
+                           finished=time.time(), updated=time.time())
+    except JobCancelled:
+        app.logger.info("Video job %s was cancelled by the user.", job_id)
+    except BaseException as exc:
         app.logger.exception("Educational video generation failed")
         with VIDEO_JOBS_LOCK:
             job = VIDEO_JOBS.get(job_id)
-            if job:
-                job.update(status="failed", error=_friendly_error(exc))
+            if job and not job.get("cancelled"):
+                job.update(status="failed", error=_friendly_error(exc), finished=time.time())
+    finally:
+        # Whatever happened, the job must never stay "running" forever.
+        with VIDEO_JOBS_LOCK:
+            job = VIDEO_JOBS.get(job_id)
+            if job and job["status"] in ("queued", "running"):
+                job.update(status="failed", error="The video job ended unexpectedly. "
+                                                  "Your credits were refunded.", finished=time.time())
 
 
 def _prune_jobs():
     cutoff = time.time() - 3600
     with VIDEO_JOBS_LOCK:
-        for job_id in [k for k, v in VIDEO_JOBS.items() if v["created"] < cutoff]:
+        for job_id in [k for k, v in VIDEO_JOBS.items()
+                       if v["status"] in ("done", "failed")
+                       and v.get("finished", v["created"]) < cutoff]:
             VIDEO_JOBS.pop(job_id, None)
 
 
@@ -2043,6 +2301,7 @@ def _render_generate_page(video_url=None, video_info=None, quiz_url=None, downlo
         quiz_url=quiz_url,
         download_url=download_url,
         tutor_url=tutor_url,
+        max_minutes=MAX_VIDEO_MINUTES,
     )
 
 
@@ -2052,16 +2311,17 @@ def generate_video_start():
     user_id = session["user_id"]
     _prune_jobs()
 
+    # Already running? Re-attach to it instead of showing an error.
     with VIDEO_JOBS_LOCK:
-        for job in VIDEO_JOBS.values():
-            if job["user_id"] == user_id and job["status"] in ("queued", "running"):
-                return jsonify(ok=False, error="A video is already being generated for you. "
-                                               "Please wait for it to finish."), 409
+        existing = _active_job_id(user_id)
+    if existing:
+        return jsonify(ok=True, job_id=existing, resumed=True,
+                       credits=get_user_credits(user_id))
 
     if get_user_credits(user_id) < VIDEO_COST:
         return jsonify(ok=False, error=f"You need {VIDEO_COST} credits to generate a video. "
-                                       "Play a learning game to earn more."), 402
-
+                                       "Play a learning game to earn more.",
+                       credits=get_user_credits(user_id)), 402
     try:
         params, temp_paths = _parse_video_form(request.form, request.files)
     except ValueError as exc:
@@ -2070,16 +2330,75 @@ def generate_video_start():
         app.logger.exception("Could not read the upload")
         return jsonify(ok=False, error=f"Could not read your upload: {type(exc).__name__}"), 400
 
+    # Deduct the credits NOW, so the balance drops as soon as generation starts.
+    if not charge_credits(user_id, VIDEO_COST):
+        _cleanup_files(temp_paths)
+        return jsonify(ok=False, error=f"You need {VIDEO_COST} credits to generate a video. "
+                                       "Play a learning game to earn more.",
+                       credits=get_user_credits(user_id)), 402
+
     job_id = uuid.uuid4().hex
+    now = time.time()
     with VIDEO_JOBS_LOCK:
-        VIDEO_JOBS[job_id] = {
-            "user_id": user_id, "status": "queued", "percent": 1,
-            "message": "Starting", "error": "", "result": None, "created": time.time(),
-        }
-    threading.Thread(
-        target=_video_job_worker, args=(job_id, user_id, params, temp_paths), daemon=True
-    ).start()
-    return jsonify(ok=True, job_id=job_id)
+        existing = _active_job_id(user_id)          # check again: double-click safe
+        if existing:
+            duplicate = True
+        else:
+            duplicate = False
+            VIDEO_JOBS[job_id] = {
+                "user_id": user_id, "status": "queued", "percent": 1, "message": "Starting",
+                "error": "", "result": None, "created": now, "updated": now,
+                "cancelled": False, "charged": True,
+            }
+    if duplicate:
+        refund_credits(user_id, VIDEO_COST)         # the second click paid twice: give it back
+        _cleanup_files(temp_paths)
+        balance = get_user_credits(user_id)
+        session["credits"] = balance
+        return jsonify(ok=True, job_id=existing, resumed=True, credits=balance)
+
+    try:
+        threading.Thread(target=_video_job_worker, args=(job_id, user_id, params, temp_paths),
+                         daemon=True).start()
+    except Exception:
+        app.logger.exception("Could not start the video worker thread")
+        with VIDEO_JOBS_LOCK:
+            VIDEO_JOBS.pop(job_id, None)
+        refund_credits(user_id, VIDEO_COST)
+        _cleanup_files(temp_paths)
+        return jsonify(ok=False, error="Could not start the video. Your credits were refunded.",
+                       credits=get_user_credits(user_id)), 500
+
+    balance = get_user_credits(user_id)
+    session["credits"] = balance
+    return jsonify(ok=True, job_id=job_id, credits=balance)
+
+
+@app.route("/generate_video/active")
+@login_required
+def generate_video_active():
+    with VIDEO_JOBS_LOCK:
+        jid = _active_job_id(session["user_id"])
+    return jsonify(ok=True, job_id=jid, credits=get_user_credits(session["user_id"]))
+
+
+@app.route("/generate_video/cancel", methods=["POST"])
+@login_required
+def generate_video_cancel():
+    """Stops the running job and refunds its credits immediately."""
+    user_id = session["user_id"]
+    with VIDEO_JOBS_LOCK:
+        ids = [jid for jid, job in VIDEO_JOBS.items()
+               if job["user_id"] == user_id and job["status"] in ("queued", "running")]
+        for jid in ids:
+            VIDEO_JOBS[jid].update(status="failed", cancelled=True, error="Cancelled.",
+                                   finished=time.time())
+    for jid in ids:
+        if _release_job_charge(jid):                # refund exactly once
+            refund_credits(user_id, VIDEO_COST)
+    balance = get_user_credits(user_id)
+    session["credits"] = balance
+    return jsonify(ok=True, credits=balance)
 
 
 @app.route("/generate_video/status/<job_id>")
@@ -2092,17 +2411,18 @@ def generate_video_status(job_id):
     if not job or job["user_id"] != session["user_id"]:
         return jsonify(ok=False, error="This video job was not found. Check My Videos."), 404
 
+    balance = get_user_credits(session["user_id"])
+    session["credits"] = balance
     payload = {"ok": True, "status": job["status"], "percent": job["percent"],
-               "message": job["message"], "error": job["error"]}
+               "message": job["message"], "error": job["error"], "credits": balance}
     if job["status"] == "done" and job["result"]:
         info = job["result"]
-        session["credits"] = get_user_credits(session["user_id"])
         payload["result"] = {
             "video_url": url_for("generated_video_file", filename=info["filename"]),
             "download_url": url_for("download_generated_video", video_id=info["video_id"]),
             "quiz_url": url_for("video_quiz.video_quiz_page", video_id=info["video_id"]),
             "tutor_url": tutor_url_for_video(info["video_id"]),
-            "credits": session["credits"],
+            "credits": balance,
             "info": {k: info[k] for k in ("title", "language", "style", "difficulty",
                                           "aspect_ratio", "duration")},
         }
@@ -2348,74 +2668,282 @@ def qa():
     return render_template("qa.html", user_name=session.get("user_name", "Student"))
 
 
+@app.template_filter("pp_date")
+def pp_date_filter(value):
+    """Friendly date for the My Progress page."""
+    if not value:
+        return ""
+    try:
+        when = datetime.fromisoformat(str(value))
+    except ValueError:
+        return str(value)[:10]
+    diff = (datetime.now() - when).total_seconds()
+    if 0 <= diff < 60:
+        return "Just now"
+    if 0 <= diff < 3600:
+        return f"{int(diff // 60)} min ago"
+    if 0 <= diff < 86400:
+        return f"{int(diff // 3600)} hr ago"
+    return when.strftime("%d %b %Y")
+
+
+def _pp_empty_payload(credits=0):
+    return {
+        "overview": {"videos": 0, "games": 0, "quizzes": 0, "aptitude": 0},
+        "videos": {"total": 0, "recent": []},
+        "games": {"played": 0, "levels": 0, "highest": 0, "list": []},
+        "quizzes": {"attempted": 0, "average": 0, "highest": 0, "recent": []},
+        "aptitude": {"attempted": 0, "average": 0, "highest": 0, "recent": []},
+        "credits": {"balance": credits, "from_games": 0, "from_quizzes": 0, "total_earned": 0},
+        "achievements": [], "activity": [],
+    }
+
+
 @app.route("/learning-progress")
 @login_required
 def learning_progress():
+    """My Progress page. All numbers are rendered on the server (no JavaScript needed)."""
+    data = build_progress_payload(session["user_id"])
+    load_failed = data is None
+    if load_failed:
+        data = _pp_empty_payload(get_user_credits(session["user_id"]))
+    return render_template(
+        "learning_progress.html",
+        user_name=session.get("user_name", "Student"),
+        credits=data["credits"]["balance"],
+        data=data,
+        load_failed=load_failed,
+    )
+
+
+def _pp_iso(value):
+    if value is None or value == "":
+        return None
+    return value.isoformat() if hasattr(value, "isoformat") else str(value)
+
+
+def _pp_query(cursor, sql, params=(), one=False):
+    """Run a read-only query; a failure in one section never breaks the page."""
+    try:
+        cursor.execute(sql, params)
+        return (cursor.fetchone() or {}) if one else cursor.fetchall()
+    except Error as exc:
+        app.logger.warning("My Progress query skipped: %s", exc)
+        return {} if one else []
+
+
+def _pp_columns(cursor, table):
+    rows = _pp_query(
+        cursor,
+        "SELECT COLUMN_NAME FROM information_schema.COLUMNS "
+        "WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s",
+        (DB_CONFIG["database"], table),
+    )
+    names = set()
+    for row in rows:
+        value = list(row.values())[0]
+        names.add(value.decode() if isinstance(value, (bytes, bytearray)) else value)
+    return names
+
+
+def _pp_aptitude_attempts(cursor, user_id):
+    """Read aptitude_attempts using whichever columns really exist in your table."""
+    cols = _pp_columns(cursor, "aptitude_attempts")
+    if "user_id" not in cols:
+        return []
+
+    def pick(options):
+        return next((c for c in options if c in cols), None)
+
+    pct = pick(["percentage", "score_pct", "accuracy", "percent"])
+    score = pick(["score", "correct_answers", "correct"])
+    total = pick(["total_questions", "total", "total_marks"])
+    when = pick(["completed_at", "created_at", "attempted_at", "submitted_at", "finished_at", "started_at"])
+    label = pick(["category", "topic", "test_name", "title", "section", "level", "difficulty"])
+
+    select = [
+        f"`{pct}` AS pct" if pct else "NULL AS pct",
+        f"`{score}` AS score" if score else "NULL AS score",
+        f"`{total}` AS total" if total else "NULL AS total",
+        f"`{when}` AS at" if when else "NULL AS at",
+        f"`{label}` AS label" if label else "NULL AS label",
+    ]
+    order = f"ORDER BY `{when}` DESC" if when else ("ORDER BY id DESC" if "id" in cols else "")
+    rows = _pp_query(
+        cursor,
+        f"SELECT {', '.join(select)} FROM aptitude_attempts WHERE user_id = %s {order} LIMIT 500",
+        (user_id,),
+    )
+    attempts = []
+    for r in rows:
+        try:
+            if r["pct"] is not None:
+                value = float(r["pct"])
+            elif r["score"] is not None and r["total"]:
+                value = float(r["score"]) / float(r["total"]) * 100
+            else:
+                value = None
+        except (TypeError, ValueError, ZeroDivisionError):
+            value = None
+        attempts.append({
+            "pct": None if value is None else round(max(0, min(100, value))),
+            "at": _pp_iso(r["at"]),
+            "label": str(r["label"]) if r["label"] else "Aptitude test",
+        })
+    return attempts
+
+
+def build_progress_payload(user_id):
     connection = get_db_connection()
     if connection is None:
-        flash("Database connection error.", "error")
-        return redirect(url_for("dashboard"))
+        return None
     cursor = None
     try:
         cursor = connection.cursor(dictionary=True)
-        user_id = session["user_id"]
-        cursor.execute(
-            "SELECT videos_generated, quizzes_completed, games_played, total_score "
-            "FROM learning_progress WHERE user_id = %s",
-            (user_id,),
+
+        user = _pp_query(cursor, "SELECT name, credits FROM users WHERE id = %s", (user_id,), one=True)
+        lp = _pp_query(cursor, "SELECT videos_generated, quizzes_completed, games_played "
+                               "FROM learning_progress WHERE user_id = %s", (user_id,), one=True)
+
+        # ---- Videos
+        vcount = _pp_query(cursor, "SELECT COUNT(*) AS n FROM generated_videos WHERE user_id = %s",
+                           (user_id,), one=True)
+        total_videos = max(int(lp.get("videos_generated") or 0), int(vcount.get("n") or 0))
+        videos = [
+            {"title": v["title"] or "Educational Lesson", "style": v["video_style"] or "Lesson",
+             "language": v["language"] or "English", "at": _pp_iso(v["created_at"])}
+            for v in _pp_query(cursor, "SELECT title, video_style, language, created_at FROM generated_videos "
+                                       "WHERE user_id = %s ORDER BY created_at DESC LIMIT 6", (user_id,))
+        ]
+
+        # ---- Games
+        plays = {r["game_key"]: r for r in _pp_query(
+            cursor, "SELECT game_key, COUNT(*) AS plays, MAX(score_pct) AS best FROM game_plays "
+                    "WHERE user_id = %s GROUP BY game_key", (user_id,))}
+        levels = {r["game_key"]: r for r in _pp_query(
+            cursor, "SELECT game_key, completed_levels, best_score FROM game_progress WHERE user_id = %s",
+            (user_id,))}
+        game_rows = []
+        for key in set(plays) | set(levels):
+            p, l = plays.get(key, {}), levels.get(key, {})
+            game_rows.append({
+                "name": GAMES.get(key, {}).get("name") or key.replace("_", " ").title(),
+                "plays": int(p.get("plays") or 0),
+                "levels": int(l.get("completed_levels") or 0),
+                "best": max(int(p.get("best") or 0), int(l.get("best_score") or 0)),
+            })
+        game_rows.sort(key=lambda g: (g["plays"], g["levels"]), reverse=True)
+        games_played = max(
+            sum(g["plays"] for g in game_rows),
+            int(lp.get("games_played") or 0),
+            len([g for g in game_rows if g["levels"] > 0]),  # games where levels were completed
         )
-        progress = cursor.fetchone() or {
-            "videos_generated": 0, "quizzes_completed": 0,
-            "games_played": 0, "total_score": 0,
+        games = {
+            "played": games_played,
+            "levels": sum(g["levels"] for g in game_rows),
+            "highest": max([g["best"] for g in game_rows] or [0]),
+            "list": game_rows[:6],
         }
-        cursor.execute("SELECT credits FROM users WHERE id = %s", (user_id,))
-        user = cursor.fetchone()
-        return render_template(
-            "learning_progress.html",
-            user_name=session.get("user_name", "Student"),
-            credits=int(user["credits"] or 0) if user else 0,
-            progress=progress,
-        )
-    except Error:
-        app.logger.exception("Learning progress page failed")
-        flash("Unable to load learning progress.", "error")
-        return redirect(url_for("dashboard"))
+
+        # ---- Video quizzes
+        q = _pp_query(cursor, "SELECT COUNT(*) AS n, AVG(percentage) AS avg, MAX(percentage) AS mx "
+                              "FROM video_quiz_attempts WHERE user_id = %s", (user_id,), one=True)
+        quiz_recent = [
+            {"title": r["title"] or "Video quiz", "score": int(r["score"] or 0),
+             "total": int(r["total_questions"] or 0), "pct": int(r["percentage"] or 0),
+             "at": _pp_iso(r["completed_at"])}
+            for r in _pp_query(
+                cursor, "SELECT a.score, a.total_questions, a.percentage, a.completed_at, v.title "
+                        "FROM video_quiz_attempts a LEFT JOIN generated_videos v ON v.id = a.video_id "
+                        "WHERE a.user_id = %s ORDER BY a.completed_at DESC LIMIT 5", (user_id,))
+        ]
+        quiz_count = int(q.get("n") or 0) or int(lp.get("quizzes_completed") or 0)
+        quizzes = {"attempted": quiz_count, "average": round(float(q.get("avg") or 0)),
+                   "highest": int(q.get("mx") or 0), "recent": quiz_recent}
+
+        # ---- Aptitude Arena
+        attempts = _pp_aptitude_attempts(cursor, user_id)
+        scored = [a["pct"] for a in attempts if a["pct"] is not None]
+        aptitude = {"attempted": len(attempts),
+                    "average": round(sum(scored) / len(scored)) if scored else 0,
+                    "highest": max(scored) if scored else 0,
+                    "recent": attempts[:5]}
+
+        # ---- Credits (reads the existing users.credits and existing reward tables only)
+        lvl = _pp_query(cursor, "SELECT COALESCE(SUM(credits_earned),0) AS s FROM game_level_rewards "
+                                "WHERE user_id = %s", (user_id,), one=True)
+        gp = _pp_query(cursor, "SELECT COALESCE(SUM(credits_earned),0) AS s FROM game_plays "
+                               "WHERE user_id = %s", (user_id,), one=True)
+        vq = _pp_query(cursor, "SELECT COALESCE(SUM(credits_earned),0) AS s FROM video_quiz_attempts "
+                               "WHERE user_id = %s", (user_id,), one=True)
+        from_games = int(lvl.get("s") or 0) + int(gp.get("s") or 0)
+        from_quizzes = int(vq.get("s") or 0)
+        credits = {"balance": int(user.get("credits") or 0), "from_games": from_games,
+                   "from_quizzes": from_quizzes, "total_earned": from_games + from_quizzes}
+
+        # ---- Achievements: calculated from the real numbers above (no new table)
+        goals = [
+            ("First Video", "Generate your first video", "bi-camera-video", total_videos, 1),
+            ("Video Creator", "Generate 5 videos", "bi-collection-play", total_videos, 5),
+            ("Game Starter", "Play your first game", "bi-controller", games["played"], 1),
+            ("Level Climber", "Complete 10 game levels", "bi-graph-up-arrow", games["levels"], 10),
+            ("Quiz Taker", "Attempt a video quiz", "bi-patch-question", quizzes["attempted"], 1),
+            ("Quiz Ace", "Score 90% or more in a quiz", "bi-trophy", quizzes["highest"], 90),
+            ("Aptitude Challenger", "Attempt an Aptitude Arena test", "bi-lightning-charge", aptitude["attempted"], 1),
+            ("Credit Collector", "Earn 100 credits", "bi-coin", credits["total_earned"], 100),
+        ]
+        achievements = [{"name": n, "desc": d, "icon": i, "current": min(c, t), "target": t,
+                         "unlocked": c >= t} for n, d, i, c, t in goals]
+
+        # ---- Recent activity (merged, newest first)
+        activity = [{"type": "video", "title": v["title"], "detail": f'{v["style"]} video generated', "at": v["at"]}
+                    for v in videos]
+        for r in _pp_query(cursor, "SELECT game_key, score_pct, credits_earned, played_at FROM game_plays "
+                                   "WHERE user_id = %s ORDER BY played_at DESC LIMIT 6", (user_id,)):
+            activity.append({
+                "type": "game",
+                "title": GAMES.get(r["game_key"], {}).get("name") or r["game_key"].replace("_", " ").title(),
+                "detail": f'Score {int(r["score_pct"] or 0)}%' +
+                          (f' · +{int(r["credits_earned"])} credits' if r["credits_earned"] else ""),
+                "at": _pp_iso(r["played_at"])})
+        activity += [{"type": "quiz", "title": r["title"], "detail": f'{r["score"]}/{r["total"]} correct · {r["pct"]}%',
+                      "at": r["at"]} for r in quiz_recent]
+        activity += [{"type": "aptitude", "title": a["label"],
+                      "detail": "Test attempted" if a["pct"] is None else f'Score {a["pct"]}%', "at": a["at"]}
+                     for a in attempts[:5]]
+        activity.sort(key=lambda a: a["at"] or "", reverse=True)
+
+        return {"name": user.get("name") or session.get("user_name", "Student"),
+                "overview": {"videos": total_videos, "games": games["played"],
+                             "quizzes": quizzes["attempted"], "aptitude": aptitude["attempted"]},
+                "videos": {"total": total_videos, "recent": videos},
+                "games": games, "quizzes": quizzes, "aptitude": aptitude,
+                "credits": credits, "achievements": achievements, "activity": activity[:10]}
+    except Exception:
+        app.logger.exception("My Progress data failed")
+        return None
     finally:
         if cursor is not None:
             cursor.close()
         connection.close()
+
+
+@app.route("/api/learning-progress")
+@login_required
+def api_learning_progress():
+    """JSON for the My Progress page. Always uses the logged-in user's id."""
+    payload = build_progress_payload(session["user_id"])
+    if payload is None:
+        return jsonify(ok=False, error="Could not load your progress right now."), 503
+    return jsonify(ok=True, data=payload)
 
 
 @app.route("/videos")
 @login_required
 def videos():
-    connection = get_db_connection()
-    if connection is None:
-        flash("Database connection error.", "error")
-        return redirect(url_for("dashboard"))
-    cursor = None
-    try:
-        cursor = connection.cursor(dictionary=True)
-        cursor.execute(
-            "SELECT * FROM generated_videos WHERE user_id = %s ORDER BY created_at DESC",
-            (session["user_id"],),
-        )
-        rows = cursor.fetchall()
-        for row in rows:
-            row["tutor_url"] = tutor_url_for_video(row.get("id"))
-        return render_template(
-            "videos.html",
-            videos=rows,
-            user_name=session.get("user_name", "Student"),
-        )
-    except Error:
-        app.logger.exception("Videos page failed")
-        flash("Unable to load videos.", "error")
-        return redirect(url_for("dashboard"))
-    finally:
-        if cursor is not None:
-            cursor.close()
-        connection.close()
+    # There is no separate videos.html page. The video library lives on the dashboard
+    # ("My Generated Videos"), so this URL sends people there (same as /my-videos).
+    return redirect(url_for("dashboard") + "#my-videos")
 
 
 @app.route("/materials")
@@ -2982,6 +3510,16 @@ def initialize_database():
 if __name__ == "__main__":
     print(f".env file: {_ENV_FILE}")
     print(f".env exists: {_ENV_FILE.exists()}")
+    # Shows exactly which generate_video.html Flask uses, and which routes serve the page.
+    try:
+        _src = app.jinja_env.loader.get_source(app.jinja_env, "generate_video.html")[1]
+        print(f"generate_video.html is loaded from: {_src}")
+        print(f"  last changed: {datetime.fromtimestamp(os.path.getmtime(_src)):%Y-%m-%d %H:%M:%S}")
+    except Exception as _exc:
+        print(f"generate_video.html could not be found: {_exc}")
+    for _rule in app.url_map.iter_rules():
+        if "generate" in _rule.rule:
+            print(f"  route {_rule.rule} -> {_rule.endpoint}")
     if initialize_database():
         print("Database initialization successful.")
     else:

@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#14122e">
+    <title>EduVision | My Videos</title>
+
+    <link rel="icon" href="{{ url_for('static', filename='img/logo.svg') }}" type="image/svg+xml">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+
+    <script>
+        try {
+            document.documentElement.dataset.theme =
+                localStorage.getItem("eduvision-theme") || "dark";
+        } catch (e) {}
+    </script>
+
+    <style>
+        .library-filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+        .filter-chip {
+            border: 1px solid rgba(139, 92, 246, .35); background: transparent;
+            color: inherit; padding: 8px 16px; border-radius: 999px;
+            cursor: pointer; font-weight: 600; font-size: .85rem; transition: all .2s ease;
+        }
+        .filter-chip.active, .filter-chip:hover {
+            background: linear-gradient(135deg, #8b5cf6, #6366f1);
+            color: #fff; border-color: transparent;
+        }
+        .type-badge {
+            position: absolute; top: 10px; left: 10px; z-index: 2;
+            padding: 4px 10px; border-radius: 999px; font-size: .72rem;
+            font-weight: 700; color: #fff; letter-spacing: .03em;
+        }
+        .type-badge.edu { background: #4f46e5; }
+        .type-badge.cartoon { background: #ec4899; }
+        .generated-video-preview { position: relative; }
+        .video-status {
+            display: inline-block; margin-top: 6px; padding: 3px 10px;
+            border-radius: 999px; font-size: .72rem; font-weight: 700;
+            background: rgba(245, 158, 11, .18); color: #f59e0b;
+        }
+        .video-status.failed { background: rgba(239, 68, 68, .18); color: #ef4444; }
+        .cartoon-link, .download-link, .tutor-link {
+            display: inline-block; padding: 7px 14px; border-radius: 10px;
+            text-decoration: none; font-size: .85rem; font-weight: 600;
+            margin-right: 6px; margin-top: 6px;
+        }
+        .cartoon-link { background: rgba(236, 72, 153, .15); color: #ec4899; }
+        .download-link { background: rgba(99, 102, 241, .15); color: #6366f1; }
+        .tutor-link { background: rgba(16, 185, 129, .15); color: #10b981; }
+        .filter-empty { text-align: center; padding: 24px; opacity: .75; }
+        .page-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+    </style>
+</head>
+
+<body>
+
+{% set video_list = videos|default([]) %}
+
+<div class="bg-aurora" aria-hidden="true">
+    <span class="blob blob-1"></span>
+    <span class="blob blob-2"></span>
+    <span class="blob blob-3"></span>
+</div>
+
+<div class="dashboard">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+
+        <a href="{{ url_for('dashboard') }}" class="brand">
+            <span class="brand-logo">
+                <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="EduVision">
+            </span>
+            <span class="brand-name">Edu<span>Vision</span></span>
+        </a>
+
+        <nav class="navigation" aria-label="Main">
+
+            <p class="nav-title">MAIN MENU</p>
+
+            <a class="nav-link" href="{{ url_for('dashboard') }}">
+                <span class="nav-icon">🏠</span>
+                <span>Dashboard</span>
+            </a>
+
+            <a class="nav-link" href="{{ url_for('generate_video_page') }}">
+                <span class="nav-icon">✨</span>
+                <span>Generate Educational Video</span>
+            </a>
+
+            <a class="nav-link" href="{{ cartoon_url|default('/cartoon-studio') }}">
+                <span class="nav-icon">🎨</span>
+                <span>Create Cartoon Movie</span>
+            </a>
+
+            <a class="nav-link" href="{{ aptitude_url|default('/aptitude-arena') }}">
+                <span class="nav-icon">🧠</span>
+                <span>Aptitude Arena</span>
+            </a>
+
+            <a class="nav-link active" href="/my-videos">
+                <span class="nav-icon">🎬</span>
+                <span>My Generated Videos</span>
+            </a>
+
+            <a class="nav-link" href="{{ url_for('learning_progress') }}">
+                <span class="nav-icon">📈</span>
+                <span>My Progress</span>
+            </a>
+
+        </nav>
+
+        <div class="sidebar-bottom">
+            <a class="logout-link" href="{{ url_for('logout') }}">
+                <span>↪</span> Logout
+            </a>
+        </div>
+
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+
+        <header class="topbar">
+            <div class="topbar-left">
+                <div class="breadcrumb">
+                    My workspace <span>/</span> <strong>My Videos</strong>
+                </div>
+            </div>
+        </header>
+
+        <div class="page-content">
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% for category, message in messages %}
+                    <div class="flash-message {{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endwith %}
+
+            <section class="section library-section">
+
+                <div class="section-heading">
+                    <div>
+                        <span class="eyebrow">YOUR LIBRARY</span>
+                        <h2>My Generated Videos</h2>
+                        <p>Your educational videos and cartoon movies created with EduVision.</p>
+                        <div class="page-actions">
+                            <a class="cartoon-link" href="{{ cartoon_url|default('/cartoon-studio') }}">🎨 New cartoon</a>
+                            <a class="download-link" href="{{ url_for('generate_video_page') }}">✨ New lesson</a>
+                        </div>
+                    </div>
+                </div>
+
+                {% if video_list %}
+
+                <div class="library-filters" id="libraryFilters" aria-label="Filter videos">
+                    <button type="button" class="filter-chip active" data-filter="all">All</button>
+                    <button type="button" class="filter-chip" data-filter="educational">🎓 Educational</button>
+                    <button type="button" class="filter-chip" data-filter="cartoon">🎨 Cartoon</button>
+                </div>
+
+                <div class="generated-videos-grid" id="videosGrid">
+
+                    {% for video in video_list %}
+
+                    {% set vtype = (video.video_type|default('educational'))|lower %}
+                    {% set is_cartoon = vtype in ['cartoon', 'cartoon_animation', 'animation'] %}
+
+                    <article class="generated-video-card"
+                             data-type="{{ 'cartoon' if is_cartoon else 'educational' }}">
+
+                        <div class="generated-video-preview">
+
+                            <span class="type-badge {{ 'cartoon' if is_cartoon else 'edu' }}">
+                                {{ '🎨 CARTOON' if is_cartoon else '🎓 LESSON' }}
+                            </span>
+
+                            {% if video.filename and video.url %}
+                            <video controls preload="metadata">
+                                <source src="{{ video.url }}" type="video/mp4">
+                                Your browser does not support video playback.
+                            </video>
+                            {% else %}
+                            <div class="video-placeholder">
+                                <span>{{ '🎨' if is_cartoon else '🎬' }}</span>
+                                <p>Video preview unavailable</p>
+                            </div>
+                            {% endif %}
+
+                        </div>
+
+                        <div class="generated-video-info">
+
+                            <h3>{{ video.title|default('Cartoon Movie' if is_cartoon else 'Educational Lesson') }}</h3>
+
+                            <div class="video-meta">
+                                <span>
+                                    {% if is_cartoon %}
+                                        {{ video.cartoon_style|default(video.video_style|default('Cartoon'))|replace('_', ' ')|title }}
+                                    {% else %}
+                                        {{ video.video_style|default('Educational')|replace('_', ' ')|title }}
+                                    {% endif %}
+                                </span>
+                                <span>·</span>
+                                <span>{{ video.language|default('English')|title }}</span>
+                            </div>
+
+                            {% if video.created_at %}
+                            <small class="video-date">
+                                {{ video.created_at.strftime('%d %b %Y') if video.created_at.strftime is defined else video.created_at }}
+                            </small>
+                            {% endif %}
+
+                            {% if video.status and video.status|lower not in ['completed', 'complete', 'done', 'success'] %}
+                            <div>
+                                <span class="video-status {{ 'failed' if video.status|lower in ['failed', 'error'] else '' }}">
+                                    {{ video.status|title }}
+                                </span>
+                            </div>
+                            {% endif %}
+
+                            <div class="generated-video-actions">
+
+                                {% if is_cartoon %}
+
+                                    {% if video.id %}
+                                    <a class="cartoon-link" href="/cartoon-studio?movie={{ video.id }}">🎨 Open in Studio</a>
+                                    {% endif %}
+
+                                    {% if video.url %}
+                                    <a class="download-link" href="{{ video.download_url|default(video.url) }}" download>⬇ Download MP4</a>
+                                    {% endif %}
+
+                                {% elif video.id %}
+
+                                    <a class="quiz-link" href="{{ url_for('video_quiz.video_quiz_page', video_id=video.id) }}">🧠 Take Quiz</a>
+                                    <a class="tutor-link" href="{{ video.tutor_url|default('/ai-tutor/?video_id=' ~ video.id) }}">🤖 Ask AI Tutor</a>
+
+                                {% endif %}
+
+                            </div>
+
+                        </div>
+
+                    </article>
+
+                    {% endfor %}
+
+                </div>
+
+                <p class="filter-empty" id="filterEmpty" hidden>No videos of this type yet.</p>
+
+                {% else %}
+
+                <div class="library-empty">
+                    <span>🎬</span>
+                    <h3>No videos generated yet</h3>
+                    <p>Your educational videos and cartoon movies will appear here after you create your first one.</p>
+                </div>
+
+                {% endif %}
+
+            </section>
+
+            <footer class="footer">
+                <span>© 2026 EduVision</span>
+                <span>Made for curious minds. Learn visually. Grow every day. ✨</span>
+            </footer>
+
+        </div>
+
+    </main>
+
+</div>
+
+<script>
+    (function () {
+        var filters = document.getElementById("libraryFilters");
+        var grid = document.getElementById("videosGrid");
+        var empty = document.getElementById("filterEmpty");
+        if (!filters || !grid) return;
+
+        filters.addEventListener("click", function (event) {
+            var chip = event.target.closest(".filter-chip");
+            if (!chip) return;
+
+            var wanted = chip.getAttribute("data-filter");
+            var chips = filters.querySelectorAll(".filter-chip");
+            for (var i = 0; i < chips.length; i++) chips[i].classList.remove("active");
+            chip.classList.add("active");
+
+            var cards = grid.querySelectorAll(".generated-video-card");
+            var visible = 0;
+            for (var j = 0; j < cards.length; j++) {
+                var show = wanted === "all" || cards[j].getAttribute("data-type") === wanted;
+                cards[j].style.display = show ? "" : "none";
+                if (show) visible++;
+            }
+            if (empty) empty.hidden = visible !== 0;
+        });
+    })();
+</script>
+
+</body>
+</html>

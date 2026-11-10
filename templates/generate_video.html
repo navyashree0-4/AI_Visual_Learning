@@ -5,57 +5,100 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Generate Video | EduVision</title>
 <style>
-:root{--paper:#f2f5fb;--card:#fff;--ink:#101a3a;--muted:#64748b;--line:#dde3f0;--indigo:#4338ca;--indigo-l:#eef2ff;--aqua:#0891b2;--rose:#e11d48;--green:#059669}
+:root{
+  --ink:#0e1330;--ink2:#171e45;--chalk:#f6f7fc;--card:#ffffff;--text:#16193a;--muted:#667089;--line:#e3e7f3;
+  --indigo:#4f46e5;--indigo-d:#3f37c9;--indigo-l:#eef0ff;--teal:#14b8a6;--gold:#f7b733;--rose:#e11d48;--green:#059669;
+  --r:20px;
+}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:"Segoe UI","Noto Sans Kannada","Nirmala UI",Arial,sans-serif;background:radial-gradient(circle at 10% 10%,#e0e7ff 0,transparent 35%),radial-gradient(circle at 90% 25%,#cffafe 0,transparent 35%),var(--paper);color:var(--ink);min-height:100vh;line-height:1.6}
-a{text-decoration:none}
-.navbar{position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;align-items:center;gap:20px;padding:15px 5%;background:rgba(255,255,255,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
-.logo{font-size:23px;font-weight:800;color:var(--indigo)}.logo span{color:var(--aqua)}
+html{scroll-behavior:smooth}
+body{font-family:"Segoe UI","Noto Sans Kannada","Nirmala UI",system-ui,Arial,sans-serif;color:var(--text);background:var(--chalk);line-height:1.6;min-height:100vh}
+a{text-decoration:none;color:inherit}
+
+/* ---------- top bar ---------- */
+.navbar{position:sticky;top:0;z-index:20;display:flex;justify-content:space-between;align-items:center;gap:20px;padding:14px 5%;background:rgba(14,19,48,.94);backdrop-filter:blur(10px);color:#fff}
+.logo{font-size:22px;font-weight:800;letter-spacing:.2px}.logo span{color:var(--gold)}
 .nav-links{display:flex;gap:22px;flex-wrap:wrap}
-.nav-links a{color:var(--muted);font-size:14px;font-weight:600}.nav-links a:hover{color:var(--indigo)}
-.wrap{max-width:900px;margin:0 auto;padding:36px 18px 70px}
-h1{font-size:clamp(25px,4vw,34px)}
-.sub{color:var(--muted);margin:6px 0 24px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:26px;margin-bottom:20px;box-shadow:0 10px 30px rgba(49,46,129,.07)}
-.card h2{font-size:17px;margin-bottom:4px}
+.nav-links a{color:#c9d0f0;font-size:14px;font-weight:600}.nav-links a:hover{color:#fff}
+.nav-links{align-items:center}
+.credit-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(247,183,51,.16);color:#ffd36b;border:1px solid rgba(247,183,51,.45);border-radius:99px;padding:5px 13px;font-size:13.5px;font-weight:700;transition:transform .2s,background .2s}
+.credit-badge.pulse{transform:scale(1.12);background:rgba(247,183,51,.35)}
+
+/* ---------- hero ---------- */
+.hero{background:radial-gradient(900px 400px at 85% -10%,rgba(20,184,166,.35),transparent 60%),radial-gradient(800px 420px at 5% 110%,rgba(79,70,229,.55),transparent 60%),var(--ink);color:#fff;padding:54px 5% 120px}
+.hero-in{max-width:880px;margin:0 auto}
+.hero h1{font-size:clamp(28px,5vw,44px);line-height:1.15;letter-spacing:-.5px}
+.hero p{margin-top:10px;color:#c5cbee;max-width:620px;font-size:16px}
+.wrap{max-width:880px;margin:-86px auto 0;padding:0 18px 70px;position:relative}
+
+/* ---------- cards ---------- */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:24px;margin-bottom:18px;box-shadow:0 18px 40px -22px rgba(14,19,48,.35)}
+.card h2{font-size:17px;margin-bottom:2px}
 .hint{font-size:13px;color:var(--muted);margin-bottom:12px}
-textarea{width:100%;min-height:110px;padding:13px;border:1px solid var(--line);border-radius:12px;font:inherit;resize:vertical}
-textarea:focus,select:focus{outline:3px solid #c7d2fe;border-color:var(--indigo)}
-.uploads{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
-.drop{display:block;padding:18px;border:2px dashed #b6c0e0;border-radius:14px;background:#f8faff;cursor:pointer;text-align:center}
-.drop:hover,.drop:focus-within{border-color:var(--indigo);background:var(--indigo-l)}
-.drop strong{display:block;font-size:15px}
-.drop small{color:var(--muted)}
-.drop input{position:absolute;opacity:0;width:1px;height:1px}
-.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;justify-content:center}
-.chip{font-size:12px;background:#fff;border:1px solid var(--line);border-radius:99px;padding:3px 10px;overflow-wrap:anywhere}
-.chip.bad{border-color:#fecaca;color:#991b1b;background:#fef2f2}
+
+/* ---------- one prompt box: topic + files together ---------- */
+.composer{border:2px solid var(--line);border-radius:var(--r);background:#fff;padding:14px 16px 12px;transition:border-color .15s,box-shadow .15s}
+.composer:focus-within,.composer.drag{border-color:var(--indigo);box-shadow:0 0 0 5px rgba(79,70,229,.14)}
+.composer.drag{background:var(--indigo-l)}
+.composer textarea{width:100%;min-height:120px;border:0;outline:0;resize:vertical;font:inherit;font-size:16.5px;color:var(--text);background:transparent}
+.composer textarea::placeholder{color:#97a0b8}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 4px}
+.chip{display:inline-flex;align-items:center;gap:8px;font-size:13px;background:var(--indigo-l);color:var(--indigo-d);border-radius:99px;padding:4px 6px 4px 12px;max-width:100%}
+.chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px}
+.chip button{border:0;background:#fff;color:var(--indigo-d);width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:13px;line-height:1}
+.chip.bad{background:#fef2f2;color:#991b1b}
+.bar{display:flex;align-items:center;gap:12px;border-top:1px solid var(--line);padding-top:10px;margin-top:6px;flex-wrap:wrap}
+.attach{display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:14px;font-weight:700;color:var(--indigo-d);background:var(--indigo-l);padding:8px 14px;border-radius:10px}
+.attach:hover{background:#e0e4ff}
+.attach:focus-within{outline:3px solid #a5b4fc}
+.bar small{color:var(--muted);font-size:12.5px}
+.bar .count{margin-left:auto;color:var(--muted);font-size:12.5px}
+
+/* ---------- options ---------- */
+details summary{cursor:pointer;font-size:17px;font-weight:700;list-style:none;display:flex;align-items:center;gap:8px}
+details summary::-webkit-details-marker{display:none}
+details summary::after{content:"▾";margin-left:auto;color:var(--indigo);font-size:18px;transition:transform .2s}
+details[open] summary::after{transform:rotate(180deg)}
+details summary:focus-visible{outline:3px solid #a5b4fc;outline-offset:4px;border-radius:6px}
+details .inner{margin-top:14px}
 fieldset{border:0;margin-bottom:18px}
-legend{font-weight:700;font-size:14px;margin-bottom:8px}
+legend,.legend{font-weight:700;font-size:14px;margin-bottom:8px;display:block}
 .seg{display:flex;flex-wrap:wrap;gap:8px}
 .seg label{cursor:pointer}
 .seg input{position:absolute;opacity:0;width:1px;height:1px}
-.seg span{display:block;padding:9px 16px;border:2px solid var(--line);border-radius:10px;font-size:14px;font-weight:600;background:#fff;color:#334155}
-.seg input:checked+span{border-color:var(--indigo);background:var(--indigo-l);color:var(--indigo)}
-.seg input:focus-visible+span{outline:3px solid #a5b4fc;outline-offset:2px}
-.seg label:hover span{border-color:#a5b4fc}
+.seg span,.qbtn{display:block;padding:8px 15px;border:2px solid var(--line);border-radius:10px;font-size:14px;font-weight:600;background:#fff;color:#334155;transition:border-color .12s,background .12s}
+.qbtn{cursor:pointer;font-family:inherit;padding:6px 12px}
+.seg input:checked+span,.qbtn.on{border-color:var(--indigo);background:var(--indigo-l);color:var(--indigo-d)}
+.seg input:focus-visible+span,.qbtn:focus-visible{outline:3px solid #a5b4fc;outline-offset:2px}
+.seg label:hover span,.qbtn:hover{border-color:#a5b4fc}
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}
-select{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;font:inherit;background:#fff}
-.toggles{display:flex;flex-wrap:wrap;gap:20px;margin-top:6px}
+select,input[type=number]{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;font:inherit;background:#fff}
+select:focus,input[type=number]:focus{outline:3px solid #c7d2fe;border-color:var(--indigo)}
+.dur{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.dur .num{display:flex;align-items:center;gap:8px}
+.dur input[type=number]{width:110px}
+.dur .unit{font-size:14px;color:var(--muted);font-weight:600}
+.toggles{display:flex;flex-wrap:wrap;gap:18px;margin-top:6px}
 .toggles label{display:flex;gap:8px;align-items:center;font-size:14px;cursor:pointer}
+
+/* ---------- buttons ---------- */
 .go{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:14px 26px;border-radius:12px;background:var(--indigo);color:#fff;font-size:16px;font-weight:800;border:none;cursor:pointer}
-.btn:hover:not(:disabled){background:#3730a3}
-.btn:disabled{opacity:.5;cursor:not-allowed}
-.btn.secondary{background:var(--indigo-l);color:var(--indigo);font-size:14px;padding:11px 18px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:15px 30px;border-radius:14px;background:linear-gradient(135deg,var(--indigo),#7c3aed);color:#fff;font-size:16px;font-weight:800;border:none;cursor:pointer;box-shadow:0 12px 24px -12px rgba(79,70,229,.8);transition:transform .12s,box-shadow .12s}
+.btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 16px 28px -12px rgba(79,70,229,.9)}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.btn.secondary{background:var(--indigo-l);color:var(--indigo-d);box-shadow:none;font-size:14px;padding:11px 18px}
+.btn.danger{background:#fef2f2;color:#991b1b;box-shadow:none;font-size:14px;padding:11px 18px}
+.linkbtn{background:none;border:0;color:var(--indigo);font:inherit;font-size:13px;font-weight:700;cursor:pointer;text-decoration:underline;padding:0}
 .cost{font-size:13px;color:var(--muted)}
-.msg{padding:12px 15px;margin-bottom:12px;border-radius:10px;font-size:14px;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534}
+.msg{padding:12px 15px;margin-bottom:12px;border-radius:12px;font-size:14px;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534}
 .msg.error{background:#fef2f2;border-color:#fecaca;color:#991b1b}
 .msg.warning{background:#fffbeb;border-color:#fde68a;color:#92400e}
-.hidden{display:none}
-/* progress */
-.pbar{height:14px;background:#e5e9f5;border-radius:99px;overflow:hidden;margin:14px 0}
-.pbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--indigo),var(--aqua));transition:width .5s}
+.hidden{display:none!important}
+
+/* ---------- progress ---------- */
+.pbar{height:14px;background:#e8ebf7;border-radius:99px;overflow:hidden;margin:14px 0}
+.pbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--indigo),var(--teal));transition:width .5s}
+.pmsg{font-weight:700}
 .steps{list-style:none;display:grid;gap:6px;margin-top:12px}
 .steps li{font-size:14px;color:var(--muted);display:flex;gap:10px;align-items:center}
 .steps li::before{content:"○";font-weight:800}
@@ -63,32 +106,41 @@ select{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;f
 .steps li.active::before{content:"◔"}
 .steps li.done{color:var(--green)}
 .steps li.done::before{content:"●"}
-.pmsg{font-weight:700}
-.errbox{border:1px solid #fecaca;background:#fef2f2;color:#991b1b;border-radius:12px;padding:16px;margin-top:12px}
+.errbox{border:1px solid #fecaca;background:#fef2f2;color:#991b1b;border-radius:14px;padding:16px;margin-top:12px}
 .errbox strong{display:block;margin-bottom:4px}
-/* result */
-video{width:100%;max-height:70vh;border-radius:14px;background:#000}
+
+/* ---------- result ---------- */
+video{width:100%;max-height:70vh;border-radius:16px;background:#000;margin-top:10px}
 .meta{display:flex;flex-wrap:wrap;gap:8px 18px;margin:12px 0;font-size:13px;color:var(--muted)}
 .actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
 .actions .btn{font-size:14px;padding:12px 20px}
-@media(max-width:600px){.card{padding:18px}.navbar{flex-direction:column;padding:12px}.nav-links{gap:14px;justify-content:center}}
-@media (prefers-reduced-motion:reduce){.pbar i{transition:none}}
+
+@media(max-width:600px){.card{padding:18px}.navbar{flex-direction:column;padding:12px}.nav-links{gap:14px;justify-content:center}.hero{padding:36px 5% 110px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 </style>
 </head>
-<body>
+<body data-max-minutes="{{ max_minutes|default(7) }}"
+      data-start-url="{{ url_for('generate_video_start') }}"
+      data-active-url="{{ url_for('generate_video_active') }}"
+      data-cancel-url="{{ url_for('generate_video_cancel') }}">
 <header class="navbar">
   <a href="{{ url_for('dashboard') }}" class="logo">🎓 Edu<span>Vision</span></a>
   <nav class="nav-links">
+    <span class="credit-badge" id="credit-badge" title="Your credits">💎 <span id="nav-credits">{{ credits if credits is not none else 0 }}</span> credits</span>
     <a href="{{ url_for('dashboard') }}">Dashboard</a>
     <a href="{{ url_for('my_generated_videos') }}">My Videos</a>
     <a href="{{ url_for('logout') }}">Logout</a>
   </nav>
 </header>
 
-<main class="wrap">
-  <h1>✨ Generate a lesson video</h1>
-  <p class="sub">Type a topic, upload your notes or pictures, pick a style, and EduVision builds a narrated video with a quiz.</p>
+<section class="hero">
+  <div class="hero-in">
+    <h1>Turn any topic into a narrated lesson video</h1>
+    <p>Type what you want to teach, attach your notes or pictures in the same box, and EduVision builds the video with real photos, examples and a quiz.</p>
+  </div>
+</section>
 
+<main class="wrap">
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% for category, message in messages %}
       <div class="msg {{ category if category in ('error','warning') else '' }}">{{ message }}</div>
@@ -97,105 +149,117 @@ video{width:100%;max-height:70vh;border-radius:14px;background:#000}
 
   <form id="gen-form" method="post" action="{{ url_for('generate_video') }}" enctype="multipart/form-data" novalidate>
 
+    <!-- ONE box: topic + uploads -->
     <section class="card">
-      <h2>1. What should the video teach?</h2>
-      <p class="hint">Type a topic, or upload material below, or both.</p>
-      <textarea id="topic" name="topic" maxlength="1000" placeholder="Example: How photosynthesis works"></textarea>
-    </section>
-
-    <section class="card">
-      <h2>2. Upload material (optional)</h2>
-      <p class="hint">Up to 5 files, 10 MB each.</p>
-      <div class="uploads">
-        <label class="drop">
-          <input type="file" id="pdfs" name="files" accept=".pdf,application/pdf" multiple>
-          <strong>📄 Upload PDF documents</strong>
-          <small>Scanned PDFs are read with OCR</small>
-          <div class="chips" id="pdf-chips"></div>
-        </label>
-        <label class="drop">
-          <input type="file" id="imgs" name="files" accept=".jpg,.jpeg,.png,image/jpeg,image/png" multiple>
-          <strong>🖼️ Upload images</strong>
-          <small>JPG, JPEG or PNG. The first image is shown in the video</small>
-          <div class="chips" id="img-chips"></div>
-        </label>
+      <h2>What should the video teach?</h2>
+      <p class="hint">Write a topic, add files, or do both. You can drag files into the box.</p>
+      <div class="composer" id="composer">
+        <textarea id="topic" name="topic" maxlength="1000" placeholder="Example: How photosynthesis works. Explain it with real-life examples."></textarea>
+        <div class="chips" id="chips"></div>
+        <div class="bar">
+          <label class="attach">📎 Attach PDF or image
+            <input type="file" id="files" name="files" accept=".pdf,.txt,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png,text/plain" multiple hidden>
+          </label>
+          <small>Up to 5 files, 10 MB each. Scanned PDFs are read with OCR.</small>
+          <span class="count" id="count">0 / 1000</span>
+        </div>
       </div>
     </section>
 
     <section class="card">
-      <h2>3. Choose how it should look and sound</h2>
-      <p class="hint">&nbsp;</p>
+      <details id="opts">
+        <summary>Choose how it should look and sound <span style="font-weight:500;color:var(--muted);font-size:14px">(optional)</span></summary>
+        <div class="inner">
+          <p class="hint">Nothing is required. Anything you skip is chosen for you (Beginner, School, Educational, English, Female voice, about 3 minutes). Tap a selected option again to clear it.
+            <button type="button" class="linkbtn" id="clear-all">Clear all choices</button></p>
 
-      <fieldset>
-        <legend>Difficulty</legend>
-        <div class="seg">
-          <label><input type="radio" name="difficulty" value="Beginner" checked><span>Beginner</span></label>
-          <label><input type="radio" name="difficulty" value="Intermediate"><span>Intermediate</span></label>
-          <label><input type="radio" name="difficulty" value="Advanced"><span>Advanced</span></label>
-        </div>
-      </fieldset>
+          <fieldset>
+            <legend>Difficulty</legend>
+            <div class="seg">
+              <label><input type="radio" name="difficulty" value="Beginner"><span>Beginner</span></label>
+              <label><input type="radio" name="difficulty" value="Intermediate"><span>Intermediate</span></label>
+              <label><input type="radio" name="difficulty" value="Advanced"><span>Advanced</span></label>
+            </div>
+          </fieldset>
 
-      <fieldset>
-        <legend>Audience</legend>
-        <div class="seg">
-          <label><input type="radio" name="audience_level" value="Kids"><span>Kids</span></label>
-          <label><input type="radio" name="audience_level" value="School Students" checked><span>School</span></label>
-          <label><input type="radio" name="audience_level" value="College Students"><span>College</span></label>
-          <label><input type="radio" name="audience_level" value="Teachers"><span>Teachers</span></label>
-        </div>
-      </fieldset>
+          <fieldset>
+            <legend>Audience</legend>
+            <div class="seg">
+              <label><input type="radio" name="audience_level" value="Kids"><span>Kids</span></label>
+              <label><input type="radio" name="audience_level" value="School Students"><span>School</span></label>
+              <label><input type="radio" name="audience_level" value="College Students"><span>College</span></label>
+              <label><input type="radio" name="audience_level" value="Teachers"><span>Teachers</span></label>
+            </div>
+          </fieldset>
 
-      <fieldset>
-        <legend>Video style</legend>
-        <div class="seg">
-          <label><input type="radio" name="video_style" value="Educational" checked><span>Educational</span></label>
-          <label><input type="radio" name="video_style" value="Animated"><span>Animated</span></label>
-          <label><input type="radio" name="video_style" value="Storytelling"><span>Storytelling</span></label>
-          <label><input type="radio" name="video_style" value="Simple Explanation"><span>Simple Explanation</span></label>
-        </div>
-      </fieldset>
+          <fieldset>
+            <legend>Video style</legend>
+            <div class="seg">
+              <label><input type="radio" name="video_style" value="Educational"><span>Educational</span></label>
+              <label><input type="radio" name="video_style" value="Animated"><span>Animated</span></label>
+              <label><input type="radio" name="video_style" value="Storytelling"><span>Storytelling</span></label>
+              <label><input type="radio" name="video_style" value="Simple Explanation"><span>Simple Explanation</span></label>
+            </div>
+          </fieldset>
 
-      <fieldset>
-        <legend>Narration language</legend>
-        <div class="seg">
-          <label><input type="radio" name="language" value="English" checked><span>English</span></label>
-          <label><input type="radio" name="language" value="Kannada"><span>ಕನ್ನಡ Kannada</span></label>
-          <label><input type="radio" name="language" value="Hindi"><span>हिन्दी Hindi</span></label>
-        </div>
-      </fieldset>
+          <fieldset>
+            <legend>Narration language</legend>
+            <div class="seg">
+              <label><input type="radio" name="language" value="English"><span>English</span></label>
+              <label><input type="radio" name="language" value="Kannada"><span>ಕನ್ನಡ Kannada</span></label>
+              <label><input type="radio" name="language" value="Hindi"><span>हिन्दी Hindi</span></label>
+            </div>
+          </fieldset>
 
-      <fieldset>
-        <legend>Duration</legend>
-        <div class="seg">
-          <label><input type="radio" name="duration" value="Short"><span>Short · about 1 min</span></label>
-          <label><input type="radio" name="duration" value="Medium" checked><span>Medium · about 3 min</span></label>
-          <label><input type="radio" name="duration" value="Long"><span>Long · 5 to 6 min</span></label>
-        </div>
-      </fieldset>
+          <fieldset>
+            <legend>Teacher voice</legend>
+            <div class="seg">
+              <label><input type="radio" name="voice" value="Female"><span>👩‍🏫 Female voice</span></label>
+              <label><input type="radio" name="voice" value="Male"><span>👨‍🏫 Male voice</span></label>
+            </div>
+          </fieldset>
 
-      <div class="grid2">
-        <div>
-          <legend style="font-weight:700;font-size:14px;margin-bottom:8px">Screen shape</legend>
-          <select name="aspect_ratio" aria-label="Screen shape">
-            <option value="16:9" selected>Landscape 16:9 (computer, TV)</option>
-            <option value="9:16">Portrait 9:16 (phone)</option>
-          </select>
-        </div>
-        <div>
-          <legend style="font-weight:700;font-size:14px;margin-bottom:8px">Extras</legend>
-          <div class="toggles">
-            <label><input type="checkbox" name="subtitles" checked> Subtitles</label>
-            <label><input type="checkbox" name="highlight_concepts" checked> Key terms</label>
-            <label><input type="checkbox" name="background_music"> Music</label>
+          <fieldset>
+            <legend>Video length</legend>
+            <div class="dur">
+              <div class="num">
+                <input type="number" id="minutes" name="duration_minutes" min="1" max="{{ max_minutes|default(7) }}" step="1" inputmode="numeric" placeholder="e.g. 3" aria-label="Video length in minutes">
+                <span class="unit">minutes</span>
+              </div>
+              <div class="seg" id="quick-mins" role="group" aria-label="Quick lengths">
+                {% for m in (1, 3, 5, 7) %}
+                  {% if m <= (max_minutes|default(7)) %}<button type="button" class="qbtn" data-m="{{ m }}">{{ m }} min</button>{% endif %}
+                {% endfor %}
+              </div>
+            </div>
+            <p class="hint" style="margin-top:8px">Pick 1, 3, 5 or 7 minutes (or type 1 to {{ max_minutes|default(7) }}). Leave it empty for about 3 minutes.</p>
+          </fieldset>
+
+          <div class="grid2">
+            <div>
+              <span class="legend">Screen shape</span>
+              <select name="aspect_ratio" aria-label="Screen shape">
+                <option value="16:9" selected>Landscape 16:9 (computer, TV)</option>
+                <option value="9:16">Portrait 9:16 (phone)</option>
+              </select>
+            </div>
+            <div>
+              <span class="legend">Extras</span>
+              <div class="toggles">
+                <label><input type="checkbox" name="subtitles" value="on"> Subtitles</label>
+                <label><input type="checkbox" name="highlight_concepts" value="on"> Key terms</label>
+                <label><input type="checkbox" name="background_music" value="on"> 🎵 Music</label>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      </details>
     </section>
 
     <section class="card">
       <div class="go">
-        <button class="btn" id="go" type="submit">🎬 Generate Video</button>
-        <span class="cost">Costs {{ video_cost }} credits{% if credits is not none %} · You have <strong id="credits">{{ credits }}</strong>{% endif %}. Credits are refunded if generation fails.</span>
+        <button class="btn" id="go" type="submit">🎬 Generate video</button>
+        <span class="cost">Costs {{ video_cost }} credits{% if credits is not none %} · You have <strong id="credits">{{ credits }}</strong>{% endif %}. Credits are deducted when generation starts and refunded if it fails or you cancel.</span>
       </div>
     </section>
   </form>
@@ -208,11 +272,12 @@ video{width:100%;max-height:70vh;border-radius:14px;background:#000}
     <ul class="steps" id="steps">
       <li data-at="0">Reading your material</li>
       <li data-at="12">Writing the lesson script</li>
-      <li data-at="30">Recording the voice and finding pictures</li>
+      <li data-at="30">Recording the voice and finding real pictures</li>
       <li data-at="50">Drawing and rendering scenes</li>
       <li data-at="92">Putting the video together</li>
     </ul>
-    <p class="hint" style="margin-top:12px">Keep this page open. Medium videos usually take a few minutes.</p>
+    <p class="hint" style="margin-top:12px" id="wait-hint">Keep this page open. If you refresh, this page reconnects to your running video.</p>
+    <div class="actions" id="cancel-row"><button type="button" class="btn danger" id="cancel">✕ Cancel this video</button></div>
     <div class="errbox hidden" id="errbox" role="alert">
       <strong>The video could not be generated</strong>
       <span id="errtext"></span>
@@ -231,7 +296,7 @@ video{width:100%;max-height:70vh;border-radius:14px;background:#000}
       {% endif %}
     </div>
     <div class="actions">
-      <a class="btn" id="r-quiz" href="{{ quiz_url or '#' }}">📝 Take Quiz</a>
+      <a class="btn" id="r-quiz" href="{{ quiz_url or '#' }}">📝 Take quiz</a>
       <a class="btn secondary" id="r-download" href="{{ download_url or '#' }}">⬇ Download</a>
       <a class="btn secondary" href="{{ url_for('my_generated_videos') }}">My videos</a>
       <button class="btn secondary" type="button" id="make-another">Make another</button>
@@ -241,30 +306,104 @@ video{width:100%;max-height:70vh;border-radius:14px;background:#000}
 
 <script>
 (function(){
-  var MAX_MB = 10, MAX_FILES = 5;
-  var form = document.getElementById('gen-form');
-  var go = document.getElementById('go');
-  var pcard = document.getElementById('progress-card');
-  var rcard = document.getElementById('result-card');
+  var MAX_MB = 10, MAX_FILES = 5, OK_EXT = ['pdf','txt','jpg','jpeg','png'];
+  var MAX_MIN = parseInt(document.body.getAttribute('data-max-minutes'), 10);
+  if (!isFinite(MAX_MIN) || MAX_MIN < 1) MAX_MIN = 7;
+  var START_URL = document.body.getAttribute('data-start-url') || '/generate_video/start';
+  var ACTIVE_URL = document.body.getAttribute('data-active-url') || '/generate_video/active';
+  var CANCEL_URL = document.body.getAttribute('data-cancel-url') || '/generate_video/cancel';
+
+  var form = document.getElementById('gen-form'), go = document.getElementById('go');
+  var pcard = document.getElementById('progress-card'), rcard = document.getElementById('result-card');
   var pmsg = document.getElementById('pmsg'), pfill = document.getElementById('pfill'), pbar = document.getElementById('pbar');
   var errbox = document.getElementById('errbox'), errtext = document.getElementById('errtext');
+  var cancelRow = document.getElementById('cancel-row');
   var steps = Array.prototype.slice.call(document.querySelectorAll('#steps li'));
-  var pdfs = document.getElementById('pdfs'), imgs = document.getElementById('imgs');
-  var timer = null, netFails = 0;
+  var topic = document.getElementById('topic'), count = document.getElementById('count');
+  var fileInput = document.getElementById('files'), chipsBox = document.getElementById('chips'), composer = document.getElementById('composer');
+  var minutes = document.getElementById('minutes');
+  var qbtns = Array.prototype.slice.call(document.querySelectorAll('#quick-mins .qbtn'));
+  var timer = null, netFails = 0, picked = [], jobId = null;
 
-  function chips(input, box){
-    box.textContent = '';
-    Array.prototype.forEach.call(input.files, function(f){
-      var c = document.createElement('span');
-      var tooBig = f.size > MAX_MB * 1024 * 1024;
+  /* ---------- live credit balance (navbar badge + cost line) ---------- */
+  function setCredits(n){
+    if (n === undefined || n === null || isNaN(n)) return;
+    var a = document.getElementById('nav-credits'), b = document.getElementById('credits'), badge = document.getElementById('credit-badge');
+    var old = a ? a.textContent : '';
+    if (a) a.textContent = n;
+    if (b) b.textContent = n;
+    if (badge && String(old) !== String(n)) {
+      badge.classList.add('pulse');
+      setTimeout(function(){ badge.classList.remove('pulse'); }, 700);
+    }
+  }
+
+  /* ---------- one box: topic text + attached files ---------- */
+  function ext(name){ var i = name.lastIndexOf('.'); return i < 0 ? '' : name.slice(i + 1).toLowerCase(); }
+  function syncInput(){
+    try {
+      var dt = new DataTransfer();
+      picked.forEach(function(f){ dt.items.add(f); });
+      fileInput.files = dt.files;
+    } catch (e) { /* very old browsers: the native selection stays */ }
+  }
+  function drawChips(){
+    chipsBox.textContent = '';
+    picked.forEach(function(f, i){
+      var c = document.createElement('div'), tooBig = f.size > MAX_MB * 1024 * 1024;
       c.className = 'chip' + (tooBig ? ' bad' : '');
-      c.textContent = f.name + (tooBig ? ' (over ' + MAX_MB + ' MB)' : '');
-      box.appendChild(c);
+      var s = document.createElement('span');
+      s.textContent = (ext(f.name) === 'pdf' ? '📄 ' : ext(f.name) === 'txt' ? '📝 ' : '🖼️ ') + f.name + (tooBig ? ' (over ' + MAX_MB + ' MB)' : '');
+      var b = document.createElement('button');
+      b.type = 'button'; b.setAttribute('aria-label', 'Remove ' + f.name); b.textContent = '✕';
+      b.addEventListener('click', function(){ picked.splice(i, 1); syncInput(); drawChips(); });
+      c.appendChild(s); c.appendChild(b); chipsBox.appendChild(c);
     });
   }
-  pdfs.addEventListener('change', function(){ chips(pdfs, document.getElementById('pdf-chips')); });
-  imgs.addEventListener('change', function(){ chips(imgs, document.getElementById('img-chips')); });
+  function addFiles(list){
+    Array.prototype.forEach.call(list, function(f){
+      if (OK_EXT.indexOf(ext(f.name)) === -1) return;
+      var dup = picked.some(function(p){ return p.name === f.name && p.size === f.size; });
+      if (!dup) picked.push(f);
+    });
+    syncInput(); drawChips();
+  }
+  fileInput.addEventListener('change', function(){ addFiles(fileInput.files); });
+  ['dragenter','dragover'].forEach(function(t){
+    composer.addEventListener(t, function(e){ e.preventDefault(); composer.classList.add('drag'); });
+  });
+  ['dragleave','drop'].forEach(function(t){
+    composer.addEventListener(t, function(e){ e.preventDefault(); composer.classList.remove('drag'); });
+  });
+  composer.addEventListener('drop', function(e){ if (e.dataTransfer && e.dataTransfer.files) addFiles(e.dataTransfer.files); });
+  function updateCount(){ count.textContent = topic.value.length + ' / 1000'; }
+  topic.addEventListener('input', updateCount); updateCount();
 
+  /* ---------- options are optional: tapping a selected radio again clears it ---------- */
+  var radios = Array.prototype.slice.call(document.querySelectorAll('.seg input[type=radio]'));
+  radios.forEach(function(r){
+    r.addEventListener('click', function(){
+      if (r.dataset.was === '1') { r.checked = false; r.dataset.was = ''; return; }
+      radios.forEach(function(o){ if (o.name === r.name) o.dataset.was = ''; });
+      r.dataset.was = '1';
+    });
+  });
+  document.getElementById('clear-all').addEventListener('click', function(){
+    radios.forEach(function(r){ r.checked = false; r.dataset.was = ''; });
+    minutes.value = ''; syncQuick();
+    Array.prototype.forEach.call(form.querySelectorAll('.toggles input'), function(c){ c.checked = false; });
+  });
+
+  /* ---------- video length ---------- */
+  function syncQuick(){
+    qbtns.forEach(function(b){ b.classList.toggle('on', b.dataset.m === String(minutes.value).trim()); });
+  }
+  qbtns.forEach(function(b){
+    b.addEventListener('click', function(){ minutes.value = (minutes.value === b.dataset.m) ? '' : b.dataset.m; syncQuick(); });
+  });
+  minutes.addEventListener('input', syncQuick);
+
+  /* ---------- progress ---------- */
   function setProgress(p, msg){
     p = Math.max(0, Math.min(100, p));
     pfill.style.width = p + '%';
@@ -272,66 +411,78 @@ video{width:100%;max-height:70vh;border-radius:14px;background:#000}
     if (msg) pmsg.textContent = msg + ' (' + Math.round(p) + '%)';
     var activeIdx = 0;
     steps.forEach(function(li, i){ if (p >= +li.dataset.at) activeIdx = i; });
-    steps.forEach(function(li, i){
-      li.className = p >= 100 || i < activeIdx ? 'done' : (i === activeIdx ? 'active' : '');
-    });
+    steps.forEach(function(li, i){ li.className = p >= 100 || i < activeIdx ? 'done' : (i === activeIdx ? 'active' : ''); });
   }
-
   function showError(text){
     clearInterval(timer);
+    jobId = null;
     errtext.textContent = text;
     errbox.classList.remove('hidden');
+    cancelRow.classList.add('hidden');
     pcard.classList.remove('hidden');
     pcard.scrollIntoView({behavior:'smooth', block:'center'});
     go.disabled = false;
   }
-
   function validate(){
-    var files = Array.prototype.slice.call(pdfs.files).concat(Array.prototype.slice.call(imgs.files));
-    var topic = document.getElementById('topic').value.trim();
-    if (!topic && files.length === 0) return 'Type a topic or upload a PDF or image first.';
-    if (files.length > MAX_FILES) return 'Please upload at most ' + MAX_FILES + ' files.';
-    for (var i = 0; i < files.length; i++) {
-      if (files[i].size > MAX_MB * 1024 * 1024) return files[i].name + ' is larger than ' + MAX_MB + ' MB.';
+    var t = topic.value.trim();
+    if (!t && picked.length === 0) return 'Type a topic or attach a PDF or image first.';
+    if (picked.length > MAX_FILES) return 'Please attach at most ' + MAX_FILES + ' files.';
+    for (var i = 0; i < picked.length; i++) if (picked[i].size > MAX_MB * 1024 * 1024) return picked[i].name + ' is larger than ' + MAX_MB + ' MB.';
+    var mv = minutes.value.trim();
+    if (mv !== '') {
+      var m = Number(mv);
+      if (!isFinite(m) || m < 1 || m > MAX_MIN || Math.floor(m) !== m) return 'Video length must be a whole number from 1 to ' + MAX_MIN + ' minutes.';
     }
     return '';
+  }
+
+  function startPolling(id, text){
+    jobId = id;
+    go.disabled = true;
+    errbox.classList.add('hidden'); rcard.classList.add('hidden');
+    cancelRow.classList.remove('hidden');
+    pcard.classList.remove('hidden');
+    setProgress(2, text || 'Starting');
+    clearInterval(timer);
+    netFails = 0;
+    poll();
+    timer = setInterval(poll, 1500);
   }
 
   form.addEventListener('submit', function(ev){
     ev.preventDefault();
     var problem = validate();
-    errbox.classList.add('hidden');
-    rcard.classList.add('hidden');
+    errbox.classList.add('hidden'); rcard.classList.add('hidden');
     if (problem) { pcard.classList.remove('hidden'); showError(problem); return; }
-
     go.disabled = true;
+    cancelRow.classList.add('hidden');
     pcard.classList.remove('hidden');
     setProgress(1, 'Uploading');
     pcard.scrollIntoView({behavior:'smooth', block:'center'});
 
-    fetch('{{ url_for("generate_video_start") }}', {method:'POST', body:new FormData(form), credentials:'same-origin'})
+    fetch(START_URL, {method:'POST', body:new FormData(form), credentials:'same-origin'})
       .then(function(r){ return r.json().catch(function(){ return {ok:false, error:'The server sent an unexpected reply.'}; }); })
       .then(function(d){
         if (!d.ok) { showError(d.error || 'Could not start the video.'); return; }
-        netFails = 0;
-        timer = setInterval(function(){ poll(d.job_id); }, 1500);
+        setCredits(d.credits);
+        startPolling(d.job_id, d.resumed ? 'Reconnected to your running video' : 'Starting');
       })
       .catch(function(){ showError('Could not reach the server. Check your connection and try again.'); });
   });
 
-  function poll(jobId){
-    fetch('/generate_video/status/' + encodeURIComponent(jobId), {credentials:'same-origin'})
+  function poll(){
+    if (!jobId) return;
+    var id = jobId;
+    fetch('/generate_video/status/' + encodeURIComponent(id), {credentials:'same-origin'})
       .then(function(r){ return r.json(); })
       .then(function(d){
+        if (id !== jobId) return;
         netFails = 0;
+        setCredits(d.credits);
         if (!d.ok) { showError(d.error || 'Lost track of the video job.'); return; }
         if (d.status === 'failed') { showError(d.error || 'Video generation failed.'); return; }
         setProgress(d.percent, d.message);
-        if (d.status === 'done') {
-          clearInterval(timer);
-          setProgress(100, 'Done');
-          showResult(d.result);
-        }
+        if (d.status === 'done') { clearInterval(timer); setProgress(100, 'Done'); showResult(d.result); }
       })
       .catch(function(){
         netFails++;
@@ -340,22 +491,28 @@ video{width:100%;max-height:70vh;border-radius:14px;background:#000}
   }
 
   function showResult(r){
+    jobId = null;
     pcard.classList.add('hidden');
     document.getElementById('r-title').textContent = r.info.title;
-    var v = document.getElementById('r-video');
-    v.src = r.video_url; v.load();
+    var v = document.getElementById('r-video'); v.src = r.video_url; v.load();
     var meta = document.getElementById('r-meta'); meta.textContent = '';
     ['🗣️ ' + r.info.language, '🎨 ' + r.info.style, '📊 ' + r.info.difficulty, '⏱️ ' + r.info.duration].forEach(function(t){
       var s = document.createElement('span'); s.textContent = t; meta.appendChild(s);
     });
     document.getElementById('r-quiz').href = r.quiz_url;
     document.getElementById('r-download').href = r.download_url;
-    if (r.credits !== undefined && document.getElementById('credits')) document.getElementById('credits').textContent = r.credits;
+    setCredits(r.credits);
     rcard.classList.remove('hidden');
     rcard.scrollIntoView({behavior:'smooth', block:'start'});
     go.disabled = false;
   }
 
+  document.getElementById('cancel').addEventListener('click', function(){
+    fetch(CANCEL_URL, {method:'POST', credentials:'same-origin'})
+      .then(function(r){ return r.json().catch(function(){ return {}; }); })
+      .then(function(d){ setCredits(d.credits); showError('Cancelled. Your credits are refunded and you can start a new video now.'); })
+      .catch(function(){ showError('Could not cancel. Please try again.'); });
+  });
   document.getElementById('again').addEventListener('click', function(){
     pcard.classList.add('hidden'); errbox.classList.add('hidden');
     form.scrollIntoView({behavior:'smooth'});
@@ -364,6 +521,12 @@ video{width:100%;max-height:70vh;border-radius:14px;background:#000}
     rcard.classList.add('hidden');
     form.scrollIntoView({behavior:'smooth'});
   });
+
+  /* ---------- after a refresh, reconnect to a video that is still being built ---------- */
+  fetch(ACTIVE_URL, {credentials:'same-origin'})
+    .then(function(r){ return r.json(); })
+    .then(function(d){ if (d && d.ok && d.job_id) startPolling(d.job_id, 'Reconnected to your running video'); })
+    .catch(function(){});
 })();
 </script>
 </body>

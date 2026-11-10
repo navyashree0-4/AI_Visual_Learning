@@ -1,4 +1,5 @@
-
+import copy
+import inspect
 import json
 import logging
 import re
@@ -30,21 +31,91 @@ EXPORT_DIR = GENERATED_DIR / "exports"
 for folder in (WORK_ROOT, GENERATED_DIR, EXPORT_DIR):
     folder.mkdir(parents=True, exist_ok=True)
 
-DURATION_COSTS = {
-    "Short": 5,
-    "Medium": 10,
-    "Long": 15,
+DURATION_COSTS = {"Short": 5, "Medium": 10, "Long": 15}
+DURATION_SCENES = {"Short": 3, "Medium": 5, "Long": 8}
+
+# ---------------------------------------------------------
+# STYLES
+# Each style has:
+#   prompt   - strong positive description (put first AND last)
+#   tag      - short label repeated at the end of every text
+#   avoid    - things that must NOT appear for this style
+# ---------------------------------------------------------
+STYLE_DATA = {
+    "3D": {
+        "prompt": (
+            "3D animated movie style, glossy rendered characters, soft studio "
+            "lighting, depth of field, smooth rounded shapes, Pixar-like"
+        ),
+        "tag": "3D CGI render",
+        "avoid": "flat 2D, vector, anime, cel-shaded, watercolor, pixel art, "
+                 "hand-drawn, sketch, paper texture",
+    },
+    "2D Flat": {
+        "prompt": (
+            "flat 2D vector illustration, bold solid colors, clean outlines, "
+            "no shading, no gradients, simple geometric shapes"
+        ),
+        "tag": "flat 2D vector art",
+        "avoid": "3D render, glossy, realistic lighting, depth of field, anime, "
+                 "watercolor, pixel art, gradients, shadows",
+    },
+    "Anime": {
+        "prompt": (
+            "Japanese anime style, cel-shaded, large expressive eyes, sharp "
+            "line art, vibrant colors, dynamic anime composition"
+        ),
+        "tag": "anime cel-shaded",
+        "avoid": "3D render, Pixar, western cartoon, flat vector, watercolor, "
+                 "pixel art, realistic photo",
+    },
+    "Watercolor": {
+        "prompt": (
+            "hand-painted watercolor storybook illustration, soft wet edges, "
+            "paper texture, gentle pastel washes, visible brush strokes"
+        ),
+        "tag": "watercolor painting",
+        "avoid": "3D render, glossy, vector, sharp digital lines, anime, "
+                 "pixel art, neon colors",
+    },
+    "Storybook": {
+        "prompt": (
+            "classic children's storybook illustration, warm hand-drawn "
+            "look, soft colored pencil texture"
+        ),
+        "tag": "storybook illustration",
+        "avoid": "3D render, glossy, vector, anime, pixel art, photo",
+    },
+    "Pixel art": {
+        "prompt": (
+            "retro pixel art, 16-bit video game style, limited color palette, "
+            "crisp square pixels"
+        ),
+        "tag": "16-bit pixel art",
+        "avoid": "3D render, smooth gradients, vector, anime, watercolor, photo",
+    },
 }
 
-DURATION_SCENES = {
-    "Short": 3,
-    "Medium": 5,
-    "Long": 8,
-}
+STYLE_PROMPTS = {k: v["prompt"] for k, v in STYLE_DATA.items()}
+
+# Words that signal a style. Used to remove old style text from a story
+# so a "3D" story does not fight with an "Anime" movie.
+STYLE_WORDS = [
+    r"3d animated movie style", r"3d animated", r"3d cgi render", r"3d render(?:ed)?",
+    r"3d style", r"3d", r"pixar[- ]like", r"pixar", r"glossy rendered characters",
+    r"flat 2d vector illustration", r"flat 2d vector art", r"flat 2d", r"2d flat",
+    r"vector illustration", r"vector art", r"cel[- ]shaded", r"japanese anime style",
+    r"anime style", r"anime", r"watercolou?r(?: storybook)?(?: illustration| painting)?",
+    r"hand[- ]painted", r"classic children's storybook illustration",
+    r"storybook illustration", r"retro pixel art", r"16-bit(?: video game)?(?: style| pixel art)?",
+    r"pixel art",
+]
+STYLE_WORDS_RE = re.compile(
+    r"\b(?:" + "|".join(STYLE_WORDS) + r")\b(?:\s+of\b)?[,.;:]?\s*", re.IGNORECASE
+)
 
 ALLOWED_IMAGES = {".jpg", ".jpeg", ".png"}
 ALLOWED_AUDIO = {".mp3", ".wav", ".m4a", ".ogg"}
-
 MAX_IMAGE_SIZE = 10 * 1024 * 1024
 MAX_AUDIO_SIZE = 15 * 1024 * 1024
 
@@ -60,25 +131,15 @@ JOBS_LOCK = threading.Lock()
 # =========================================================
 
 def login_required(api=False):
-
     def decorator(function):
-
         @wraps(function)
         def wrapper(*args, **kwargs):
-
             if not session.get("user_id"):
                 if api:
-                    return jsonify(
-                        ok=False,
-                        error="Please log in first."
-                    ), 401
-
+                    return jsonify(ok=False, error="Please log in first."), 401
                 return redirect(url_for("login"))
-
             return function(*args, **kwargs)
-
         return wrapper
-
     return decorator
 
 
@@ -87,29 +148,17 @@ def login_required(api=False):
 # =========================================================
 
 def get_hooks():
-
     names = (
-        "CHARGE_CREDITS",
-        "REFUND_CREDITS",
-        "GET_USER_CREDITS",
-        "SAVE_VIDEO_RECORD",
-        "LOG_ACTIVITY",
-        "BUMP_VIDEO_PROGRESS",
+        "CHARGE_CREDITS", "REFUND_CREDITS", "GET_USER_CREDITS",
+        "SAVE_VIDEO_RECORD", "LOG_ACTIVITY", "BUMP_VIDEO_PROGRESS",
         "GET_VIDEO_FOR_USER",
     )
-
     hooks = {}
-
     for name in names:
         function = current_app.config.get(name)
-
         if not callable(function):
-            raise RuntimeError(
-                f"Missing app.py configuration: {name}"
-            )
-
+            raise RuntimeError(f"Missing app.py configuration: {name}")
         hooks[name] = function
-
     return hooks
 
 
@@ -118,28 +167,15 @@ def get_balance(hooks, user_id):
 
 
 def charge(hooks, user_id, amount):
-
-    # Your app.py charge_credits returns True or False.
-    return bool(
-        hooks["CHARGE_CREDITS"](user_id, amount)
-    )
+    return bool(hooks["CHARGE_CREDITS"](user_id, amount))
 
 
 def refund(hooks, user_id, amount):
-
     try:
         hooks["REFUND_CREDITS"](user_id, amount)
-        logger.info(
-            "Refunded %s credits to user %s",
-            amount,
-            user_id,
-        )
-
+        logger.info("Refunded %s credits to user %s", amount, user_id)
     except Exception:
-        logger.exception(
-            "Credit refund failed for user %s",
-            user_id,
-        )
+        logger.exception("Credit refund failed for user %s", user_id)
 
 
 # =========================================================
@@ -147,7 +183,6 @@ def refund(hooks, user_id, amount):
 # =========================================================
 
 def clean_story(value):
-
     if isinstance(value, str):
         try:
             value = json.loads(value)
@@ -174,22 +209,104 @@ def clean_story(value):
 
 
 def get_duration(story, requested):
-
     if requested not in DURATION_COSTS:
         requested = story.get("duration", "Medium")
-
     if requested not in DURATION_COSTS:
         raise ValueError("Invalid video duration.")
-
     return requested
+
+
+def allowed_styles():
+    return getattr(cg, "STYLES", ["3D", "2D Flat", "Anime", "Watercolor"])
+
+
+def style_info(style):
+    return STYLE_DATA.get(style) or {
+        "prompt": f"{style} cartoon style",
+        "tag": f"{style} style",
+        "avoid": "",
+    }
+
+
+def style_prompt(style):
+    return style_info(style)["prompt"]
+
+
+# =========================================================
+# STYLE HANDLING
+# =========================================================
+
+def strip_style(text):
+    """Remove any style wording (from any style) from a piece of text."""
+    text = str(text or "")
+
+    # Remove full style prompts first, then single style words.
+    for full in STYLE_PROMPTS.values():
+        text = text.replace(full, " ")
+
+    text = STYLE_WORDS_RE.sub(" ", text)
+    text = re.sub(r"\(\s*[^)]*style\s*\)", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s{2,}", " ", text)
+    text = re.sub(r"^[\s.,;:]+|[\s,;:]+$", "", text)
+    return text.strip()
+
+
+def neutralize_story(story):
+    """Story shown in the editor has no style words, so any style can be applied later."""
+    story = copy.deepcopy(story)
+
+    for character in story.get("characters") or []:
+        if isinstance(character, dict):
+            character["look"] = strip_style(character.get("look", ""))
+
+    for scene in story.get("scenes") or []:
+        if isinstance(scene, dict):
+            scene["setting"] = strip_style(scene.get("setting", ""))
+            scene["action"] = strip_style(scene.get("action", ""))
+
+    return story
+
+
+def apply_style(story, style):
+    """
+    Return a copy of the story drawn in the chosen style.
+
+    1. Remove old style words (so styles never fight each other).
+    2. Put the chosen style FIRST and LAST in every character look and
+       scene setting (generators may cut long text from either end).
+    3. Add a style note to each action.
+    4. Add a negative prompt listing the other styles to avoid.
+    """
+    info = style_info(style)
+    prompt, tag, avoid = info["prompt"], info["tag"], info["avoid"]
+
+    styled = neutralize_story(story)
+    styled["style"] = style
+    styled["style_prompt"] = prompt
+    styled["negative_prompt"] = avoid
+
+    for character in styled.get("characters") or []:
+        if not isinstance(character, dict):
+            continue
+        look = character.get("look", "")
+        character["look"] = f"{prompt}. {look}. ({tag})".strip()
+
+    for scene in styled.get("scenes") or []:
+        if not isinstance(scene, dict):
+            continue
+        setting = scene.get("setting", "")
+        action = scene.get("action", "")
+        scene["setting"] = f"{prompt}. {setting}. ({tag})".strip()
+        scene["action"] = f"{action} Rendered as {tag}.".strip()
+
+    return styled
 
 
 # =========================================================
 # FILE UPLOADS
 # =========================================================
 
-def save_upload(file, folder, kind):
-
+def save_upload(file, folder, kind, index=None):
     if not file or not file.filename:
         return None
 
@@ -201,16 +318,12 @@ def save_upload(file, folder, kind):
     extension = Path(filename).suffix.lower()
 
     if kind == "image":
-        allowed = ALLOWED_IMAGES
-        maximum = MAX_IMAGE_SIZE
+        allowed, maximum = ALLOWED_IMAGES, MAX_IMAGE_SIZE
     else:
-        allowed = ALLOWED_AUDIO
-        maximum = MAX_AUDIO_SIZE
+        allowed, maximum = ALLOWED_AUDIO, MAX_AUDIO_SIZE
 
     if extension not in allowed:
-        raise ValueError(
-            f"Unsupported {kind} file format."
-        )
+        raise ValueError(f"Unsupported {kind} file format.")
 
     data = file.read(maximum + 1)
 
@@ -218,11 +331,10 @@ def save_upload(file, folder, kind):
         raise ValueError("Uploaded file is empty.")
 
     if len(data) > maximum:
-        raise ValueError(
-            f"{kind.title()} file exceeds the size limit."
-        )
+        raise ValueError(f"{kind.title()} file exceeds the size limit.")
 
-    destination = folder / f"user_{kind}{extension}"
+    suffix = "" if index is None else f"_{index}"
+    destination = folder / f"user_{kind}{suffix}{extension}"
     destination.write_bytes(data)
 
     return str(destination)
@@ -233,28 +345,20 @@ def save_upload(file, folder, kind):
 # =========================================================
 
 def update_job(job_id, **values):
-
     with JOBS_LOCK:
         job = JOBS.get(job_id)
-
         if job:
             job.update(values)
             job["updated_at"] = time.time()
 
 
 def find_job(job_id):
-
     with JOBS_LOCK:
         return JOBS.get(job_id)
 
 
 def make_preview_url(job_id, filename):
-
-    return url_for(
-        "cartoon.cartoon_asset",
-        job_id=job_id,
-        name=filename,
-    )
+    return url_for("cartoon.cartoon_asset", job_id=job_id, name=filename)
 
 
 # =========================================================
@@ -264,7 +368,6 @@ def make_preview_url(job_id, filename):
 @cartoon_bp.route("/cartoon-studio")
 @login_required()
 def cartoon_studio():
-
     hooks = get_hooks()
 
     return render_template(
@@ -275,16 +378,28 @@ def cartoon_studio():
         cost_by_duration=DURATION_COSTS,
         duration_costs=DURATION_COSTS,
         scenes_by_duration=DURATION_SCENES,
-        styles=getattr(
-            cg,
-            "STYLES",
-            ["3D", "2D Flat", "Anime", "Watercolor"],
-        ),
+        styles=allowed_styles(),
         presets=getattr(cg, "SOCIAL_PRESETS", {}),
-        # Local generation is supported; the HTML should not
-        # disable generation just because FAL_KEY is absent.
         fal_ready=True,
     )
+
+
+# =========================================================
+# HEALTH CHECK API
+# =========================================================
+
+@cartoon_bp.route("/api/cartoon/health")
+@login_required(api=True)
+def api_health():
+    checks = []
+
+    try:
+        cg.check_ready()
+        checks.append({"name": "Video generator", "ok": True, "fix": ""})
+    except Exception as exc:
+        checks.append({"name": "Video generator", "ok": False, "fix": str(exc)})
+
+    return jsonify(ok=True, checks=checks)
 
 
 # =========================================================
@@ -294,7 +409,6 @@ def cartoon_studio():
 @cartoon_bp.route("/api/cartoon/story", methods=["POST"])
 @login_required(api=True)
 def api_story():
-
     try:
         data = request.get_json(silent=True) or {}
 
@@ -309,27 +423,19 @@ def api_story():
         if duration not in DURATION_SCENES:
             raise ValueError("Invalid duration.")
 
-        if style not in getattr(
-            cg, "STYLES",
-            ["3D", "2D Flat", "Anime", "Watercolor"]
-        ):
+        if style not in allowed_styles():
             raise ValueError("Invalid cartoon style.")
 
-        if language not in getattr(
-            cg, "LANGUAGES",
-            ["English", "Kannada", "Hindi"]
-        ):
+        if language not in getattr(cg, "LANGUAGES", ["English", "Kannada", "Hindi"]):
             raise ValueError("Invalid language.")
 
-        story = cg.generate_story(
-            prompt,
-            style,
-            language,
-            duration,
-        )
+        story = cg.generate_story(prompt, style, language, duration)
 
         story = clean_story(story)
+        # Keep the editor text neutral; the style is applied when the movie is made.
+        story = neutralize_story(story)
         story["duration"] = duration
+        story["style"] = style
 
         return jsonify(
             ok=True,
@@ -343,39 +449,38 @@ def api_story():
 
     except Exception:
         logger.exception("Story generation error.")
-        return jsonify(
-            ok=False,
-            error="Could not generate your story."
-        ), 500
+        return jsonify(ok=False, error="Could not generate your story."), 500
 
 
 # =========================================================
 # REGENERATE SCENE API
 # =========================================================
 
-@cartoon_bp.route(
-    "/api/cartoon/regenerate-scene",
-    methods=["POST"]
-)
+@cartoon_bp.route("/api/cartoon/regenerate-scene", methods=["POST"])
 @login_required(api=True)
 def api_regenerate_scene():
-
     try:
         data = request.get_json(silent=True) or {}
 
         story = clean_story(data.get("story"))
         index = int(data.get("index", -1))
 
+        style = data.get("style", "3D")
+        language = data.get("language", "English")
+
         if not 0 <= index < len(story["scenes"]):
             raise ValueError("Invalid scene number.")
 
+        if style not in allowed_styles():
+            raise ValueError("Invalid cartoon style.")
+
         scene = cg.regenerate_scene(
-            story,
-            index,
-            str(data.get("instruction", "")),
-            data.get("style", "3D"),
-            data.get("language", "English"),
+            story, index, str(data.get("instruction", "")), style, language,
         )
+
+        if isinstance(scene, dict):
+            scene["setting"] = strip_style(scene.get("setting", ""))
+            scene["action"] = strip_style(scene.get("action", ""))
 
         return jsonify(ok=True, scene=scene)
 
@@ -384,26 +489,14 @@ def api_regenerate_scene():
 
     except Exception:
         logger.exception("Scene regeneration error.")
-        return jsonify(
-            ok=False,
-            error="Could not regenerate this scene."
-        ), 500
+        return jsonify(ok=False, error="Could not regenerate this scene."), 500
 
 
 # =========================================================
 # GENERATION WORKER
 # =========================================================
 
-def generation_worker(
-    job_id,
-    user_id,
-    story,
-    options,
-    work_dir,
-    hooks,
-    cost,
-):
-
+def generation_worker(job_id, user_id, story, options, work_dir, hooks, cost):
     charged = True
     final_path = None
 
@@ -411,32 +504,19 @@ def generation_worker(
     preview_dir.mkdir(exist_ok=True)
 
     def progress(percent, message="Generating video..."):
-
         try:
             percent = max(0, min(100, int(percent)))
         except (TypeError, ValueError):
             percent = 0
+        update_job(job_id, percent=percent, message=str(message))
 
-        update_job(
-            job_id,
-            percent=percent,
-            message=str(message),
-        )
-
-    def asset(name, path=None):
-
-        # Support callbacks supplied as asset(path) or
-        # asset(name, path).
-        if path is None:
-            path = name
-            name = Path(str(path)).name
-
-        name = Path(str(name)).name
+    def asset(kind, index, filename):
+        name = Path(str(filename)).name
 
         if not ASSET_RE.match(name):
             return
 
-        source = Path(str(path))
+        source = work_dir / name
 
         if not source.exists():
             return
@@ -444,8 +524,7 @@ def generation_worker(
         destination = preview_dir / name
 
         try:
-            if source.resolve() != destination.resolve():
-                shutil.copy2(source, destination)
+            shutil.copy2(source, destination)
 
             current = find_job(job_id) or {}
             assets = dict(current.get("assets", {}))
@@ -457,12 +536,21 @@ def generation_worker(
             logger.exception("Could not save preview %s", name)
 
     try:
-
         progress(5, "Preparing your cartoon...")
-
         cg.check_ready()
 
-        progress(10, "Creating cartoon scenes...")
+        progress(10, f"Drawing scenes in {options['style']} style...")
+
+        extra = {}
+        pictures = options.get("user_images") or []
+        try:
+            accepted = inspect.signature(cg.generate_movie).parameters
+        except (TypeError, ValueError):
+            accepted = {}
+        if "user_images" in accepted:
+            extra["user_images"] = pictures
+        elif len(pictures) > 1:
+            logger.warning("cartoon_generator does not support user_images yet; using the first picture only.")
 
         result = cg.generate_movie(
             story=story,
@@ -479,21 +567,18 @@ def generation_worker(
             user_audio=options["user_audio"],
             progress=progress,
             asset=asset,
+            **extra,
         )
 
         if not isinstance(result, dict):
             raise RuntimeError("Invalid video generator result.")
 
-        filename = secure_filename(
-            str(result.get("filename", ""))
-        )
+        filename = secure_filename(str(result.get("filename", "")))
 
         if not filename:
             raise RuntimeError("Generated filename is invalid.")
 
-        final_path = Path(
-            result.get("path") or GENERATED_DIR / filename
-        ).resolve()
+        final_path = Path(result.get("path") or GENERATED_DIR / filename).resolve()
 
         if final_path.parent != GENERATED_DIR.resolve():
             raise RuntimeError("Invalid generated video location.")
@@ -505,9 +590,7 @@ def generation_worker(
 
         metadata = {
             "title": str(
-                result.get("title")
-                or story.get("title")
-                or "Cartoon Lesson"
+                result.get("title") or story.get("title") or "Cartoon Lesson"
             )[:150],
             "style": options["style"],
             "language": options["language"],
@@ -522,17 +605,11 @@ def generation_worker(
             "script_text": result.get("script_text", ""),
         }
 
-        video_id = hooks["SAVE_VIDEO_RECORD"](
-            user_id,
-            metadata,
-        )
+        video_id = hooks["SAVE_VIDEO_RECORD"](user_id, metadata)
 
         if not video_id:
-            raise RuntimeError(
-                "Video could not be saved to My Generated Videos."
-            )
+            raise RuntimeError("Video could not be saved to My Generated Videos.")
 
-        # Saved successfully: the charge is now final.
         charged = False
 
         try:
@@ -558,16 +635,12 @@ def generation_worker(
                 "filename": filename,
                 "title": metadata["title"],
                 "duration": result.get("duration_seconds", 0),
-                "scenes": result.get(
-                    "scene_count",
-                    len(story["scenes"]),
-                ),
+                "scenes": result.get("scene_count", len(story["scenes"])),
                 "credits": credits,
             },
         )
 
     except Exception as exc:
-
         logger.exception("Cartoon job %s failed.", job_id)
 
         if charged:
@@ -588,14 +661,9 @@ def generation_worker(
         )
 
     finally:
-
-        # Keep previews for the preview route.
-        # Remove uploaded files and temporary generator files.
         for item in list(work_dir.iterdir()):
-
             if item.name == "previews":
                 continue
-
             try:
                 if item.is_dir():
                     shutil.rmtree(item, ignore_errors=True)
@@ -609,45 +677,31 @@ def generation_worker(
 # GENERATE API
 # =========================================================
 
-@cartoon_bp.route(
-    "/api/cartoon/generate",
-    methods=["POST"]
-)
+@cartoon_bp.route("/api/cartoon/generate", methods=["POST"])
 @login_required(api=True)
 def api_generate():
-
     user_id = session["user_id"]
     charged = False
     work_dir = None
+    cost = 0
 
     try:
-
         hooks = get_hooks()
 
         with JOBS_LOCK:
             for job in JOBS.values():
-                if (
-                    job.get("user_id") == user_id
-                    and job.get("status") in ("queued", "running")
-                ):
-                    return jsonify(
-                        ok=False,
-                        error="A video is already generating."
-                    ), 409
+                if job.get("user_id") == user_id and job.get("status") in ("queued", "running"):
+                    return jsonify(ok=False, error="A video is already generating."), 409
 
         story = clean_story(request.form.get("story", ""))
 
-        duration = get_duration(
-            story,
-            request.form.get("duration"),
-        )
-
+        duration = get_duration(story, request.form.get("duration"))
         expected_scenes = DURATION_SCENES[duration]
 
         if len(story["scenes"]) != expected_scenes:
             raise ValueError(
-                f"{duration} videos must contain "
-                f"{expected_scenes} scenes. Generate the story again."
+                f"{duration} videos must contain {expected_scenes} scenes. "
+                "Generate the story again."
             )
 
         cost = DURATION_COSTS[duration]
@@ -655,16 +709,10 @@ def api_generate():
         style = request.form.get("style", "3D")
         language = request.form.get("language", "English")
 
-        if style not in getattr(
-            cg, "STYLES",
-            ["3D", "2D Flat", "Anime", "Watercolor"]
-        ):
+        if style not in allowed_styles():
             raise ValueError("Invalid style.")
 
-        if language not in getattr(
-            cg, "LANGUAGES",
-            ["English", "Kannada", "Hindi"]
-        ):
+        if language not in getattr(cg, "LANGUAGES", ["English", "Kannada", "Hindi"]):
             raise ValueError("Invalid language.")
 
         aspect_ratio = request.form.get("aspect_ratio", "16:9")
@@ -677,6 +725,19 @@ def api_generate():
             if value is None:
                 return default
             return value.lower() in ("1", "true", "yes", "on")
+
+        # Remove old style words, then write the chosen style everywhere.
+        story = apply_style(story, style)
+
+        # Several pictures are allowed: picture 1 -> scene 1, picture 2 -> scene 2 ...
+        image_files = [f for f in request.files.getlist("images") if f and f.filename]
+        if not image_files:
+            image_files = [f for f in request.files.getlist("image") if f and f.filename]
+
+        if len(image_files) > expected_scenes:
+            raise ValueError(
+                f"You can add up to {expected_scenes} pictures for a {duration} movie."
+            )
 
         balance = get_balance(hooks, user_id)
 
@@ -702,18 +763,12 @@ def api_generate():
         work_dir.mkdir(parents=True, exist_ok=True)
 
         try:
-            user_image = save_upload(
-                request.files.get("image"),
-                work_dir,
-                "image",
-            )
-
-            user_audio = save_upload(
-                request.files.get("audio"),
-                work_dir,
-                "audio",
-            )
-
+            user_images = [
+                save_upload(f, work_dir, "image", i)
+                for i, f in enumerate(image_files)
+            ]
+            user_image = user_images[0] if user_images else None
+            user_audio = save_upload(request.files.get("audio"), work_dir, "audio")
         except Exception:
             refund(hooks, user_id, cost)
             charged = False
@@ -727,6 +782,7 @@ def api_generate():
             "music": checked("music"),
             "sfx": checked("sfx"),
             "user_image": user_image,
+            "user_images": user_images,
             "user_audio": user_audio,
         }
 
@@ -745,15 +801,7 @@ def api_generate():
 
         thread = threading.Thread(
             target=generation_worker,
-            args=(
-                job_id,
-                user_id,
-                story,
-                options,
-                work_dir,
-                hooks,
-                cost,
-            ),
+            args=(job_id, user_id, story, options, work_dir, hooks, cost),
             daemon=True,
         )
 
@@ -775,17 +823,13 @@ def api_generate():
         )
 
     except ValueError as exc:
-
         if charged:
             refund(get_hooks(), user_id, cost)
-
         if work_dir:
             shutil.rmtree(work_dir, ignore_errors=True)
-
         return jsonify(ok=False, error=str(exc)), 400
 
     except Exception:
-
         logger.exception("Could not start cartoon generation.")
 
         if charged:
@@ -797,22 +841,16 @@ def api_generate():
         if work_dir:
             shutil.rmtree(work_dir, ignore_errors=True)
 
-        return jsonify(
-            ok=False,
-            error="Could not start video generation."
-        ), 500
+        return jsonify(ok=False, error="Could not start video generation."), 500
 
 
 # =========================================================
 # JOB STATUS
 # =========================================================
 
-@cartoon_bp.route(
-    "/api/cartoon/status/<job_id>"
-)
+@cartoon_bp.route("/api/cartoon/status/<job_id>")
 @login_required(api=True)
 def api_status(job_id):
-
     if not ID_RE.match(job_id):
         return jsonify(ok=False, error="Invalid job ID."), 400
 
@@ -828,10 +866,7 @@ def api_status(job_id):
         "message": job["message"],
         "error": job.get("error"),
         "assets": [
-            {
-                "url": url,
-                "title": name.replace("_", " ").split(".")[0],
-            }
+            {"url": url, "title": name.replace("_", " ").split(".")[0]}
             for name, url in job.get("assets", {}).items()
         ],
     }
@@ -840,36 +875,17 @@ def api_status(job_id):
         response["credits"] = job.get("credits")
 
     if job["status"] == "done":
-
         result = dict(job["result"])
         video_id = result["video_id"]
         filename = result["filename"]
 
-        result["video_url"] = url_for(
-            "static",
-            filename="generated/" + filename,
-        )
-
-        result["download_url"] = url_for(
-            "cartoon.download_video",
-            video_id=video_id,
-        )
-
-        try:
-            result["quiz_url"] = url_for(
-                "video_quiz.video_quiz_page",
-                video_id=video_id,
-            )
-        except Exception:
-            result["quiz_url"] = None
+        result["video_url"] = url_for("static", filename="generated/" + filename)
+        result["download_url"] = url_for("cartoon.download_video", video_id=video_id)
 
         exports = {}
-
         for preset in getattr(cg, "SOCIAL_PRESETS", {}):
             exports[preset] = url_for(
-                "cartoon.export_video",
-                video_id=video_id,
-                preset=preset,
+                "cartoon.export_video", video_id=video_id, preset=preset,
             )
 
         result["exports"] = exports
@@ -882,12 +898,9 @@ def api_status(job_id):
 # PREVIEW IMAGE ROUTE
 # =========================================================
 
-@cartoon_bp.route(
-    "/cartoon-studio/asset/<job_id>/<name>"
-)
+@cartoon_bp.route("/cartoon-studio/asset/<job_id>/<name>")
 @login_required()
 def cartoon_asset(job_id, name):
-
     if not ID_RE.match(job_id) or not ASSET_RE.match(name):
         return "Invalid asset", 400
 
@@ -908,25 +921,17 @@ def cartoon_asset(job_id, name):
 # VIDEO DOWNLOAD
 # =========================================================
 
-@cartoon_bp.route(
-    "/cartoon-studio/download/<int:video_id>"
-)
+@cartoon_bp.route("/cartoon-studio/download/<int:video_id>")
 @login_required()
 def download_video(video_id):
-
     hooks = get_hooks()
 
-    record = hooks["GET_VIDEO_FOR_USER"](
-        video_id,
-        session["user_id"],
-    )
+    record = hooks["GET_VIDEO_FOR_USER"](video_id, session["user_id"])
 
     if not record:
         return "Video not found", 404
 
-    filename = secure_filename(
-        str(record.get("filename", ""))
-    )
+    filename = secure_filename(str(record.get("filename", "")))
 
     if not filename:
         return "Invalid video filename", 400
@@ -936,73 +941,44 @@ def download_video(video_id):
     if not path.is_file():
         return "Video file not found", 404
 
-    return send_file(
-        path,
-        as_attachment=True,
-        download_name=filename,
-        mimetype="video/mp4",
-    )
+    return send_file(path, as_attachment=True, download_name=filename, mimetype="video/mp4")
 
 
 # =========================================================
 # SOCIAL MEDIA EXPORT
 # =========================================================
 
-@cartoon_bp.route(
-    "/cartoon-studio/export/<int:video_id>/<preset>"
-)
+@cartoon_bp.route("/cartoon-studio/export/<int:video_id>/<preset>")
 @login_required()
 def export_video(video_id, preset):
-
     try:
-
         hooks = get_hooks()
-
         presets = getattr(cg, "SOCIAL_PRESETS", {})
 
         if preset not in presets:
             return "Invalid export preset", 400
 
-        record = hooks["GET_VIDEO_FOR_USER"](
-            video_id,
-            session["user_id"],
-        )
+        record = hooks["GET_VIDEO_FOR_USER"](video_id, session["user_id"])
 
         if not record:
             return "Video not found", 404
 
-        filename = secure_filename(
-            str(record.get("filename", ""))
-        )
-
+        filename = secure_filename(str(record.get("filename", "")))
         source = GENERATED_DIR / filename
 
         if not source.is_file():
             return "Source video not found", 404
 
-        output_name = (
-            f"{Path(filename).stem}_{secure_filename(preset)}.mp4"
-        )
-
+        output_name = f"{Path(filename).stem}_{secure_filename(preset)}.mp4"
         destination = EXPORT_DIR / output_name
 
         if not destination.is_file():
-
-            cg.export_for_platform(
-                str(source),
-                str(destination),
-                preset,
-            )
+            cg.export_for_platform(str(source), str(destination), preset)
 
         if not destination.is_file():
             return "Export could not be created", 500
 
-        return send_file(
-            destination,
-            as_attachment=True,
-            download_name=output_name,
-            mimetype="video/mp4",
-        )
+        return send_file(destination, as_attachment=True, download_name=output_name, mimetype="video/mp4")
 
     except Exception:
         logger.exception("Social export failed.")
