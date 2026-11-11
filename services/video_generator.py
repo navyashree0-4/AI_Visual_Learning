@@ -1,43 +1,45 @@
 """
-EduVision video generation service  (services/video_generator.py)  -- VISUAL TEACHER VERSION 3 (FAST BUILD)
+EduVision video generation service  (services/video_generator.py)  -- VERSION 5 (FAST + CORRECT LANGUAGE)
 
-What changed in this FAST build (same features, much shorter waiting time)
-  * Rendering is lighter: 10 frames per second (was 15), smaller render size (800x450, FFmpeg scales it up),
-    fewer background particles, and the photo zoom uses one single resize call per frame.
-  * Fewer AI calls: 45 seconds per scene (was 32), 4 scenes written per call (was 3), only ONE attempt to
-    lengthen a short narration (was 2), and a smaller Ollama context window.
-  * The voice is no longer recorded twice unless it is more than 25% away from the requested length.
-  * The slow vision check on downloaded photos is OFF unless you set EDUVISION_VISION_CHECK=1.
-  * Shorter network time-outs for photo sites, so one slow site cannot hold a scene back.
-  * Timing log: after each video the log shows how many seconds script / voice+photos / render / join took,
-    so you can see the real bottleneck.
+What is new in this build
+  * Kannada / Hindi are checked (narration AND on-screen labels). A scene that comes back in English is
+    rewritten, and dropped if it still fails, so the voice and the screen always use the chosen script.
+  * Kannada / Hindi are written 2 scenes per AI call (long scripts were being cut off before).
+  * Animated style looks different: connected step chain with arrows + stronger photo zoom.
+  * MUCH FASTER:
+      - the voice is no longer re-recorded: its speed is adjusted by FFmpeg (atempo) in the scene render
+      - a photo source that keeps timing out is skipped for the rest of the video
+      - concept photo and example photo are searched at the same time
+      - shorter photo / download time-outs and a smaller photo time budget
+      - lower default draw size (640 px) and shorter Gemini call spacing
 
 Install once:   pip install edge-tts
 
 Optional environment variables (.env)
-  GEMINI_API_KEY=xxxx                use Google Gemini (fast, hosted) for the script and quiz
-  GEMINI_MODEL=gemini-2.5-flash      change if Google renames the model
-  GEMINI_MIN_INTERVAL=4              seconds between Gemini calls (free tier limit)
-  OLLAMA_URL, OLLAMA_MODEL           (local AI: used when no Gemini key, or if Gemini fails)
-  OLLAMA_NUM_CTX=6144                Ollama context window (smaller = faster)
-  OLLAMA_VISION_MODEL=llava          describe uploaded images (leave empty to skip)
-  EDUVISION_VISION_CHECK=0           1 = also check every downloaded photo with the vision model (SLOW)
-  PEXELS_API_KEY=xxxx                best realistic photos (free key from pexels.com/api)
-  PIXABAY_API_KEY=xxxx               more real photos (free key from pixabay.com/api/docs)
-  EDUVISION_WEB_IMAGES=0             disable internet photos (diagram-only mode, fastest)
-  MAX_VIDEO_MINUTES=600              longest video a user may request
-  MUSIC_VOLUME=0.35                  background music loudness (0.05 quiet ... 0.6 loud)
-  SECONDS_PER_SCENE=45               longer = fewer scenes = faster
-  SCENES_PER_CALL=4                  scenes written by the AI in one call
-  ANIM_FPS=10                        frames per second while drawing (8 = faster, 15 = smoother)
-  RENDER_WORKERS=                    number of parallel render processes (default: CPU cores - 1, max 6)
-  RERECORD_TOLERANCE=0.25            re-record the voice only if its length is off by more than this
-  VOICE_EN_FEMALE / VOICE_EN_MALE    force a specific edge-tts voice name (see: edge-tts --list-voices)
-  VOICE_BASE_RATE=-3                 base speaking speed in percent (negative = calmer)
+  GEMINI_API_KEY=xxxx                Google Gemini for the script and quiz (recommended, fast)
+  GEMINI_MODEL=gemini-2.5-flash
+  GEMINI_MIN_INTERVAL=2              seconds between Gemini calls (free tier: 2-4, paid key: 0.5)
+  SCRIPT_WORKERS=4                   scene batches written at the same time (Gemini only)
+  OLLAMA_URL, OLLAMA_MODEL           local AI fallback
+  OLLAMA_NUM_CTX=6144
+  OLLAMA_VISION_MODEL=llava          describe uploaded images (optional)
+  EDUVISION_VISION_CHECK=0
+  PEXELS_API_KEY / PIXABAY_API_KEY   best photos (free keys)
+  EDUVISION_WEB_IMAGES=0             diagram-only mode (fastest)
+  PHOTO_BUDGET_SECONDS=12            max seconds spent searching ONE photo
+  MAX_VIDEO_MINUTES=600
+  MUSIC_VOLUME=0.35
+  SECONDS_PER_SCENE=60
+  SCENES_PER_CALL=4                  (Kannada / Hindi always use 2)
+  ANIM_FPS=8
+  RENDER_WIDTH=640
+  RENDER_WORKERS=                    default: CPU cores - 1, max 8
+  IO_WORKERS=10
+  EXPAND_RATIO=0.45
+  VOICE_EN_FEMALE / VOICE_EN_MALE / VOICE_KN_* / VOICE_HI_*
+  VOICE_BASE_RATE=-3
 
-IMPORTANT (Windows): your app.py must start Flask with
-    if __name__ == "__main__":
-        app.run(..., use_reloader=False)
+IMPORTANT (Windows): app.py must start Flask with  app.run(..., use_reloader=False)
 """
 import io
 import os
@@ -74,6 +76,10 @@ load_dotenv(BASE_DIR / ".env", override=True)
 logger = logging.getLogger(__name__)
 
 
+FAST_MODE = os.getenv("FAST_MODE", "1") != "0"      # FAST_MODE=0 -> old slow/high-detail pipeline
+FAST_SECONDS_PER_SCENE = 20                           # fast mode: one scene per ~20 s of video
+
+
 def _env_int(name, default, low=None):
     try:
         value = int(float(os.getenv(name, str(default)) or default))
@@ -94,47 +100,57 @@ TEMP_DIR = GENERATED_DIR / "temp"
 GENERATED_DIR.mkdir(parents=True, exist_ok=True)
 TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
-MUSIC_FILE = BASE_DIR / "static" / "music" / "background.mp3"          # your own track (optional)
-GENERATED_MUSIC_FILE = BASE_DIR / "static" / "music" / "eduvision_calm.wav"  # built automatically
+MUSIC_FILE = BASE_DIR / "static" / "music" / "background.mp3"
+GENERATED_MUSIC_FILE = BASE_DIR / "static" / "music" / "eduvision_calm.wav"
 
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
 OLLAMA_VISION_MODEL = os.getenv("OLLAMA_VISION_MODEL", "").strip()
 OLLAMA_NUM_CTX = _env_int("OLLAMA_NUM_CTX", 6144, 2048)
-# Google Gemini (hosted AI, runs on Google's GPUs). If GEMINI_API_KEY is set it is used for all script/quiz
-# writing and the local Ollama model is only a fallback.
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
-GEMINI_MIN_INTERVAL = _env_float("GEMINI_MIN_INTERVAL", 4.0)   # seconds between calls (free tier rate limit)
-VISION_CHECK = os.getenv("EDUVISION_VISION_CHECK", "0") == "1"      # slow: off by default
+GEMINI_MIN_INTERVAL = _env_float("GEMINI_MIN_INTERVAL", 2.0)
+GEMINI_TIMEOUT = _env_int("GEMINI_TIMEOUT", 45, 10)   # seconds one Gemini call may take before giving up
+SCRIPT_WORKERS = _env_int("SCRIPT_WORKERS", 4, 1)
+VISION_CHECK = os.getenv("EDUVISION_VISION_CHECK", "0") == "1"
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY", "").strip()
 PIXABAY_API_KEY = os.getenv("PIXABAY_API_KEY", "").strip()
 USE_WEB_IMAGES = os.getenv("EDUVISION_WEB_IMAGES", "1") != "0"
 USER_AGENT = "EduVision/1.0 (educational project; contact: local-install)"
 
 MAX_VIDEO_MINUTES = _env_int("MAX_VIDEO_MINUTES", 600, 1)
-DEFAULT_MINUTES = 3
-SECONDS_PER_SCENE = _env_int("SECONDS_PER_SCENE", 45, 15)
+DEFAULT_MINUTES = 1
+SECONDS_PER_SCENE = _env_int("SECONDS_PER_SCENE", 60, 15)
 SCENES_PER_CALL = _env_int("SCENES_PER_CALL", 4, 1)
 OUTLINE_CHUNK = 20
 MAX_SCENES = int(MAX_VIDEO_MINUTES * 60 / SECONDS_PER_SCENE) + 10
 MAX_SOURCE_CHARS = 18000
 MUSIC_VOLUME = _env_float("MUSIC_VOLUME", 0.35)
 VOICE_BASE_RATE = _env_int("VOICE_BASE_RATE", -3)
-RERECORD_TOLERANCE = max(0.06, _env_float("RERECORD_TOLERANCE", 0.25))
+EXPAND_RATIO = max(0.2, min(0.95, _env_float("EXPAND_RATIO", 0.45)))
 PAUSE = 0.8
-MAX_EXTRA_PAUSE = 6.0          # longest calm pause added to one scene to reach the requested length
-ANIM_FPS = _env_int("ANIM_FPS", 10, 5)
-HTTP_TIMEOUT = 12              # seconds for photo-site searches (was 25)
-DOWNLOAD_TIMEOUT = 20          # seconds for one photo download (was 40)
+MAX_EXTRA_PAUSE = 8.0
+ANIM_FPS = _env_int("ANIM_FPS", 5 if FAST_MODE else 8, 4)
+HTTP_TIMEOUT = 4 if FAST_MODE else 6
+DOWNLOAD_TIMEOUT = 5 if FAST_MODE else 8
+PHOTO_BUDGET = _env_int("PHOTO_BUDGET_SECONDS", 5 if FAST_MODE else 12, 3)
 
 ASPECTS = {"16:9": (1280, 720), "9:16": (720, 1280)}
-RENDER_SIZES = {"16:9": (800, 450), "9:16": (450, 800)}   # drawn small, FFmpeg scales to ASPECTS
 
-MAX_WORKERS = max(1, min(_env_int("RENDER_WORKERS", (os.cpu_count() or 2) - 1, 1), 6))
-TTS_WORKERS = 4
 
-# how many spoken words fit in one minute (used to plan the script length)
+def _render_sizes():
+    """Small drawing size (FFmpeg scales it up to ASPECTS). Both sides are kept even."""
+    w = max(480, _env_int("RENDER_WIDTH", 480 if FAST_MODE else 640, 320))
+    w -= w % 2
+    h = int(round(w * 9 / 16 / 2.0)) * 2
+    return {"16:9": (w, h), "9:16": (h, w)}
+
+
+RENDER_SIZES = _render_sizes()
+
+MAX_WORKERS = max(1, min(_env_int("RENDER_WORKERS", max(1, (os.cpu_count() or 2) - 1), 1), 8))
+IO_WORKERS = _env_int("IO_WORKERS", 10, 2)
+
 WORDS_PER_MINUTE = {"english": 150, "kannada": 115, "hindi": 135}
 
 STYLE_GUIDE = {
@@ -161,8 +177,6 @@ DIFFICULTY_GUIDE = {
 }
 
 LANGUAGE_CODES = {"english": "en", "kannada": "kn", "hindi": "hi"}
-
-# Unicode block of each non-English language: used to check that the AI really wrote in that script
 SCRIPT_RANGES = {"kannada": (0x0C80, 0x0CFF), "hindi": (0x0900, 0x097F)}
 LANGUAGE_NOTE = {
     "english": "Write everything in clear English.",
@@ -173,7 +187,6 @@ LANGUAGE_NOTE = {
               "letters (no Hinglish) and do NOT answer in English. Use simple spoken Hindi, the way a teacher "
               "talks in class."),
 }
-# label shown on the "real-life example" photo
 EXAMPLE_LABEL = {"english": "Real-life example", "kannada": "ನಿಜ ಜೀವನದ ಉದಾಹರಣೆ",
                  "hindi": "वास्तविक जीवन का उदाहरण"}
 
@@ -183,8 +196,6 @@ def _env_voice(name, defaults):
     return ([forced] if forced else []) + list(defaults)
 
 
-# Microsoft neural voices (edge-tts). The first name that works is used, the others are fallbacks.
-# List all voices with:  edge-tts --list-voices
 VOICES = {
     "english": {
         "female": _env_voice("VOICE_EN_FEMALE", ["en-US-AvaMultilingualNeural", "en-US-JennyNeural",
@@ -227,16 +238,18 @@ def normalize_style(style):
 
 
 def pick(value, valid, default):
-    """Case-insensitive choice from `valid`; empty or unknown values give `default`."""
+    """Case-insensitive choice from `valid`. Also accepts labels like 'ಕನ್ನಡ Kannada'."""
     text = str(value or "").strip().lower()
     for item in valid:
         if text == str(item).lower():
+            return item
+    for item in valid:                       # label that merely contains the option name
+        if str(item).lower() in text:
             return item
     return default
 
 
 def resolve_minutes(duration=None, duration_minutes=None):
-    """Minutes the user wants. A typed number wins; Short/Medium/Long are still understood."""
     minutes = None
     if duration_minutes not in (None, ""):
         try:
@@ -259,10 +272,11 @@ def plan_length(minutes, language):
 
 
 # ==================================================
-# 2. OLLAMA
+# 2. OLLAMA / GEMINI
 # ==================================================
 def check_ollama_connection():
-    if GEMINI_API_KEY:          # Gemini is the main engine: no local model needed
+    """OK when Gemini is configured OR local Ollama is running with the model."""
+    if GEMINI_API_KEY and time.time() >= _gemini_off_until[0]:
         return True
     tags_url = OLLAMA_URL.rsplit("/api/", 1)[0] + "/api/tags"
     try:
@@ -285,24 +299,71 @@ _SYSTEM_PROMPT = ("You are an expert teacher and educational video director. Cre
                   "engaging content for students. Always return valid JSON only.")
 _gemini_lock = threading.Lock()
 _gemini_last = [0.0]
+_gemini_model = [GEMINI_MODEL]          # model in use (auto-corrected if Google retires it)
+_gemini_off_until = [0.0]               # after a hard failure Gemini is skipped for a few minutes
+_engine_count = {"gemini": 0, "ollama": 0}
+# When a model's free quota is used up (HTTP 429), the next model in this list is tried (each has its own quota).
+_gemini_fallbacks = [m.strip() for m in os.getenv(
+    "GEMINI_FALLBACK_MODELS", "gemini-flash-lite-latest,gemini-3.1-flash-lite,gemini-2.5-flash-lite").split(",")
+    if m.strip()]
+GEMINI_PAUSE_SECONDS = 300
+
+
+def _gemini_discover_model():
+    """Ask Google which models this key may use and pick a 'flash' one that can generateContent."""
+    url = "https://generativelanguage.googleapis.com/v1beta/models?pageSize=200"
+    req = urllib.request.Request(url, headers={"x-goog-api-key": GEMINI_API_KEY})
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    names = [m["name"].split("/", 1)[-1] for m in data.get("models", [])
+             if "generateContent" in m.get("supportedGenerationMethods", [])]
+    def version(n):
+        m = re.match(r"^gemini-(\d+(?:\.\d+)?)-flash(-lite)?$", n)     # stable names only, e.g. gemini-3.5-flash
+        return (float(m.group(1)), 0 if m.group(2) else 1) if m else None
+
+    stable = sorted((n for n in names if version(n)), key=version, reverse=True)
+    for n in stable:                       # newest stable flash first, but not the very newest "x.8" previews
+        return n
+    for n in ("gemini-flash-latest", "gemini-flash-lite-latest"):
+        if n in names:
+            return n
+    return None
+
+
+def ai_status():
+    """Short text saying which AI engine is used (printed when the app starts)."""
+    if GEMINI_API_KEY:
+        return (f"AI engine: Gemini ({_gemini_model[0]}) first, local Ollama ({OLLAMA_MODEL}) as backup. "
+                f"Calls so far: {_engine_count}")
+    return f"AI engine: local Ollama ({OLLAMA_MODEL}) only (no GEMINI_API_KEY). Calls so far: {_engine_count}"
 
 
 def _gemini_response(prompt, temperature=0.4, num_predict=4500):
-    """Ask Google Gemini for a JSON answer. Waits and retries on rate limits."""
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+    """Ask Google Gemini for a JSON answer. Waits and retries on rate limits. Thread safe."""
     gen_cfg = {"temperature": temperature,
-               "maxOutputTokens": min(8192, max(2048, int(num_predict) * 2)),
+               "maxOutputTokens": min(8192, max(2048, int(num_predict) * 2)),   # Kannada/Hindi need many tokens
                "responseMimeType": "application/json"}
-    if "2.5" in GEMINI_MODEL:
-        gen_cfg["thinkingConfig"] = {"thinkingBudget": 0}      # no hidden "thinking": faster, cheaper
-    body = json.dumps({
-        "systemInstruction": {"parts": [{"text": _SYSTEM_PROMPT}]},
-        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generationConfig": gen_cfg,
-    }).encode("utf-8")
+    use_thinking_cfg = True
+
+    def make_body():
+        cfg = dict(gen_cfg)
+        if use_thinking_cfg:                 # keep "thinking" minimal: it makes every reply slow
+            if "2.5" in _gemini_model[0]:
+                cfg["thinkingConfig"] = {"thinkingBudget": 0}
+            elif "flash" in _gemini_model[0] and "2.0" not in _gemini_model[0] and "1.5" not in _gemini_model[0]:
+                cfg["thinkingConfig"] = {"thinkingLevel": "minimal"}
+        return json.dumps({
+            "systemInstruction": {"parts": [{"text": _SYSTEM_PROMPT}]},
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "generationConfig": cfg,
+        }).encode("utf-8")
+
+    body = make_body()
     last = None
-    for attempt in range(4):
-        with _gemini_lock:                                      # keep under the free-tier calls per minute
+    discovered = False
+    for attempt in range(5):
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{_gemini_model[0]}:generateContent"
+        with _gemini_lock:
             wait = GEMINI_MIN_INTERVAL - (time.time() - _gemini_last[0])
             if wait > 0:
                 time.sleep(wait)
@@ -311,19 +372,46 @@ def _gemini_response(prompt, temperature=0.4, num_predict=4500):
             url, data=body, method="POST",
             headers={"Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY})
         try:
-            with urllib.request.urlopen(req, timeout=120) as resp:
+            with urllib.request.urlopen(req, timeout=GEMINI_TIMEOUT) as resp:
                 result = json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             details = exc.read().decode("utf-8", errors="ignore")[:300]
             last = RuntimeError(f"Gemini HTTP error {exc.code}: {details}")
+            if exc.code == 400 and use_thinking_cfg and "thinking" in details.lower():
+                use_thinking_cfg = False           # this model does not accept that setting: retry without it
+                body = make_body()
+                continue
+            if exc.code == 404 and not discovered:      # model retired: find one that works, then retry
+                discovered = True
+                try:
+                    found = _gemini_discover_model()
+                except Exception as exc2:
+                    logger.warning("Could not list Gemini models: %s", exc2)
+                    found = None
+                if found and found != _gemini_model[0]:
+                    logger.warning("Gemini model %s is unavailable. Switching to %s. "
+                                   "Put GEMINI_MODEL=%s in .env to make this permanent.",
+                                   _gemini_model[0], found, found)
+                    _gemini_model[0] = found
+                    continue
+            if exc.code == 429 and "quota" in details.lower():     # this model's quota is used up: switch model
+                while _gemini_fallbacks:
+                    nxt = _gemini_fallbacks.pop(0)
+                    if nxt != _gemini_model[0]:
+                        logger.warning("Gemini quota used up for %s. Switching to %s.", _gemini_model[0], nxt)
+                        _gemini_model[0] = nxt
+                        break
+                else:
+                    raise last from exc
+                continue
             if exc.code in (429, 500, 503) and attempt < 3:
-                time.sleep(8 * (attempt + 1))
+                time.sleep(5 * (attempt + 1))
                 continue
             raise last from exc
         except Exception as exc:
             last = RuntimeError(f"Gemini request failed: {exc}")
-            if attempt < 3:
-                time.sleep(3)
+            if attempt < 1:                      # timeouts / network errors: one retry only, then use Ollama
+                time.sleep(1)
                 continue
             raise last from exc
         parts = ((result.get("candidates") or [{}])[0].get("content") or {}).get("parts") or []
@@ -335,18 +423,33 @@ def _gemini_response(prompt, temperature=0.4, num_predict=4500):
 
 
 def generate_ollama_response(prompt, temperature=0.4, num_predict=4500):
-    """Main text-AI call used everywhere. Gemini when GEMINI_API_KEY is set, otherwise (or if Gemini
-    fails) the local Ollama model. The name is kept so other files that import it keep working."""
-    if GEMINI_API_KEY:
+    """Main text-AI call. Gemini when GEMINI_API_KEY is set, else (or if Gemini fails) local Ollama.
+    The name is kept so other files that import it keep working."""
+    gemini_error = None
+    if GEMINI_API_KEY and time.time() >= _gemini_off_until[0]:
         try:
-            return _gemini_response(prompt, temperature, num_predict)
+            text = _gemini_response(prompt, temperature, num_predict)
+            _engine_count["gemini"] += 1
+            return text
         except Exception as exc:
-            logger.warning("Gemini failed (%s). Trying the local Ollama model instead.", exc)
-            try:
-                return _ollama_response(prompt, temperature, num_predict)
-            except Exception as exc2:
-                raise RuntimeError(f"Gemini failed: {exc}. Local Ollama also failed: {exc2}") from exc2
-    return _ollama_response(prompt, temperature, num_predict)
+            gemini_error = exc
+            msg = str(exc)
+            if "HTTP error 429" in msg and "quota" in msg.lower():
+                _gemini_off_until[0] = time.time() + 600      # all quotas used: use Ollama for 10 minutes
+                logger.warning("Gemini quota is used up. Using Ollama for 10 minutes (%s).", msg[:120])
+            elif any(c in msg for c in ("HTTP error 400", "HTTP error 401", "HTTP error 403", "HTTP error 404")):
+                _gemini_off_until[0] = time.time() + GEMINI_PAUSE_SECONDS   # key/model problem: skip Gemini a while
+                logger.warning("Gemini is paused for %d s (%s).", GEMINI_PAUSE_SECONDS, msg[:200])
+            else:
+                logger.warning("Gemini failed (%s). Using the local Ollama model for this request.", msg[:200])
+    try:
+        text = _ollama_response(prompt, temperature, num_predict)
+        _engine_count["ollama"] += 1
+        return text
+    except Exception as exc2:
+        if gemini_error is not None:
+            raise RuntimeError(f"Gemini failed: {gemini_error}. Local Ollama also failed: {exc2}") from exc2
+        raise
 
 
 def _ollama_response(prompt, temperature=0.4, num_predict=4500):
@@ -399,8 +502,8 @@ def ask_json(prompt, attempts=2, num_predict=4500):
                 return result
         except Exception as exc:
             last = exc
-            logger.warning("Ollama JSON attempt failed: %s", exc)
-    raise ValueError(f"Ollama did not return valid JSON. Please try again. ({last})")
+            logger.warning("AI JSON attempt failed: %s", exc)
+    raise ValueError(f"The AI did not return valid JSON. Please try again. ({last})")
 
 
 def _vision_ask(image_path, prompt, timeout=300):
@@ -427,12 +530,28 @@ def _vision_ask(image_path, prompt, timeout=300):
         return ""
 
 
+_describe_cache = {}
+_describe_lock = threading.Lock()
+
+
 def describe_image(image_path):
-    """Describe an uploaded picture for the lesson. Returns '' if no vision model is set."""
-    return _vision_ask(
+    """Describe an uploaded picture for the lesson. Remembered, so it is never sent twice."""
+    try:
+        key = (str(image_path), os.path.getmtime(image_path))
+    except OSError:
+        key = (str(image_path), 0)
+    with _describe_lock:
+        if key in _describe_cache:
+            return _describe_cache[key]
+    text = _vision_ask(
         image_path,
         "Describe this picture for a teacher: list the main objects, people, structures or "
         "processes you can see and what concept it teaches. Be factual, 5 sentences max.")
+    with _describe_lock:
+        if len(_describe_cache) > 50:
+            _describe_cache.clear()
+        _describe_cache[key] = text
+    return text
 
 
 def image_matches(image_path, query):
@@ -509,9 +628,9 @@ def _clean_scene(sc, style, story, position, section):
     raw_items = sc.get("visual_items") or bullets
     items = [str(x).strip()[:40] for x in raw_items if str(x).strip()][:5]
     if len(items) < 2:
-        items = [s.strip()[:36] for s in re.split(r"(?<=[.!?])\s+", narration) if s.strip()][:4]
+        items = [s.strip()[:36] for s in re.split(r"(?<=[.!?।॥])\s+", narration) if s.strip()][:4]
     if len(items) < 2:
-        items = (items + [title, "Example"])[:2]
+        items = (items + [title, title])[:2]
     query = _clean_query(sc.get("image_query") or section.get("image_query"))
     alt = _clean_query(sc.get("image_query_alt"))
     ex_query = _clean_query(sc.get("example_query"))
@@ -604,9 +723,29 @@ Return JSON exactly like this:
     return title or "Educational Video", sections
 
 
+def _script_ratio(text, language):
+    """Share of the letters in `text` that are written in the script of `language` (1.0 = all)."""
+    rng = SCRIPT_RANGES.get(str(language).strip().lower())
+    letters = [c for c in str(text or "") if c.isalpha()]
+    if not rng or not letters:
+        return 1.0
+    return sum(1 for c in letters if rng[0] <= ord(c) <= rng[1]) / len(letters)
+
+
+def _scene_in_language(scene, language):
+    """False if a Kannada/Hindi scene came back (partly) in English. Checks narration AND on-screen labels."""
+    if str(language).strip().lower() not in SCRIPT_RANGES:
+        return True
+    if _script_ratio(scene.get("narration", ""), language) < 0.6:
+        return False
+    labels = " ".join(scene.get("visual_items", []))
+    return _script_ratio(labels, language) >= 0.4
+
+
 def _expand_narration(scene, words, language, audience, difficulty):
     prompt = f"""
 Rewrite and extend this teacher narration to about {words} words, written in {language}.
+{LANGUAGE_NOTE.get(str(language).strip().lower(), '')}
 Topic: {scene['title']}
 Keep the same topic. Explain it clearly step by step first, then give ONE specific real-life example that
 students have seen (name the real object or place) and say what to notice in the picture, and end with
@@ -620,26 +759,11 @@ Return JSON exactly like this: {{"narration": "the longer narration"}}
 """
     try:
         text = _tidy(ask_json(prompt, attempts=1, num_predict=1400).get("narration"))
-        if len(text.split()) > len(scene["narration"].split()):
+        if (len(text.split()) > len(scene["narration"].split())
+                and _script_ratio(text, language) >= 0.6):
             scene["narration"] = text
     except Exception:
         logger.warning("Could not expand narration for %r", scene.get("title"))
-
-
-def _script_ratio(text, language):
-    """Share of the letters in `text` that are written in the script of `language` (1.0 = all of them)."""
-    rng = SCRIPT_RANGES.get(str(language).strip().lower())
-    letters = [c for c in str(text or "") if c.isalpha()]
-    if not rng or not letters:
-        return 1.0
-    return sum(1 for c in letters if rng[0] <= ord(c) <= rng[1]) / len(letters)
-
-
-def _scene_in_language(scene, language):
-    """False if a Kannada/Hindi scene came back mostly in English (small AI models do this)."""
-    if str(language).strip().lower() not in SCRIPT_RANGES:
-        return True
-    return _script_ratio(scene.get("narration", ""), language) >= 0.6
 
 
 def _fix_language(scene, language):
@@ -653,6 +777,7 @@ Translate and rewrite the teaching content below into {language}.
 Keep the same meaning, the same facts, the same order and the same number of items in every list.
 Keep the narration about the same length. Plain sentences for text-to-speech, no Markdown.
 In key_terms keep the keys "term" and "definition" and translate only their values.
+EVERY text value (title, narration, bullets, visual_items, example_label, key_terms) must be in {language} script.
 
 CONTENT:
 {json.dumps(payload, ensure_ascii=False)}
@@ -690,9 +815,10 @@ Return JSON with exactly the same keys: title, narration, bullets, visual_items,
 
 
 def write_scene_batch(sections, first, n, source_text, style, difficulty, language, audience,
-                      words, story, upload_index, outline_titles):
-    """Write the full scenes for sections[first:first+SCENES_PER_CALL]."""
-    batch = sections[first:first + SCENES_PER_CALL]
+                      words, story, upload_index, outline_titles, per_call=None):
+    """Write the full scenes for sections[first:first+per_call]."""
+    per_call = per_call or SCENES_PER_CALL
+    batch = sections[first:first + per_call]
     lo = max(0, first - 6)
     hi = min(n, first + len(batch) + 6)
     context = "\n".join(f"{i + 1}. {outline_titles[i]}" for i in range(lo, hi))
@@ -743,7 +869,8 @@ Rules:
    Never use abstract words in any query.
 5. visual_items: 3 to 5 SHORT labels (max 4 words) shown next to the picture one by one, in the same order as
    the narration talks about them.
-6. Write title, explanation, example, example_label, bullets, key_terms and visual_items in {language}.
+6. Write title, explanation, example, example_label, bullets, key_terms and visual_items in {language}
+   (only image_query, image_query_alt and example_query stay in English).
 7. bullets: 2 to 3 short points (max 10 words). key_terms: 1 to 2 objects with a term and a one-sentence definition.
 8. visual_description: one short sentence describing the picture.
 9. visual_type (used only if no photo is found): flow = steps, hub = one idea with parts,
@@ -771,12 +898,128 @@ Return JSON exactly like this:
     return []
 
 
+def _fast_batch(first, count, n, source_text, style, difficulty, language, audience, words, story,
+                upload_index):
+    """FAST MODE: write scenes first+1..first+count in ONE AI call (no separate outline step)."""
+    ex_words = max(12, int(words * 0.4))
+    in_words = max(12, words - ex_words)
+    last_note = ('The LAST scene of the video must be a short recap (image_query "").'
+                 if first + count >= n else "")
+    first_note = "Scene 1 starts with a familiar real-life hook." if first == 0 else ""
+    upload_note = (f'In scene {upload_index + 1} set image_query to exactly UPLOADED.'
+                   if upload_index is not None and first <= upload_index < first + count else "")
+    story_note = 'This is a story: image_query must be "" for every scene.' if story else ""
+    prompt = f"""
+You are a teacher making a short classroom video. Write scenes {first + 1} to {first + count} of a {n}-scene video.
+{first_note} {last_note} {upload_note} {story_note}
+Each scene teaches ONE different idea of the topic, in a logical order across the whole video.
+
+SOURCE CONTENT:
+{_excerpt(source_text, first, n, 3000)}
+
+{_style_block(style, difficulty, audience, language)}
+
+Rules:
+- explanation: about {in_words} words, simple teacher voice. example: about {ex_words} words, ONE real-life example.
+  Plain sentences, no Markdown, no lists.
+- image_query: ENGLISH 2-4 words for one real photo of a concrete visible subject ("" if none).
+  image_query_alt: 1-2 word fallback. example_query: "" always.
+- visual_items: 3 to 4 SHORT labels (max 4 words) in the order the narration mentions them.
+- bullets: 2 short points. key_terms: 1 object with term and one-sentence definition.
+- title, explanation, example, bullets, key_terms, visual_items are written in {language}.
+
+Return JSON exactly like this:
+{{"title": "Video title in {language}",
+  "scenes": [{{"title": "Scene title", "explanation": "text", "example": "text",
+              "image_query": "green leaf sunlight", "image_query_alt": "green leaf", "example_query": "",
+              "example_label": "", "visual_description": "text", "bullets": ["point"],
+              "visual_type": "flow", "visual_items": ["one", "two", "three"],
+              "key_terms": [{{"term": "Term", "definition": "Definition"}}]}}]}}
+"""
+    result = ask_json(prompt, attempts=2, num_predict=min(8000, 700 * count + 400))
+    raw = result.get("scenes")
+    scenes = []
+    for k, sc in enumerate(raw if isinstance(raw, list) else []):
+        clean = _clean_scene(sc, style, story, first + k, {"title": "", "image_query": ""})
+        if clean:
+            scenes.append(clean)
+    return str(result.get("title") or "").strip(), scenes
+
+
+def _fast_script(source_text, style, difficulty, language, audience, has_user_image, minutes, progress):
+    """FAST MODE script: few scenes, one AI call per batch, batches in parallel. Returns dict or None."""
+    story = style == "Storytelling"
+    indic = str(language).strip().lower() in SCRIPT_RANGES
+    total = max(30.0, float(minutes) * 60.0)
+    n = max(3, min(MAX_SCENES, int(round(total / FAST_SECONDS_PER_SCENE))))
+    wpm = WORDS_PER_MINUTE.get(str(language).strip().lower(), 140)
+    words = max(28, int((total - n * PAUSE) / 60.0 * wpm / n))
+    per = 3 if indic else 5
+    firsts = list(range(0, n, per))
+    upload_index = (1 if n > 1 else 0) if has_user_image else None
+
+    def work(first):
+        count = min(per, n - first)
+        title, got = _fast_batch(first, count, n, source_text, style, difficulty, language, audience,
+                                 words, story, upload_index)
+        good = []
+        for sc in got:
+            if not _scene_in_language(sc, language):
+                if not (_fix_language(sc, language) and _scene_in_language(sc, language)):
+                    continue
+            good.append(sc)
+        return title, good
+
+    results, title = {}, ""
+    workers = max(1, min(SCRIPT_WORKERS if GEMINI_API_KEY else 1, len(firsts)))
+    try:
+        if workers == 1:
+            for i, f in enumerate(firsts):
+                if progress:
+                    progress(i / len(firsts), "Writing the lesson")
+                results[f] = work(f)
+        else:
+            ex = ThreadPoolExecutor(max_workers=workers)
+            try:
+                futs = {ex.submit(work, f): f for f in firsts}
+                for done, fut in enumerate(as_completed(futs), 1):
+                    results[futs[fut]] = fut.result()
+                    if progress:
+                        progress(done / len(firsts), "Writing the lesson")
+            finally:
+                ex.shutdown(wait=False, cancel_futures=True)
+    except Exception as exc:
+        logger.warning("Fast script failed (%s); using the detailed method.", exc)
+        return None
+    scenes = []
+    for f in firsts:
+        t, g = results.get(f, ("", []))
+        title = title or t
+        scenes.extend(g)
+    if len(scenes) < max(2, n // 2):
+        return None
+    scenes = scenes[:MAX_SCENES]
+    if not story and len(scenes) >= 3:
+        scenes[-1].update(image_query="", image_query_alt="", example_query="", example_label="")
+        if scenes[-1]["visual_type"] not in ("list", "flow"):
+            scenes[-1]["visual_type"] = "list"
+    if progress:
+        progress(1.0, "Script ready")
+    return {"title": title or "Educational Video", "scenes": scenes}
+
+
 def generate_educational_scenes(source_text, style, difficulty, language, audience,
                                 has_user_image=False, minutes=DEFAULT_MINUTES, progress=None):
-    """Plan and write the whole script for `minutes` minutes. progress(fraction 0..1, message)."""
+    """Plan and write the whole script. progress(fraction 0..1, message).
+    With Gemini the scene batches are written in parallel (SCRIPT_WORKERS at a time)."""
+    if FAST_MODE:
+        fast = _fast_script(source_text, style, difficulty, language, audience, has_user_image, minutes, progress)
+        if fast:
+            return fast
     n, words = plan_length(minutes, language)
     story = style == "Storytelling"
-    logger.info("Planning %.1f min video: %d scenes x ~%d words", minutes, n, words)
+    indic = str(language).strip().lower() in SCRIPT_RANGES
+    logger.info("Planning %.1f min video: %d scenes x ~%d words (%s)", minutes, n, words, language)
 
     title, sections = plan_outline(
         source_text, style, difficulty, language, audience, n, story,
@@ -784,26 +1027,55 @@ def generate_educational_scenes(source_text, style, difficulty, language, audien
     n = len(sections)
     outline_titles = [s["title"] for s in sections]
     upload_index = 1 if has_user_image and n > 1 else (0 if has_user_image else None)
+    per_call = 2 if indic else SCENES_PER_CALL          # Kannada / Hindi: shorter batches, no cut-off JSON
+    firsts = list(range(0, n, per_call))
+
+    def write_and_polish(first):
+        got = write_scene_batch(sections, first, n, source_text, style, difficulty, language, audience,
+                                words, story, upload_index, outline_titles, per_call)
+        good = []
+        for sc in got:
+            ok = _scene_in_language(sc, language)
+            for _ in range(2):
+                if ok:
+                    break
+                logger.warning("Scene %r is not in %s. Rewriting it.", sc.get("title"), language)
+                ok = _fix_language(sc, language) and _scene_in_language(sc, language)
+            if not ok:
+                logger.warning("Dropping scene %r: it could not be written in %s.", sc.get("title"), language)
+                continue
+            if len(sc["narration"].split()) < int(words * EXPAND_RATIO):
+                _expand_narration(sc, words, language, audience, difficulty)
+            good.append(sc)
+        return good
+
+    results = {}
+    workers = max(1, min(SCRIPT_WORKERS if GEMINI_API_KEY else 1, len(firsts)))
+    if workers == 1:
+        for i, first in enumerate(firsts):
+            if progress:
+                progress(0.25 + 0.75 * i / len(firsts),
+                         f"Writing scenes {first + 1} to {min(n, first + per_call)} of {n}")
+            results[first] = write_and_polish(first)
+    else:
+        ex = ThreadPoolExecutor(max_workers=workers)
+        try:
+            futures = {ex.submit(write_and_polish, f): f for f in firsts}
+            done = 0
+            for fut in as_completed(futures):
+                results[futures[fut]] = fut.result()
+                done += 1
+                if progress:
+                    progress(0.25 + 0.75 * done / len(firsts),
+                             f"Writing the lesson ({done}/{len(firsts)} parts ready)")
+        finally:
+            ex.shutdown(wait=False, cancel_futures=True)
 
     scenes = []
-    for first in range(0, n, SCENES_PER_CALL):
-        last_idx = min(n, first + SCENES_PER_CALL)
-        if progress:
-            progress(0.25 + 0.75 * first / n, f"Writing scenes {first + 1} to {last_idx} of {n}")
-        got = write_scene_batch(sections, first, n, source_text, style, difficulty, language, audience,
-                                words, story, upload_index, outline_titles)
-        for sc in got:
-            # Kannada / Hindi must really be written in that script: if not, rewrite the scene
-            if not _scene_in_language(sc, language):
-                logger.warning("Scene %r was not written in %s. Rewriting it.", sc.get("title"), language)
-                if not _fix_language(sc, language):
-                    logger.warning("Scene %r is still not in %s after the rewrite.", sc.get("title"), language)
-            # too short? ask ONCE for a longer, fuller explanation (the calm pause covers the rest)
-            if len(sc["narration"].split()) < int(words * 0.7):
-                _expand_narration(sc, words, language, audience, difficulty)
-        scenes.extend(got)
-    if not scenes:
-        raise ValueError("The AI did not generate valid scenes. Please try again.")
+    for first in firsts:
+        scenes.extend(results.get(first, []))
+    if len(scenes) < max(3, n // 2):
+        raise ValueError(f"The AI could not write the lesson in {language}. Please try again.")
     scenes = scenes[:MAX_SCENES]
     if not story and len(scenes) >= 3:                      # last scene = diagram recap
         scenes[-1]["image_query"] = ""
@@ -923,7 +1195,6 @@ def edge_tts_available():
 
 
 def voice_candidates(language, voice="Female"):
-    """Neural voice names to try, best first."""
     gender = "male" if str(voice or "").strip().lower() == "male" else "female"
     return VOICES.get(str(language).strip().lower(), VOICES["english"])[gender]
 
@@ -950,7 +1221,7 @@ def _edge_tts_save(text, voice_name, rate_pct, out_path):
 
 
 def generate_narration(text, output_path, language="English", voice="Female", rate_pct=None):
-    """Record one scene. rate_pct: -30 (slower) ... +30 (faster); only the neural voice supports it."""
+    """Record one scene with the neural voice (gTTS only if that fails)."""
     text = _clean_for_speech(text)
     if not text:
         raise ValueError("Narration text cannot be empty.")
@@ -966,9 +1237,9 @@ def generate_narration(text, output_path, language="English", voice="Female", ra
                     _edge_tts_save(text, voice_name, rate_pct, p)
                     if p.exists() and p.stat().st_size > 0:
                         return str(p)
-                except Exception as exc:                   # network hiccup / unknown voice: retry, then next voice
+                except Exception as exc:
                     last_error = exc
-                    time.sleep(0.8 + attempt)
+                    time.sleep(0.5 + attempt)
         logger.warning("Neural voice failed (%s). Falling back to gTTS.", last_error)
 
     with _tts_lock:
@@ -984,18 +1255,21 @@ def generate_narration(text, output_path, language="English", voice="Female", ra
 
 
 # ==================================================
-# 6. REAL-WORLD IMAGES  (Pexels / Pixabay / Wikipedia / Wikimedia Commons / Openverse / upload)
+# 6. REAL-WORLD IMAGES
 # ==================================================
 _STOP = {"a", "an", "the", "of", "in", "on", "and", "with", "for", "to", "close", "up", "view", "photo", "image"}
 _BAD_TITLE = ("logo", "icon", "flag of", "signature", "coat of arms", "stamp", "banner", "wordmark", "qr code",
               "map of", "locator", "disambiguation")
 _used_urls = set()
 _used_lock = threading.Lock()
+_source_fails = {}          # photo source -> number of errors/time-outs in this video
+MAX_SOURCE_FAILS = 3        # after this many errors a source is skipped for the rest of the video
 
 
 def reset_used_images():
     with _used_lock:
         _used_urls.clear()
+        _source_fails.clear()
 
 
 def _http_get(url, timeout=HTTP_TIMEOUT, headers=None):
@@ -1058,7 +1332,6 @@ def _search_pixabay(query, portrait):
 
 
 def _search_wikipedia(query, portrait):
-    """The lead picture of the best matching Wikipedia article: usually exactly the right picture."""
     qs = urllib.parse.urlencode({
         "action": "query", "generator": "search", "gsrsearch": query, "gsrlimit": 6,
         "prop": "pageimages", "piprop": "thumbnail", "pithumbsize": 1280, "format": "json"})
@@ -1101,7 +1374,7 @@ def _search_commons(query, portrait):
             continue
         score = sum(1 for k in words if k in title)
         idx = p.get("index", 99)
-        if score == 0 and idx > 3:          # not relevant enough
+        if score == 0 and idx > 3:
             continue
         meta = info.get("extmetadata", {})
         artist = _strip_html(meta.get("Artist", {}).get("value", ""))[:40] or "Wikimedia contributor"
@@ -1137,19 +1410,37 @@ def _download_image(url, out_path, min_w=500):
         im = im.convert("RGB")
         if im.width < min_w:
             return False
-        if max(im.size) > 1280:                       # the video is drawn small, no need for huge photos
+        if max(im.size) > 1280:
             im.thumbnail((1280, 1280))
         im.save(out_path, "JPEG", quality=88)
     return True
 
 
-def fetch_web_image(query, out_path, portrait=False):
-    """Find a real photo for `query` that was not used in another scene. Returns (credit, source) or None."""
+def _source_ok(name):
+    with _used_lock:
+        return _source_fails.get(name, 0) < MAX_SOURCE_FAILS
+
+
+def _source_failed(name):
+    with _used_lock:
+        _source_fails[name] = _source_fails.get(name, 0) + 1
+
+
+def fetch_web_image(query, out_path, portrait=False, deadline=None):
+    """Find a real photo for `query` that was not used in another scene. Returns (credit, source) or None.
+    A source that keeps failing or timing out is skipped for the rest of the video."""
     if not query or not USE_WEB_IMAGES:
         return None
     for search in (_search_pexels, _search_pixabay, _search_wikipedia, _search_commons, _search_openverse):
+        if deadline and time.time() > deadline:
+            return None
+        name = search.__name__
+        if not _source_ok(name):
+            continue
         try:
             for url, credit, source in search(query, portrait):
+                if deadline and time.time() > deadline:
+                    return None
                 with _used_lock:
                     if url in _used_urls:
                         continue
@@ -1164,14 +1455,17 @@ def fetch_web_image(query, out_path, portrait=False):
                 except Exception:
                     continue
         except Exception as exc:
-            logger.warning("Image search (%s) failed for %r: %s", search.__name__, query, exc)
+            _source_failed(name)
+            logger.warning("Image search (%s) failed for %r: %s", name, query, exc)
     return None
 
 
-def _find_photo(queries, out_path, portrait):
-    """Try the most specific search first, then simpler ones."""
+def _find_photo(queries, out_path, portrait, deadline=None):
+    """Try the most specific search first, then simpler ones (until the time budget is used up)."""
     for query in dict.fromkeys(q.strip() for q in queries if q and q.strip()):
-        hit = fetch_web_image(query, out_path, portrait)
+        if deadline and time.time() > deadline:
+            return None
+        hit = fetch_web_image(query, out_path, portrait, deadline)
         if hit:
             return hit
     return None
@@ -1180,48 +1474,64 @@ def _find_photo(queries, out_path, portrait):
 def attach_image(scene, idx, work_dir, portrait, user_image, topic):
     """
     Fills scene['images'] with up to two real photos, in the order they are shown:
-      kind 'concept' (explains the idea) and kind 'example' (the real-life example, shown with a label).
-    Also sets scene['image_path'] / image_credit / image_source from the first photo.
+      kind 'concept' (explains the idea) and kind 'example' (real-life example, shown with a label).
+    The two photos are searched AT THE SAME TIME.
     """
     scene["images"] = []
     scene["image_path"], scene["image_credit"], scene["image_source"] = None, "", ""
     if scene["visual_type"] == "story":
         return
     work = Path(work_dir)
-    images = []
 
+    user_img = None
     if scene.get("use_user_image") and user_image:
         out = work / f"photo_{idx}_u.jpg"
         try:
             with Image.open(user_image) as im:
                 im.convert("RGB").save(out, "JPEG", quality=92)
-            images.append(dict(path=str(out), credit="Your uploaded image", source="Upload",
-                               kind="concept", label=""))
+            user_img = dict(path=str(out), credit="Your uploaded image", source="Upload",
+                            kind="concept", label="")
         except Exception:
             logger.warning("Could not use uploaded image.", exc_info=True)
 
-    if not images:
+    def concept():
+        if user_img:
+            return user_img
         q = scene.get("image_query", "").strip()
-        if q and not q.upper().startswith("UPLOADED"):
-            alt = scene.get("image_query_alt", "").strip()
-            words = q.split()
-            queries = [q, alt, " ".join(words[:3]), " ".join(words[:2])]
-            if idx == 1:
-                queries.append(topic)          # only the first scene may fall back to the video topic
-            out = work / f"photo_{idx}_a.jpg"
-            hit = _find_photo(queries, out, portrait)
-            if hit:
-                images.append(dict(path=str(out), credit=hit[0], source=hit[1], kind="concept", label=""))
+        if not q or q.upper().startswith("UPLOADED"):
+            return None
+        alt = scene.get("image_query_alt", "").strip()
+        words = q.split()
+        queries = [q, alt] if FAST_MODE else [q, alt, " ".join(words[:3]), " ".join(words[:2])]
+        if idx == 1 and not FAST_MODE:
+            queries.append(topic)
+        out = work / f"photo_{idx}_a.jpg"
+        hit = _find_photo(queries, out, portrait, time.time() + PHOTO_BUDGET)
+        return dict(path=str(out), credit=hit[0], source=hit[1], kind="concept", label="") if hit else None
 
-    eq = scene.get("example_query", "").strip()
-    if eq and not eq.upper().startswith("UPLOADED"):
+    def example():
+        if FAST_MODE:
+            return None
+        eq = scene.get("example_query", "").strip()
+        if not eq or eq.upper().startswith("UPLOADED"):
+            return None
         words = eq.split()
         out = work / f"photo_{idx}_b.jpg"
-        hit = _find_photo([eq, " ".join(words[:3]), " ".join(words[:2])], out, portrait)
-        if hit:
-            images.append(dict(path=str(out), credit=hit[0], source=hit[1], kind="example",
-                               label=scene.get("example_label", "")))
+        hit = _find_photo([eq, " ".join(words[:3]), " ".join(words[:2])], out, portrait,
+                          time.time() + PHOTO_BUDGET)
+        return (dict(path=str(out), credit=hit[0], source=hit[1], kind="example",
+                     label=scene.get("example_label", "")) if hit else None)
 
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        f1, f2 = pool.submit(concept), pool.submit(example)
+        results = []
+        for f in (f1, f2):
+            try:
+                results.append(f.result())
+            except Exception:
+                logger.warning("Photo search failed for scene %s", idx, exc_info=True)
+                results.append(None)
+    images = [r for r in results if r]
     scene["images"] = images
     if images:
         scene.update(image_path=images[0]["path"], image_credit=images[0]["credit"],
@@ -1255,6 +1565,14 @@ def get_duration(path, ffmpeg):
     return int(m[1]) * 3600 + int(m[2]) * 60 + float(m[3]) if m else 0.0
 
 
+def _clip_ok(path, ffmpeg):
+    p = Path(path)
+    try:
+        return p.is_file() and p.stat().st_size > 0 and get_duration(p, ffmpeg) > 0
+    except OSError:
+        return False
+
+
 def _ff(path):
     return Path(path).resolve().as_posix().replace("'", "'\\''")
 
@@ -1267,7 +1585,6 @@ def combine_scene_videos(video_paths, output_path, work_dir, ffmpeg):
     return str(output_path)
 
 
-# calm "classroom" loop: C - G - Am - F, soft pad + bass + gentle plucked arpeggio
 _CHORDS = [
     (130.81, [261.63, 329.63, 392.00]),    # C
     (98.00, [246.94, 293.66, 392.00]),     # G
@@ -1277,7 +1594,7 @@ _CHORDS = [
 
 
 def synthesize_music(path, chord_seconds=8, sr=22050):
-    """Write a 32 second seamless music loop to `path` (WAV). Pure Python, runs only ONCE (then it is cached)."""
+    """Write a 32 second seamless music loop to `path` (WAV). Runs only ONCE (then it is cached)."""
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     n = chord_seconds * len(_CHORDS) * sr
     buf = [0.0] * n
@@ -1314,7 +1631,6 @@ def synthesize_music(path, chord_seconds=8, sr=22050):
 
 
 def get_music_track(work_dir, ffmpeg):
-    """Your own static/music/background.mp3 if present, otherwise the generated calm loop."""
     if MUSIC_FILE.is_file():
         return MUSIC_FILE
     GENERATED_MUSIC_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -1325,11 +1641,7 @@ def get_music_track(work_dir, ffmpeg):
 
 
 def add_background_music(video_path, output_path, work_dir, ffmpeg):
-    """
-    Mix the music under the voice with fade-in / fade-out.
-    Several FFmpeg graphs are tried, from the best (music ducks a little while the teacher speaks)
-    down to the simplest one that works on old FFmpeg builds.
-    """
+    """Mix the music under the voice with fade-in / fade-out (several FFmpeg graphs are tried)."""
     track = get_music_track(work_dir, ffmpeg)
     total = get_duration(video_path, ffmpeg)
     fade_out = max(0.0, total - 3.0)
@@ -1337,14 +1649,11 @@ def add_background_music(video_path, output_path, work_dir, ffmpeg):
     fmt = "aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo"
     music = f"[1:a]{fmt},volume={vol},afade=t=in:st=0:d=2,afade=t=out:st={fade_out:.2f}:d=3[m]"
     mixes = [
-        # 1) best: music is a little quieter while the voice speaks, louder in pauses
         (f"[0:a]{fmt},asplit=2[vo][sc];{music};"
          "[m][sc]sidechaincompress=threshold=0.05:ratio=3:attack=50:release=800[duck];"
          "[vo][duck]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,alimiter=limit=0.95[a]"),
-        # 2) plain mix, voice kept at full volume (newer FFmpeg)
         (f"[0:a]{fmt}[n];{music};"
          "[n][m]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,alimiter=limit=0.95[a]"),
-        # 3) plain mix for older FFmpeg builds (no normalize option)
         (f"[0:a]{fmt}[n];{music};"
          "[n][m]amix=inputs=2:duration=first:dropout_transition=0,volume=2[a]"),
     ]
@@ -1493,7 +1802,7 @@ def check_indic_rendering(language):
     if not _find_font("indic"):
         ok = False
         logger.warning("No Kannada/Hindi font was found. On Windows install 'Nirmala UI'; on Linux install "
-                       "fonts-noto (Noto Sans Kannada / Devanagari). The on-screen text will show empty boxes.")
+                       "fonts-noto (Noto Sans Kannada / Devanagari).")
     try:
         from PIL import features
         has_raqm = bool(features.check("raqm"))
@@ -1502,8 +1811,7 @@ def check_indic_rendering(language):
     if not has_raqm:
         ok = False
         logger.warning("Pillow has no 'raqm' text shaping, so Kannada/Hindi letters on the screen may look "
-                       "broken (the spoken voice is not affected). Check: python -c \"from PIL import features; "
-                       "print(features.check('raqm'))\"")
+                       "broken (the voice is not affected). Try: pip install --upgrade pillow")
     return ok
 
 
@@ -1525,7 +1833,6 @@ class Painter:
         self._story_tip = (0, 0)
         self._speaker = 0
         self.total_len = 10.0
-        # photo state
         self.photos = []
         self.photo_idx = -1
         self.photo_big = None
@@ -1544,7 +1851,7 @@ class Painter:
     def text_in_box(self, d, text, box, color, max_size, min_size=16, bold=False, align="center", gap=1.18):
         x0, y0, x1, y1 = box
         if self.indic:
-            gap = max(gap, 1.4)                  # Kannada / Devanagari letters are taller: more line space
+            gap = max(gap, 1.4)
         w, h = max(1, int(x1 - x0)), max(1, int(y1 - y0))
         size, lines = _fit(str(text), w, h, int(max_size), int(min_size), bool(bold), self.indic, gap)
         f = _font(size, bold, self.indic)
@@ -1620,13 +1927,11 @@ class Painter:
             with Image.open(info["path"]) as im:
                 im = im.convert("RGB")
                 bw, bh = int(fw * 1.2), int(fh * 1.2)
-                # blurred, darkened "cover" background so any picture shape fills the screen
                 cover = max(bw / im.width, bh / im.height)
                 bg = im.resize((max(bw, int(im.width * cover)), max(bh, int(im.height * cover))), Image.BILINEAR)
                 left, top = (bg.width - bw) // 2, (bg.height - bh) // 2
                 bg = bg.crop((left, top, left + bw, top + bh)).filter(ImageFilter.GaussianBlur(8))
                 bg = Image.blend(bg, Image.new("RGB", bg.size, (10, 12, 28)), 0.45)
-                # the real picture, fully visible (contain) in the middle
                 fit = min(fw / im.width, fh / im.height)
                 fg = im.resize((max(1, int(im.width * fit)), max(1, int(im.height * fit))), Image.LANCZOS)
                 bg.paste(fg, ((bw - fg.width) // 2, (bh - fg.height) // 2))
@@ -1649,12 +1954,11 @@ class Painter:
         bw, bh = self.photo_big.size
         p = min(1.0, max(0.0, (T - self.photo_t0) / max(0.1, self.photo_len)))
         e = p * p * (3 - 2 * p)
-        z = 1.0 + 0.2 * e                       # slow zoom-in (Ken Burns)
+        z = 1.0 + (0.3 if self.style == "Animated" else 0.2) * e      # Animated: stronger Ken Burns zoom
         ww, wh = bw / z, bh / z
         sx, sy = bw - ww, bh - wh
         px = sx * (0.5 + self.pan_dir * 0.35 * (0.5 - e))
         py = sy * 0.5
-        # ONE resize call that also crops (much faster than crop() followed by resize())
         crop = self.photo_big.resize((fw, fh), Image.BILINEAR, box=(px, py, px + ww, py + wh))
         img.paste(crop, self.photo_pos, self.photo_mask)
         d = ImageDraw.Draw(img)
@@ -1709,14 +2013,14 @@ class Painter:
         W, H = self.W, self.H
         base = max(7, int(H * 0.012))
         ps = []
-        for _ in range(7):                                   # was 14: fewer shapes = faster frames
+        for _ in range(5):
             kind = rnd.choice(["bubble", "bubble", "dot", "star", "star", "plus"])
             r = base * (rnd.uniform(.9, 3.2) if kind == "bubble" else rnd.uniform(.5, 1.6))
             ps.append(dict(kind=kind, x=rnd.random() * W, y=rnd.random() * H, r=r,
                            sp=H * rnd.uniform(.015, .06), amp=W * rnd.uniform(.005, .02),
                            fq=rnd.uniform(.4, 1.2), ph=rnd.uniform(0, 6.28), tw=rnd.uniform(1.2, 3)))
         if pal.get("stars"):
-            for _ in range(8):                               # was 16
+            for _ in range(5):
                 ps.append(dict(kind="star", x=rnd.random() * W, y=rnd.random() * H, r=base * rnd.uniform(.3, .8),
                                sp=H * rnd.uniform(.004, .012), amp=0, fq=1, ph=rnd.uniform(0, 6.28),
                                tw=rnd.uniform(1.5, 4)))
@@ -1745,10 +2049,9 @@ class Painter:
             else:
                 s = r * (0.65 + 0.35 * math.sin(T * p["tw"] + p["ph"]))
                 _sparkle(d, x, y, max(1.0, s), tint(y, .6, pal["a1"] if p["kind"] == "star" else pal["a2"]))
-        # one gentle wave at the bottom (was two, with a 32 px step); wider step = fewer points
         amp, fq, spd, a, yb = 0.014, 1.8, 0.8, .14, .965
         pts = [(0, H)]
-        for xx in range(0, W + 1, 48):
+        for xx in range(0, W + 1, 64):
             pts.append((xx, H * yb + math.sin(xx / W * math.pi * 2 * fq + T * spd) * H * amp))
         pts.append((W, H))
         d.polygon(pts, fill=tint(H * yb, a, pal["a2"]))
@@ -1920,11 +2223,12 @@ class Painter:
 
     # ---------- diagrams (each draws items[:k]) ----------
     def _draw_photo(self, d, rect, items, k, bubble=False):
-        """Classroom-screen frame around the photo + numbered label cards that pop in."""
+        """Classroom-screen frame around the photo + numbered label cards that pop in.
+        Animated style connects the cards with arrows (a visible step chain)."""
         ox0, oy0, ox1, oy1 = self.photo_outer
         d.rounded_rectangle([ox0 + 5, oy0 + 7, ox1 + 5, oy1 + 7], 22, fill=(0, 0, 0, 90))
         d.rounded_rectangle([ox0, oy0, ox1, oy1], 22, fill=WHITE, outline=self.pal["a1"], width=4)
-        self._draw_list(d, self.panel, items, k)
+        self._draw_list(d, self.panel, items, k, chain=(self.style == "Animated"))
 
     def _draw_flow(self, d, rect, items, k, bubble=False):
         x0, y0, x1, y1 = rect
@@ -1951,7 +2255,7 @@ class Painter:
                     cx = (x0 + x1) / 2
                     self._arrow(d, (cx, by - gap + 5), (cx, by - 5), col)
 
-    def _draw_list(self, d, rect, items, k, bubble=False):
+    def _draw_list(self, d, rect, items, k, bubble=False, chain=False):
         x0, y0, x1, y1 = rect
         n = len(items)
         rh = min((y1 - y0) / n - 12, 100)
@@ -1963,6 +2267,12 @@ class Painter:
             self.text_in_box(d, items[i], (x0 + 82, by + 5, x1 - 16, by + rh - 5), INK, int(rh * .42), 13, True,
                              "left")
             self._badge(d, x0 + 24, by + rh / 2, rh * .36, i, i + 1)
+            if chain and i > 0:                       # arrow from the previous badge down to this one
+                r, bx = rh * .36, x0 + 24
+                ya, yb = by - rh / 2 - 12 + r, by + rh / 2 - r
+                if yb - ya > 10:
+                    d.line([(bx, ya), (bx, yb - 6)], fill=self.pal["a1"], width=4)
+                    d.polygon([(bx - 7, yb - 8), (bx + 7, yb - 8), (bx, yb)], fill=self.pal["a1"])
 
     def _draw_hub(self, d, rect, items, k, bubble=False):
         x0, y0, x1, y1 = rect
@@ -2098,14 +2408,15 @@ class Painter:
 # One scene -> MP4 (frames are piped straight into FFmpeg)
 # --------------------------------------------------------------------------
 def create_animated_scene(scene, index, total, painter, audio_path, audio_len,
-                          output_path, work_dir, ffmpeg, aspect, subtitles, extra_pause=0.0):
+                          output_path, work_dir, ffmpeg, aspect, subtitles, extra_pause=0.0, tempo=1.0):
+    """audio_len = length of the voice AFTER the speed change (tempo). tempo < 1 slows the voice down."""
     W, H = ASPECTS[aspect]
     RW, RH = painter.W, painter.H
     items = scene["visual_items"]
     n_items = len(items)
     steps = split_steps(scene["narration"], n_items)
     weights = [max(1, len(s)) for s in steps]
-    eff_len = audio_len + extra_pause                 # extra calm time added to reach the requested length
+    eff_len = audio_len + extra_pause
     durs = [eff_len * x / sum(weights) for x in weights]
     durs[-1] += PAUSE
     total_len = eff_len + PAUSE
@@ -2114,7 +2425,6 @@ def create_animated_scene(scene, index, total, painter, audio_path, audio_len,
     painter.prepare(scene, index - 1, total)
     painter.total_len = total_len
 
-    # which photo is on screen during each step: concept photo first, real-life example photo later
     photos = painter.photos
     ci = next((i for i, p in enumerate(photos) if p.get("kind") != "example"), None)
     ei = next((i for i, p in enumerate(photos) if p.get("kind") == "example"), None)
@@ -2137,16 +2447,18 @@ def create_animated_scene(scene, index, total, painter, audio_path, audio_len,
         painter.set_photo(plan[0], 0.0, seg[plan[0]])
 
     scale = f"scale={W}:{H}:flags=bicubic," if (RW, RH) != (W, H) else ""
+    tempo_af = f"atempo={tempo:.3f}," if abs(tempo - 1.0) > 0.01 else ""
     log_path = Path(work_dir) / f"ffmpeg_scene_{index}.log"
     cmd = [ffmpeg, "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{RW}x{RH}", "-framerate", str(ANIM_FPS),
            "-i", "-", "-i", str(audio_path),
            "-vf", (f"{scale}tpad=stop_mode=clone:stop_duration=2,fade=t=in:st=0:d={fade:.2f},"
                    f"fade=t=out:st={total_len - fade:.2f}:d={fade:.2f},format=yuv420p"),
-           "-af", ("highpass=f=70,acompressor=threshold=0.14:ratio=2.5:attack=5:release=120,"
+           "-af", (f"{tempo_af}highpass=f=70,acompressor=threshold=0.14:ratio=2.5:attack=5:release=120,"
                    f"apad=pad_dur={PAUSE + extra_pause:.2f}"),
-           "-c:v", "libx264", "-preset", "ultrafast", "-crf", "24", "-pix_fmt", "yuv420p",
+           "-c:v", "libx264", "-preset", "ultrafast", "-crf", "24", "-threads", "2", "-pix_fmt", "yuv420p",
            "-c:a", "aac", "-b:a", "160k", "-ar", "44100", "-ac", "2",
            "-t", f"{total_len:.3f}", "-movflags", "+faststart", str(output_path)]
+    code = -1
     with open(log_path, "w", encoding="utf-8", errors="ignore") as logf:
         proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=logf, stdout=subprocess.DEVNULL)
         try:
@@ -2178,16 +2490,19 @@ def create_animated_scene(scene, index, total, painter, audio_path, audio_len,
     if code != 0:
         tail = log_path.read_text(encoding="utf-8", errors="ignore")[-1500:]
         raise RuntimeError("FFmpeg animated scene failed: " + tail)
+    out = Path(output_path)
+    if not out.is_file() or out.stat().st_size == 0:
+        raise RuntimeError(f"FFmpeg finished but the clip for scene {index} is empty.")
     return str(output_path)
 
 
 def _render_scene_job(args):
     """Runs in a worker process: draws and encodes ONE scene."""
     (scene, index, total, style, aspect, language, subtitles, highlights,
-     audio, audio_len, clip, work_dir, ffmpeg, extra_pause) = args
+     audio, audio_len, clip, work_dir, ffmpeg, extra_pause, tempo) = args
     painter = Painter(style, RENDER_SIZES[aspect], language, subtitles, highlights)
     create_animated_scene(scene, index, total, painter, audio, audio_len,
-                          clip, work_dir, ffmpeg, aspect, subtitles, extra_pause)
+                          clip, work_dir, ffmpeg, aspect, subtitles, extra_pause, tempo)
     return str(clip)
 
 
@@ -2195,7 +2510,8 @@ def _render_scene_job(args):
 # 8. FULL PIPELINE
 # ==================================================
 def _report(progress, percent, message):
-    """Send progress to the web page; never let a reporting problem stop the video."""
+    """Send progress to the web page; never let a reporting problem stop the video.
+    (A cancel request raises a BaseException on purpose, so it passes through here.)"""
     if progress:
         try:
             progress(percent, message)
@@ -2204,9 +2520,10 @@ def _report(progress, percent, message):
 
 
 def _record_all(scenes, audios, language, voice, rate_pct, progress=None, base=30, span=20, extra_jobs=None):
-    """Record every scene (parallel) and optionally run extra jobs (photo search) beside it."""
+    """Record every scene (parallel) and run the photo searches beside it."""
     extra_jobs = extra_jobs or []
-    with ThreadPoolExecutor(max_workers=TTS_WORKERS + 4) as ex:
+    ex = ThreadPoolExecutor(max_workers=IO_WORKERS)
+    try:
         tts = [ex.submit(generate_narration, scenes[k]["narration"], audios[k], language, voice, rate_pct)
                for k in range(len(scenes))]
         extras = [ex.submit(fn, *args) for fn, args in extra_jobs]
@@ -2221,6 +2538,32 @@ def _record_all(scenes, audios, language, voice, rate_pct, progress=None, base=3
                 if f in tts_set:
                     raise
                 logger.warning("Image step failed; scene will use a diagram.", exc_info=True)
+    finally:
+        ex.shutdown(wait=False, cancel_futures=True)
+
+
+def _render_all(jobs, workers, progress, ffmpeg):
+    """Render every scene in parallel processes, with a safe sequential fallback."""
+    n = len(jobs)
+    if workers > 1:
+        ex = ProcessPoolExecutor(max_workers=workers)
+        try:
+            futures = [ex.submit(_render_scene_job, job) for job in jobs]
+            for done, f in enumerate(as_completed(futures), 1):
+                f.result()
+                _report(progress, 50 + 42 * done / n, f"Drawing and rendering scenes ({done}/{n})")
+            ex.shutdown(wait=True)
+            return
+        except Exception as exc:
+            logger.warning("Parallel render failed (%s). Falling back to sequential.", exc)
+            ex.shutdown(wait=True, cancel_futures=True)
+        except BaseException:                                # cancelled by the user
+            ex.shutdown(wait=False, cancel_futures=True)
+            raise
+    for done, job in enumerate(jobs, 1):
+        if not _clip_ok(job[10], ffmpeg):
+            _render_scene_job(job)
+        _report(progress, 50 + 42 * done / n, f"Drawing and rendering scenes ({done}/{n})")
 
 
 def generate_video_package(source_text, style="Educational", difficulty="Beginner",
@@ -2228,25 +2571,23 @@ def generate_video_package(source_text, style="Educational", difficulty="Beginne
                            aspect_ratio="16:9", subtitles=True, highlights=True, music=False,
                            image_path=None, use_web_images=True,
                            duration="Medium", duration_minutes=None, voice="Female",
-                           progress=None):
+                           progress=None, image_description=None):
     """
     Returns dict: filename, path, title, duration_seconds, scene_count, script_text, credits, voice_engine.
-    duration_minutes: how long the video should be (1 .. MAX_VIDEO_MINUTES). Empty -> `duration`
-                      (Short / Medium / Long) -> 3 minutes.
-    voice: "Female" or "Male".
-    progress: optional callback progress(percent, message).
-    image_path: optional uploaded picture that should appear in the video.
     """
     t_start = time.time()
     timings = {}
     _report(progress, 2, "Reading your material")
     source_text = source_text or ""
     if image_path:
-        desc = describe_image(image_path)
-        if not source_text.strip():
-            source_text = desc
-        elif desc and desc not in source_text:
-            source_text = f"{source_text}\n\nUPLOADED PICTURE SHOWS: {desc}"
+        desc = image_description
+        if desc is None and len(source_text.strip()) < 400:
+            desc = describe_image(image_path)
+        if desc:
+            if not source_text.strip():
+                source_text = desc
+            elif desc not in source_text:
+                source_text = f"{source_text}\n\nUPLOADED PICTURE SHOWS: {desc}"
     if not source_text.strip():
         raise ValueError("Please provide educational content.")
 
@@ -2257,6 +2598,9 @@ def generate_video_package(source_text, style="Educational", difficulty="Beginne
     language = pick(language, ["English", "Kannada", "Hindi"], "English")
     voice = pick(voice, ["Female", "Male"], "Female")
     check_indic_rendering(language)
+    if language.lower() in SCRIPT_RANGES and not _find_font("indic"):
+        raise ValueError("No Kannada/Hindi font found on this computer. Install 'Nirmala UI' (Windows) or "
+                         "Noto Sans Kannada / Devanagari (Linux), then try again.")
     aspect_ratio = aspect_ratio or "16:9"
     if aspect_ratio not in ASPECTS:
         raise ValueError("Unsupported aspect ratio.")
@@ -2286,13 +2630,12 @@ def generate_video_package(source_text, style="Educational", difficulty="Beginne
         portrait = aspect_ratio == "9:16"
         timings["script"] = time.time() - t0
 
-        # which scene shows the uploaded picture?
         if image_path:
             flagged = [i for i, s in enumerate(scenes) if s["image_query"].upper().startswith("UPLOADED")]
             for i in (flagged or [0]):
                 scenes[i]["use_user_image"] = True
 
-        # ---- 1) voice + real photos for ALL scenes at once (network-bound -> threads) ----
+        # ---- 1) voice + real photos for ALL scenes at once ----
         t0 = time.time()
         audios = [work_dir / f"scene_{i}.mp3" for i in range(1, n + 1)]
         topic = content["title"]
@@ -2303,7 +2646,7 @@ def generate_video_package(source_text, style="Educational", difficulty="Beginne
             else:
                 scenes[k].update(images=[], image_path=None, image_credit="", image_source="")
         _report(progress, 30, "Recording the voice and finding pictures")
-        _record_all(scenes, audios, language, voice, VOICE_BASE_RATE, progress, 30, 16, extra_jobs)
+        _record_all(scenes, audios, language, voice, VOICE_BASE_RATE, progress, 30, 20, extra_jobs)
 
         for s in scenes:
             s.setdefault("images", [])
@@ -2311,33 +2654,28 @@ def generate_video_package(source_text, style="Educational", difficulty="Beginne
             s.setdefault("image_credit", "")
             if s["images"] and s["visual_type"] != "story":
                 s["visual_type"] = "photo"
-        lens = [get_duration(a, ffmpeg) for a in audios]
-        if any(x <= 0 for x in lens):
+        raw_lens = [get_duration(a, ffmpeg) for a in audios]
+        if any(x <= 0 for x in raw_lens):
             raise RuntimeError("Could not read narration duration.")
 
-        # ---- 1b) fine-tune the speaking speed ONLY when the voice is far from the requested minutes ----
+        # ---- 1b) match the requested minutes WITHOUT re-recording: FFmpeg changes the voice speed ----
         target_audio = max(10.0, minutes * 60 - n * PAUSE)
-        ratio = sum(lens) / target_audio
-        if edge_tts_available() and abs(ratio - 1) > RERECORD_TOLERANCE:
-            old = 1 + VOICE_BASE_RATE / 100.0
-            new_rate = int(max(-30, min(30, round((old * ratio - 1) * 100))))
-            if new_rate != VOICE_BASE_RATE:
-                logger.info("Voice is %.0f%% of the target length; re-recording at %+d%% speed", ratio * 100, new_rate)
-                _report(progress, 46, "Adjusting the voice speed to your video length")
-                _record_all(scenes, audios, language, voice, new_rate, progress, 46, 4)
-                new_lens = [get_duration(a, ffmpeg) for a in audios]
-                if all(x > 0 for x in new_lens):
-                    lens = new_lens
+        ratio = sum(raw_lens) / target_audio
+        tempo = 1.0
+        if abs(ratio - 1) > 0.05:
+            tempo = max(0.8, min(1.25, ratio))       # ratio < 1: voice too short -> slow it a little
+        lens = [x / tempo for x in raw_lens]
+        tempos = [tempo] * n
 
-        # still too short? add a calm pause to every scene so the video matches the requested minutes
+        # still too short? add a calm pause to every scene
         extras = [0.0] * n
         shortfall = target_audio - sum(lens)
         if shortfall > max(4.0, 0.03 * target_audio):
             per_scene = min(MAX_EXTRA_PAUSE, shortfall / n)
             extras = [per_scene] * n
-        logger.info("Narration %.0fs (+%.0fs pauses) for a %.0fs target. Photos found for %d of %d scenes",
-                    sum(lens), sum(extras), target_audio, sum(1 for s in scenes if s["images"]), n)
-        if edge_tts_available() is False or _tts_state["fallbacks"]:
+        logger.info("Narration %.0fs at speed x%.2f (+%.0fs pauses) for a %.0fs target. Photos for %d of %d scenes",
+                    sum(lens), tempo, sum(extras), target_audio, sum(1 for s in scenes if s["images"]), n)
+        if (not edge_tts_available()) or _tts_state["fallbacks"]:
             logger.warning("%d scene(s) used the basic robotic voice. Install/upgrade edge-tts and check the "
                            "internet connection for the natural voice.", _tts_state["fallbacks"])
         timings["voice+photos"] = time.time() - t0
@@ -2347,25 +2685,13 @@ def generate_video_package(source_text, style="Educational", difficulty="Beginne
         # ---- 2) render every scene ----
         t0 = time.time()
         jobs = [(scenes[k], k + 1, n, style, aspect_ratio, language, bool(subtitles), bool(highlights),
-                 audios[k], lens[k], clips[k], work_dir, ffmpeg, extras[k]) for k in range(n)]
+                 audios[k], lens[k], clips[k], work_dir, ffmpeg, extras[k], tempos[k]) for k in range(n)]
         workers = max(1, min(MAX_WORKERS, n))
         _report(progress, 50, f"Drawing and rendering scenes (0/{n})")
-        try:
-            if workers > 1:
-                with ProcessPoolExecutor(max_workers=workers) as ex:
-                    futures = [ex.submit(_render_scene_job, job) for job in jobs]
-                    for done, f in enumerate(as_completed(futures), 1):
-                        f.result()
-                        _report(progress, 50 + 42 * done / n, f"Drawing and rendering scenes ({done}/{n})")
-            else:
-                for done, job in enumerate(jobs, 1):
-                    _render_scene_job(job)
-                    _report(progress, 50 + 42 * done / n, f"Drawing and rendering scenes ({done}/{n})")
-        except Exception as exc:
-            logger.warning("Parallel render failed (%s). Falling back to sequential.", exc)
-            for job in jobs:
-                if not Path(job[10]).exists() or Path(job[10]).stat().st_size == 0:
-                    _render_scene_job(job)
+        _render_all(jobs, workers, progress, ffmpeg)
+        bad = [c.name for c in clips if not c.is_file() or c.stat().st_size == 0]
+        if bad:
+            raise RuntimeError("Some scene clips were not created: " + ", ".join(bad))
         timings["render"] = time.time() - t0
 
         # ---- 3) join (and optional music) ----
@@ -2386,8 +2712,13 @@ def generate_video_package(source_text, style="Educational", difficulty="Beginne
         else:
             combine_scene_videos(clips, final_path, work_dir, ffmpeg)
 
-        if not final_path.exists():
-            raise RuntimeError("Final MP4 video was not created.")
+        final_seconds = get_duration(final_path, ffmpeg) if final_path.exists() else 0.0
+        if not final_path.exists() or final_path.stat().st_size == 0 or final_seconds <= 0:
+            try:
+                final_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            raise RuntimeError("Final MP4 video was not created correctly.")
         timings["join+music"] = time.time() - t0
 
         logger.info("TIMING for a %.1f min video (%d scenes): %s | total %.0fs", minutes, n,
@@ -2398,7 +2729,7 @@ def generate_video_package(source_text, style="Educational", difficulty="Beginne
             "filename": final_path.name,
             "path": str(final_path),
             "title": content["title"],
-            "duration_seconds": int(round(get_duration(final_path, ffmpeg))),
+            "duration_seconds": int(round(final_seconds)),
             "scene_count": n,
             "script_text": "\n\n".join(f"{s['title']}\n{s['narration']}" for s in scenes),
             "credits": credits,
@@ -2412,15 +2743,10 @@ def generate_video_package(source_text, style="Educational", difficulty="Beginne
 
 
 def generate_video_from_file(file_path, style="Educational", difficulty="Beginner", language="English", **options):
-    """
-    Convenience entry point for uploads.
-      PDF / TXT  -> text is extracted (first big picture inside a PDF is reused in the video)
-      image      -> the picture itself is used in the video; its text (OCR) and/or a vision-model
-                    description (OLLAMA_VISION_MODEL) become the lesson content.
-    """
+    """Convenience entry point for uploads (PDF / TXT / image)."""
     path = Path(file_path)
     ext = path.suffix.lower()
-    image_path, text = None, ""
+    image_path, text, description = None, "", None
     if ext in IMAGE_EXTS:
         image_path = str(path)
         try:
@@ -2428,7 +2754,8 @@ def generate_video_from_file(file_path, style="Educational", difficulty="Beginne
         except Exception:
             text = ""
         if not text.strip():
-            text = describe_image(image_path)
+            description = describe_image(image_path)
+            text = description
         if not text.strip():
             raise ValueError("Could not understand this image. Install Tesseract (OCR) or set "
                              "OLLAMA_VISION_MODEL=llava and run: ollama pull llava")
@@ -2436,7 +2763,8 @@ def generate_video_from_file(file_path, style="Educational", difficulty="Beginne
         text = extract_text(path)
         if ext == ".pdf":
             image_path = extract_pdf_best_image(path)
-    return generate_video_package(text, style, difficulty, language, image_path=image_path, **options)
+    return generate_video_package(text, style, difficulty, language, image_path=image_path,
+                                  image_description=description, **options)
 
 
 def generate_video(source_text, style="Educational", difficulty="Beginner", language="English", **options):

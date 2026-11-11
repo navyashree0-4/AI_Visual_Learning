@@ -22,6 +22,33 @@
            Delete this line if you want the scroll fade-in animation back. */
         .reveal { opacity: 1 !important; transform: none !important; }
 
+        /* ---------- Blinking NEW badge ---------- */
+        .nav-link:has(.new-badge) { display: flex; align-items: center; }
+        .new-badge {
+            margin-left: auto;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: .62rem;
+            font-weight: 800;
+            letter-spacing: .06em;
+            color: #fff;
+            background: linear-gradient(135deg, #ec4899, #f97316);
+            box-shadow: 0 0 0 0 rgba(236, 72, 153, .6);
+            animation: newBlink 1s ease-in-out infinite, newPulse 1.6s ease-out infinite;
+        }
+        @keyframes newBlink {
+            0%, 100% { opacity: 1; }
+            50%      { opacity: .25; }
+        }
+        @keyframes newPulse {
+            0%   { box-shadow: 0 0 0 0 rgba(236, 72, 153, .6); }
+            70%  { box-shadow: 0 0 0 8px rgba(236, 72, 153, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(236, 72, 153, 0); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .new-badge { animation: none; }
+        }
+
         /* ---------- Video library ---------- */
         .library-filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
         .filter-chip {
@@ -272,6 +299,7 @@
             <a class="nav-link" href="{{ cartoon_url|default('/cartoon-studio') }}">
                 <span class="nav-icon">🎨</span>
                 <span>Create Cartoon Movie</span>
+                <span class="new-badge">NEW</span>
             </a>
 
             <!-- Aptitude Arena.
@@ -280,6 +308,7 @@
             <a class="nav-link" href="{{ aptitude_url|default('/aptitude-arena') }}">
                 <span class="nav-icon">🧠</span>
                 <span>Aptitude Arena</span>
+                <span class="new-badge">NEW</span>
             </a>
 
             <a class="nav-link" href="#my-videos" data-section="my-videos">

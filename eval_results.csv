@@ -1,0 +1,3 @@
+﻿language,topic,language_accuracy_%,quiz_correctness_%,quiz_format_accuracy_%,scenes,script_seconds,structure_accuracy_%
+English,Photosynthesis,100.0,100.0,100.0,3,26.9,100.0
+English,Newton's laws of motion,100.0,100.0,100.0,3,8.6,100.0

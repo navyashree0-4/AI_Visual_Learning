@@ -30,7 +30,7 @@ from werkzeug.routing import BuildError
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
-from services.video_generator import extract_text, generate_video_package
+from services.video_generator import extract_text, generate_video_package, ai_status
 
 try:
     # Same limit as the generator (default 7 minutes, change with MAX_VIDEO_MINUTES in .env).
@@ -151,6 +151,44 @@ def get_db_connection():
     except Error as exc:
         app.logger.error("Database connection failed: %s", exc)
     return None
+def save_game_result(user_id, game_name, score, credits_earned):
+    """Save completed game results in MySQL."""
+
+    connection = get_db_connection()
+
+    if connection is None:
+        app.logger.error("Cannot save game result: database unavailable.")
+        return False
+
+    cursor = None
+
+    try:
+        cursor = connection.cursor()
+
+        cursor.execute("""
+            INSERT INTO game_results
+                (user_id, game_name, score, credits_earned)
+            VALUES (%s, %s, %s, %s)
+        """, (
+            int(user_id),
+            str(game_name),
+            int(score),
+            int(credits_earned)
+        ))
+
+        connection.commit()
+        app.logger.info("Game result saved successfully.")
+        return True
+
+    except (Error, ValueError, TypeError) as exc:
+        connection.rollback()
+        app.logger.error("Game result could not be saved: %s", exc)
+        return False
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+        connection.close()
 
 
 # Blueprints (e.g. aptitude_backend, video_quiz) use this instead of importing from app.py
@@ -986,9 +1024,59 @@ def play_game_redirect(game_key):
 @app.route("/api/game-result", methods=["POST"])
 @login_required
 def game_result():
-    request.get_json(silent=True)
+    data = request.get_json(silent=True) or {}
+
+    # Get game information from the frontend
+    game_name = str(
+        data.get("game_name") or data.get("game_key") or ""
+    ).strip()
+
+    try:
+        score = int(data.get("score", 0))
+    except (ValueError, TypeError):
+        return jsonify(
+            ok=False,
+            error="Invalid game score."
+        ), 400
+
+    if not game_name or len(game_name) > 100:
+        return jsonify(
+            ok=False,
+            error="Invalid game name."
+        ), 400
+
+    if score < 0:
+        return jsonify(
+            ok=False,
+            error="Score cannot be negative."
+        ), 400
+
+    user_id = session["user_id"]
+
+    # Save the completed game in MySQL.
+    # Credits remain zero until the server-side reward
+    # calculation is connected.
+    saved = save_game_result(
+        user_id=user_id,
+        game_name=game_name,
+        score=score,
+        credits_earned=0
+    )
+
+    if not saved:
+        return jsonify(
+            ok=False,
+            error="Game result could not be saved."
+        ), 500
+
     session["games_played"] = session.get("games_played", 0) + 1
-    return jsonify(ok=True)
+
+    return jsonify(
+        ok=True,
+        message="Game result saved successfully.",
+        games_played=session["games_played"]
+    )
+
 
 
 def _game_alias(game_key):
@@ -1639,8 +1727,9 @@ def forgot_password():
             session["password_reset_email"] = email
             flash("If an account exists for that email, a password reset code has been sent.", "success")
             return redirect(url_for("reset_password"))
+        session["password_reset_email"] = email
         flash("If an account exists for that email, a password reset code has been sent.", "success")
-        return redirect(url_for("login"))
+        return redirect(url_for("reset_password"))
     except (Error, RuntimeError, OSError, smtplib.SMTPException):
         connection.rollback()
         app.logger.exception("Password reset code could not be sent")
@@ -1719,8 +1808,8 @@ def logout():
 @app.route("/generated/<path:filename>")
 @login_required
 def generated_video(filename):
-    """Serve generated videos (used by the dashboard video player)."""
-    return send_from_directory(str(GENERATED_DIR), filename)
+    """Serve generated videos (owner only; same check as /generated-videos/)."""
+    return generated_video_file(filename)
 
 
 # The dashboard template no longer contains the video form, cartoon promo or game hub.
@@ -1971,6 +2060,25 @@ def _is_on(value):
     return str(value or "").strip().lower() in ("on", "true", "1", "yes")
 
 
+def _normalize_language(value):
+    """Accept the button label too: 'ಕನ್ನಡ Kannada' -> 'Kannada', 'हिन्दी Hindi' -> 'Hindi'.
+
+    An empty value means English. Anything unrecognised is returned unchanged,
+    so the validation below can still reject it.
+    """
+    text = str(value or "").strip()
+    low = text.lower()
+    if not text:
+        return "English"
+    if "kannada" in low or "ಕನ್ನಡ" in text:
+        return "Kannada"
+    if "hindi" in low or "हिन्दी" in text or "हिंदी" in text:
+        return "Hindi"
+    if "english" in low:
+        return "English"
+    return text
+
+
 class JobCancelled(BaseException):
     """Raised inside a video job when the user pressed Cancel.
 
@@ -2000,11 +2108,11 @@ def _parse_video_form(form, files):
     """
     topic = (form.get("topic") or form.get("prompt") or "").strip()[:1000]
     style = form.get("video_style") or "Educational"
-    language = form.get("language") or "English"
+    language = _normalize_language(form.get("language"))
     audience = form.get("audience_level") or form.get("audience") or "School Students"
     difficulty = form.get("difficulty") or "Beginner"
     aspect_ratio = form.get("aspect_ratio") or "16:9"
-    duration = form.get("duration") or "Medium"          # old Short / Medium / Long still works
+    duration = form.get("duration") or "Short"           # Short = 1 minute (fastest)
     voice = form.get("voice") or "Female"
     minutes_raw = (form.get("duration_minutes") or "").strip()
     duration_minutes = None
@@ -2015,6 +2123,9 @@ def _parse_video_form(form, files):
             raise ValueError("Video length must be a whole number of minutes.")
         if not 1 <= duration_minutes <= MAX_VIDEO_MINUTES:
             raise ValueError(f"Video length must be between 1 and {MAX_VIDEO_MINUTES} minutes.")
+
+    app.logger.info("Video request: style %r, %s min, language %r, %s voice",
+                    style, duration_minutes or duration, language, voice)
 
     if style not in VALID_STYLES:
         raise ValueError("Please select a valid video style.")
@@ -3120,6 +3231,16 @@ def complete_game_level():
             (user_id, game_key),
         )
 
+        # Anti-cheat: a level can only be completed if the player has unlocked it.
+        cursor.execute(
+            "SELECT unlocked_level FROM game_progress WHERE user_id = %s AND game_key = %s",
+            (user_id, game_key),
+        )
+        prog = cursor.fetchone() or {}
+        if level > int(prog.get("unlocked_level") or 1):
+            connection.rollback()
+            return fail("That level is not unlocked yet.", 400)
+
         # One reward per user + game + level (UNIQUE key blocks duplicates).
         cursor.execute(
             "INSERT IGNORE INTO game_level_rewards "
@@ -3199,8 +3320,7 @@ def internal_server_error(error):
     app.logger.error("HTTP 500 error:\n%s", details)
 
     # Show the real error in the browser when developing (debug mode or localhost).
-    is_local = request.remote_addr in ("127.0.0.1", "::1")
-    if os.getenv("FLASK_DEBUG", "0") == "1" or is_local:
+    if os.getenv("FLASK_DEBUG", "0") == "1":
         return (
             "<h2>EduVision error (development view)</h2>"
             f"<p>URL: {escape(request.path)}</p>"
@@ -3344,6 +3464,12 @@ def initialize_database():
                 REFERENCES generated_videos(id) ON DELETE CASCADE,
             CONSTRAINT fk_vqa_quiz FOREIGN KEY (quiz_id)
                 REFERENCES video_quizzes(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB""",
+        """CREATE TABLE IF NOT EXISTS game_results (
+            id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, game_name VARCHAR(100) NOT NULL,
+            score INT NOT NULL DEFAULT 0, credits_earned INT NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_game_results_user (user_id)
         ) ENGINE=InnoDB""",
     ]
     try:
@@ -3509,6 +3635,7 @@ def initialize_database():
 
 if __name__ == "__main__":
     print(f".env file: {_ENV_FILE}")
+    print(ai_status())
     print(f".env exists: {_ENV_FILE.exists()}")
     # Shows exactly which generate_video.html Flask uses, and which routes serve the page.
     try:
