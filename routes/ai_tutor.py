@@ -7,20 +7,26 @@ AI Doubt-Solving Tutor blueprint. It is opened from a generated video card.
   POST /ai-tutor/api/chat         {"question": "...", "history": [...], "video_id": 12}
                                   ->  {"ok": true, "answer": "..."}
 
+If the student asks for an image/diagram, the answer contains a Markdown image
+(added by services/ai_tutor_service.py).
+
 The video is loaded through app.config["GET_VIDEO_CONTEXT"] (set in app.py), so this file
 never imports app.py. Only the logged-in student's OWN video is ever used.
 """
 
-import inspect
+import os
+import re
 import threading
 from functools import wraps
 
 from flask import (
-    Blueprint, current_app, jsonify, redirect, render_template, request,
-    session, url_for,
+    Blueprint, abort, current_app, jsonify, redirect, render_template, request,
+    send_from_directory, session, url_for,
 )
 
-from services.ai_tutor_service import MAX_QUESTION_CHARS, TutorError, ask_tutor
+from services.ai_tutor_service import (
+    MAX_QUESTION_CHARS, TutorError, ask_tutor, _diagram_folder,
+)
 
 ai_tutor_bp = Blueprint("ai_tutor", __name__, url_prefix="/ai-tutor")
 
@@ -81,42 +87,23 @@ def _lesson_context_text(video):
     return "\n".join(parts)
 
 
-def _clean_history(history):
-    """Keep only well-formed {role, content} items from the browser."""
-    if not isinstance(history, list):
-        return []
-    cleaned = []
-    for item in history:
-        if (isinstance(item, dict) and item.get("role") in ("user", "assistant")
-                and isinstance(item.get("content"), str)):
-            cleaned.append({"role": item["role"], "content": item["content"]})
-    return cleaned
+
+# Diagram pictures made by the tutor (SVG files). Served from here, so they display
+# no matter how the Flask "static" folder is configured. File names are random,
+# and only names like  neural-network-1a2b3c4d.svg  are accepted (no path tricks).
+_DIAGRAM_NAME = re.compile(r"^[a-z0-9][a-z0-9\-]{0,60}\.svg$")
 
 
-def _ask_with_video(question, history, video):
-    """Call ask_tutor with the video context.
-
-    If services/ai_tutor_service.ask_tutor accepts `video_context` or `context`,
-    it is passed that way. Otherwise the lesson is added as the most recent
-    exchange in the history, so any version of the service still sees it.
-    """
-    if not video:
-        return ask_tutor(question, history)
-
-    context_text = _lesson_context_text(video)
-    accepted = inspect.signature(ask_tutor).parameters
-
-    if "video_context" in accepted:
-        return ask_tutor(question, history, video_context=context_text)
-    if "context" in accepted:
-        return ask_tutor(question, history, context=context_text)
-
-    with_lesson = _clean_history(history) + [
-        {"role": "user", "content": context_text},
-        {"role": "assistant",
-         "content": "Understood. I will use this lesson when it is relevant and answer any other question normally."},
-    ]
-    return ask_tutor(question, with_lesson)
+@ai_tutor_bp.route("/diagram/<name>")
+def diagram_file(name):
+    if not _DIAGRAM_NAME.fullmatch(name):
+        abort(404)
+    folder = _diagram_folder()
+    if not os.path.isfile(os.path.join(folder, name)):
+        abort(404)
+    response = send_from_directory(folder, name, mimetype="image/svg+xml")
+    response.headers["Cache-Control"] = "private, max-age=3600"
+    return response
 
 
 @ai_tutor_bp.route("/")
@@ -150,11 +137,14 @@ def chat_api():
     history = data.get("history")
     user_id = session["user_id"]
 
-    # video_id is optional. A video that is not the student's own simply loads as None.
+    # video_id is optional. A video that is not the student's own loads as None.
     raw_video_id = data.get("video_id")
     video = _load_video(raw_video_id)
     if raw_video_id and video is None:
         return jsonify(ok=False, error="This video was not found. Open the tutor from My Videos."), 404
+
+    video_context = _lesson_context_text(video) if video else None
+    topic_hint = (video.get("title") or "").strip() if video else None
 
     with _BUSY_LOCK:
         if user_id in _BUSY_USERS:
@@ -162,7 +152,12 @@ def chat_api():
         _BUSY_USERS.add(user_id)
 
     try:
-        answer = _ask_with_video(question, history, video)
+        answer = ask_tutor(
+            question,
+            history,
+            video_context=video_context,
+            topic_hint=topic_hint,
+        )
         return jsonify(ok=True, answer=answer)
     except TutorError as exc:
         return jsonify(ok=False, error=str(exc)), 503

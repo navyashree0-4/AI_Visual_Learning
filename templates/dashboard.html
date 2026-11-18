@@ -3,274 +3,100 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#14122e">
+    <meta name="theme-color" content="#0e1024">
     <title>EduVision | Dashboard</title>
-    <!-- Dashboard: overview, video library, games, daily challenge and recent activity. -->
-
     <link rel="icon" href="{{ url_for('static', filename='img/logo.svg') }}" type="image/svg+xml">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
-
     <script>
-        try {
-            document.documentElement.dataset.theme =
-                localStorage.getItem("eduvision-theme") || "dark";
-        } catch (e) {}
+        try { document.documentElement.dataset.theme = localStorage.getItem("eduvision-theme") || "dark"; } catch (e) {}
+        /* Pick the view before the page paints: #my-videos = library, anything else = home */
+        document.documentElement.dataset.view = location.hash === "#my-videos" ? "videos" : "home";
     </script>
 
+    <!-- Styles for the daily-challenge game picker, the cut marks and the quiz-done badge (dark and light theme) -->
     <style>
-        /* Sections never stay hidden if dashboard.js is slow or fails.
-           Delete this line if you want the scroll fade-in animation back. */
-        .reveal { opacity: 1 !important; transform: none !important; }
+        /* ---------- cut marks: one box per daily round ---------- */
+        .limit-marks{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 4px}
+        .limit-mark{width:28px;height:28px;display:grid;place-items:center;border-radius:8px;font-size:.9rem;font-weight:800;
+            background:rgba(127,127,127,.15);color:rgba(127,127,127,.85);border:1px solid rgba(127,127,127,.3)}
+        .limit-mark.on{background:#dc2626;border-color:#dc2626;color:#fff;animation:markPop .35s ease both}
+        @keyframes markPop{from{transform:scale(.3);opacity:0}to{transform:scale(1);opacity:1}}
 
-        /* ---------- Blinking NEW badge ---------- */
-        .nav-link:has(.new-badge) { display: flex; align-items: center; }
-        .new-badge {
-            margin-left: auto;
-            padding: 2px 8px;
-            border-radius: 999px;
-            font-size: .62rem;
-            font-weight: 800;
-            letter-spacing: .06em;
-            color: #fff;
-            background: linear-gradient(135deg, #ec4899, #f97316);
-            box-shadow: 0 0 0 0 rgba(236, 72, 153, .6);
-            animation: newBlink 1s ease-in-out infinite, newPulse 1.6s ease-out infinite;
-        }
-        @keyframes newBlink {
-            0%, 100% { opacity: 1; }
-            50%      { opacity: .25; }
-        }
-        @keyframes newPulse {
-            0%   { box-shadow: 0 0 0 0 rgba(236, 72, 153, .6); }
-            70%  { box-shadow: 0 0 0 8px rgba(236, 72, 153, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(236, 72, 153, 0); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-            .new-badge { animation: none; }
-        }
+        .enough-box{display:flex;align-items:center;gap:14px;margin:12px 0;padding:14px 16px;border-radius:16px;
+            background:rgba(220,38,38,.12);border:1px solid rgba(220,38,38,.45)}
+        .enough-box[hidden]{display:none}
+        .enough-box .big-x{font-size:2.6rem;font-weight:900;line-height:1;color:#ef4444}
+        .enough-box strong{display:block}
+        .enough-box p{margin:3px 0 0;opacity:.85;font-size:.9rem}
 
-        /* ---------- Video library ---------- */
-        .library-filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
-        .filter-chip {
-            border: 1px solid rgba(139, 92, 246, .35); background: transparent;
-            color: inherit; padding: 8px 16px; border-radius: 999px;
-            cursor: pointer; font-weight: 600; font-size: .85rem;
-            transition: all .2s ease;
-        }
-        .filter-chip.active, .filter-chip:hover {
-            background: linear-gradient(135deg, #8b5cf6, #6366f1);
-            color: #fff; border-color: transparent;
-        }
-        .type-badge {
-            position: absolute; top: 10px; left: 10px; z-index: 2;
-            padding: 4px 10px; border-radius: 999px; font-size: .72rem;
-            font-weight: 700; color: #fff; letter-spacing: .03em;
-        }
-        .type-badge.edu { background: #4f46e5; }
-        .type-badge.cartoon { background: #ec4899; }
-        .generated-video-preview { position: relative; }
-        .video-status {
-            display: inline-block; margin-top: 6px; padding: 3px 10px;
-            border-radius: 999px; font-size: .72rem; font-weight: 700;
-            background: rgba(245, 158, 11, .18); color: #f59e0b;
-        }
-        .video-status.failed { background: rgba(239, 68, 68, .18); color: #ef4444; }
-        .cartoon-link, .download-link, .tutor-link {
-            display: inline-block; padding: 7px 14px; border-radius: 10px;
-            text-decoration: none; font-size: .85rem; font-weight: 600;
-            margin-right: 6px; margin-top: 6px;
-        }
-        .cartoon-link { background: rgba(236, 72, 153, .15); color: #ec4899; }
-        .download-link { background: rgba(99, 102, 241, .15); color: #6366f1; }
-        .tutor-link { background: rgba(16, 185, 129, .15); color: #10b981; }
-        .tutor-link:hover { background: rgba(16, 185, 129, .28); }
-        .filter-empty { text-align: center; padding: 24px; opacity: .75; }
+        /* ---------- daily challenge: pick any game ---------- */
+        .daily-picker{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin:12px 0}
+        .pick-chip{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:12px;
+            border:2px solid rgba(127,127,127,.3);background:rgba(127,127,127,.08);color:inherit;
+            font:inherit;font-weight:700;font-size:.9rem;text-align:left;cursor:pointer;
+            transition:border-color .15s,background .15s,box-shadow .15s,transform .1s}
+        .pick-chip span{font-size:1.2rem}
+        .pick-chip:hover:not([disabled]){border-color:#7c5cff;transform:translateY(-1px)}
+        .pick-chip.selected{border-color:#7c5cff;background:rgba(124,92,255,.22);box-shadow:0 0 0 3px rgba(124,92,255,.25)}
+        .pick-chip[disabled]{opacity:.45;cursor:not-allowed}
+        .pick-hint{margin:4px 0 0;font-size:.9rem;opacity:.85}
+        .daily-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+        .daily-actions button.btn{border:0;font:inherit;cursor:pointer}
+        .daily-actions button.btn[disabled]{opacity:.5;cursor:not-allowed}
+        #startChallenge[aria-disabled="true"]{opacity:.55;pointer-events:none}
 
-        /* ---------- Game Hub (self-contained, does not need game styles in dashboard.css) ---------- */
-        #game-hub .game-toolbar {
-            display: flex; align-items: center; justify-content: space-between;
-            gap: 14px; flex-wrap: wrap; margin-bottom: 18px;
-        }
-        #game-hub .game-search {
-            display: flex; align-items: center; gap: 10px; flex: 1; min-width: 220px; max-width: 420px;
-            padding: 10px 14px; border-radius: 14px;
-            background: rgba(139, 92, 246, .10); border: 1px solid rgba(139, 92, 246, .28);
-        }
-        #game-hub .game-search input {
-            flex: 1; border: 0; outline: 0; background: transparent; color: inherit; font: inherit;
-        }
-        #game-hub .game-count { font-size: .9rem; opacity: .85; }
-        #game-hub .game-grid {
-            display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px;
-        }
-        #game-hub .game-card {
-            display: flex; flex-direction: column; gap: 8px; padding: 18px;
-            border-radius: 20px; text-decoration: none; color: #fff;
-            background: linear-gradient(135deg, #6a4bff, #2f6bff);
-            box-shadow: 0 10px 26px rgba(40, 40, 120, .25);
-            transition: transform .2s ease, box-shadow .2s ease;
-        }
-        #game-hub .game-card:hover { transform: translateY(-4px); box-shadow: 0 16px 34px rgba(40, 40, 120, .35); }
-        #game-hub .game-card.game-purple { background: linear-gradient(135deg, #7c3aed, #4f46e5); }
-        #game-hub .game-card.game-blue   { background: linear-gradient(135deg, #2f6bff, #06b6d4); }
-        #game-hub .game-card.game-pink   { background: linear-gradient(135deg, #ec4899, #f97316); }
-        #game-hub .game-card.game-yellow { background: linear-gradient(135deg, #f59e0b, #ef4444); }
-        #game-hub .game-card.game-orange { background: linear-gradient(135deg, #f97316, #e11d48); }
-        #game-hub .game-card.game-green  { background: linear-gradient(135deg, #10b981, #0ea5e9); }
-        #game-hub .game-card-top { display: flex; align-items: center; justify-content: space-between; }
-        #game-hub .game-emoji { font-size: 2rem; line-height: 1; }
-        #game-hub .game-label {
-            font-size: .68rem; font-weight: 800; letter-spacing: .06em;
-            padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,.22);
-        }
-        #game-hub .game-card h3 { margin: 4px 0 0; font-size: 1.05rem; color: #fff; }
-        #game-hub .game-card p { margin: 0; font-size: .86rem; opacity: .92; line-height: 1.5; }
-        #game-hub .game-card-footer {
-            margin-top: auto; padding-top: 10px; display: flex; justify-content: space-between;
-            font-weight: 700; font-size: .88rem;
-        }
-        #game-hub .no-games { text-align: center; padding: 24px; opacity: .75; }
-
-        /* ---------- Daily Challenge + Streak ---------- */
-        .daily-streak-grid {
-            display: grid; grid-template-columns: 1.5fr 1fr; gap: 20px; align-items: stretch;
-        }
-        .daily-mission {
-            position: relative; overflow: hidden; padding: 28px; border-radius: 24px; color: #fff;
-            background: linear-gradient(135deg, #4f46e5 0%, #8b5cf6 55%, #ec4899 100%);
-            box-shadow: 0 18px 50px rgba(99, 102, 241, .30);
-            display: flex; flex-direction: column; gap: 16px;
-        }
-        .daily-mission-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-        .daily-mission h2 { margin: 6px 0 6px; font-size: 1.6rem; color: #fff; }
-        .daily-mission p { margin: 0; opacity: .92; line-height: 1.6; max-width: 520px; }
-        .daily-pill {
-            display: inline-block; padding: 5px 12px; border-radius: 999px; font-size: .72rem;
-            font-weight: 800; letter-spacing: .05em; background: rgba(255,255,255,.2);
-        }
-        .daily-pill.done { background: #10b981; }
-        .streak-badge {
-            flex: none; text-align: center; padding: 10px 16px; border-radius: 18px;
-            background: rgba(255,255,255,.16); backdrop-filter: blur(6px); min-width: 92px;
-        }
-        .streak-badge .flame { font-size: 1.8rem; line-height: 1; display: block; }
-        .streak-badge strong { display: block; font-size: 1.7rem; line-height: 1.1; }
-        .streak-badge small { opacity: .9; font-size: .74rem; }
-
-        .streak-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
-        .streak-day { text-align: center; font-size: .74rem; opacity: .95; }
-        .streak-day .dot {
-            width: 100%; max-width: 46px; aspect-ratio: 1; margin: 0 auto 6px; border-radius: 50%;
-            display: grid; place-items: center; font-size: 1.05rem;
-            background: rgba(255,255,255,.14); border: 2px dashed rgba(255,255,255,.35);
-        }
-        .streak-day.on .dot { background: #fff; border: 2px solid #fff; color: #ea580c; }
-        .streak-day.today .dot { box-shadow: 0 0 0 3px rgba(255,255,255,.45); }
-        .streak-day.today span { font-weight: 800; }
-
-        .milestone { font-size: .85rem; }
-        .milestone-top { display: flex; justify-content: space-between; margin-bottom: 6px; font-weight: 600; }
-        .milestone-track { height: 10px; border-radius: 999px; background: rgba(255,255,255,.2); overflow: hidden; }
-        .milestone-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #fde047, #fb923c); }
-
-        .daily-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-        .daily-button {
-            display: inline-flex; align-items: center; gap: 10px; padding: 12px 20px; border-radius: 14px;
-            background: #fff; color: #5b21b6; font-weight: 700; text-decoration: none;
-            transition: transform .2s ease, box-shadow .2s ease;
-        }
-        .daily-button:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,.25); }
-        .daily-button.ghost { background: rgba(255,255,255,.16); color: #fff; }
-        .daily-reward { font-size: .85rem; opacity: .95; }
-
-        .missions-panel { display: flex; flex-direction: column; gap: 12px; }
-        .missions-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-        .missions-list a {
-            display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px;
-            text-decoration: none; color: inherit;
-            background: rgba(139, 92, 246, .10); border: 1px solid rgba(139, 92, 246, .25);
-            transition: background .2s ease, transform .2s ease;
-        }
-        .missions-list a:hover { background: rgba(139, 92, 246, .20); transform: translateX(3px); }
-        .missions-list .m-emoji { font-size: 1.4rem; }
-        .missions-list strong { display: block; font-size: .95rem; }
-        .missions-list small { opacity: .75; }
-        .missions-list .m-go { margin-left: auto; font-weight: 700; }
-
-        /* Daily challenge game picker */
-        .pick-list { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; min-width: 0; }
-        .pick { position: relative; display: block; cursor: pointer; }
-        .pick input {
-            position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; pointer-events: none;
-        }
-        .pick-body {
-            display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px;
-            background: rgba(139, 92, 246, .10); border: 2px solid rgba(139, 92, 246, .25);
-            transition: background .2s ease, border-color .2s ease, transform .2s ease;
-        }
-        .pick:hover .pick-body { background: rgba(139, 92, 246, .20); }
-        .pick-body .m-emoji { font-size: 1.4rem; }
-        .pick-body strong { display: block; font-size: .95rem; }
-        .pick-body small { opacity: .75; }
-        .pick-body .pick-check {
-            margin-left: auto; width: 24px; height: 24px; border-radius: 50%; flex: none;
-            display: grid; place-items: center; font-size: .8rem; font-weight: 800; color: transparent;
-            border: 2px solid rgba(139, 92, 246, .45);
-        }
-        .pick input:checked + .pick-body {
-            background: linear-gradient(135deg, rgba(79, 70, 229, .30), rgba(236, 72, 153, .22));
-            border-color: #8b5cf6; transform: translateX(3px);
-        }
-        .pick input:checked + .pick-body .pick-check { background: #8b5cf6; border-color: #8b5cf6; color: #fff; }
-        .pick input:focus-visible + .pick-body { outline: 3px solid rgba(139, 92, 246, .55); outline-offset: 2px; }
-
-        @media (max-width: 900px) { .daily-streak-grid { grid-template-columns: 1fr; } }
-        @media (max-width: 760px) {
-            .daily-mission { padding: 20px; }
-            .daily-mission-head { flex-direction: column; }
-        }
-        @media (prefers-reduced-motion: reduce) {
-            #game-hub .game-card, .daily-button, .missions-list a { transition: none !important; }
-        }
+        /* ---------- quiz already taken (one attempt only) ---------- */
+        .quiz-done{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:10px;
+            background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.5);color:#10b981;
+            font-weight:700;font-size:.85rem;line-height:1.2;cursor:default;white-space:nowrap}
+        .quiz-done small{font-weight:600;opacity:.9}
     </style>
 </head>
-
 <body>
 
+{# ---------- Template values (all from the server) ---------- #}
 {% set st = streak|default(learning_streak|default(0))|int %}
 {% set credit_value = credits|default(50)|int %}
+{% set cost = video_cost|default(10)|int %}
 {% set video_list = generated_videos|default([]) %}
-{% set video_count = videos_completed|default(video_list|length)|int %}
+{% set video_count = video_list|length %}
+{% set missing = missing_videos|default(0)|int %}
 {% set done_today = daily_done|default(false) %}
-{% set reward = daily_reward|default(10)|int %}
-
-{# next streak milestone #}
+{% set d_limit = daily_limit|default(10)|int %}
+{% set d_used = [daily_used|default(0)|int, d_limit]|min %}
+{% set d_full = d_used >= d_limit %}
 {% set ns = namespace(next=none) %}
-{% for m in [3, 7, 14, 30, 60, 100] %}
-    {% if ns.next is none and m > st %}{% set ns.next = m %}{% endif %}
-{% endfor %}
+{% for m in [3, 7, 14, 30, 60, 100] %}{% if ns.next is none and m > st %}{% set ns.next = m %}{% endif %}{% endfor %}
 {% set next_milestone = ns.next if ns.next is not none else (st + 30) %}
 {% set milestone_pct = [((st * 100) // next_milestone), 100]|min %}
 {% set week_filled = [st, 7]|min %}
+{% set aptitude_link = aptitude_url|default('/aptitude/') %}
 
-<div class="bg-aurora" aria-hidden="true">
-    <span class="blob blob-1"></span>
-    <span class="blob blob-2"></span>
-    <span class="blob blob-3"></span>
-</div>
-
-<div class="scroll-progress" id="scrollProgress"></div>
+{# All games (used by the Brain break grid AND the daily challenge picker) #}
+{% set game_cards = [
+    ('arrow_maze', 'Arrow Maze', '🧭', 'Logic', 'Find the correct route through the maze.'),
+    ('hologram_memory', 'Hologram Memory', '✨', 'Memory', 'Remember glowing patterns and sequences.'),
+    ('candy_match', 'Candy Match', '🍬', 'Arcade', 'Match candies and earn points.'),
+    ('memory_match', 'Memory Card Matching', '🃏', 'Memory', 'Find matching pairs of cards.'),
+    ('bubble_shooter', 'Bubble Shooter', '🫧', 'Arcade', 'Clear groups of matching bubbles.'),
+    ('endless_runner', 'Endless Runner', '🏃', 'Action', 'Dodge obstacles and collect rewards.'),
+    ('neon_tic_tac_toe', 'Neon Tic-Tac-Toe', '❌', 'Strategy', 'Align three symbols to win.'),
+    ('puzzle_2048', '2048 Number Puzzle', '🔢', 'Puzzle', 'Combine tiles to reach 2048.'),
+    ('arrow_direction', 'Arrow Direction', '➡️', 'Logic', 'Solve directional challenges.'),
+    ('sliding_puzzle', 'Sliding Puzzle', '🧩', 'Puzzle', 'Arrange the tiles in order.'),
+    ('quiz_battle', 'Quiz Battle Arena', '⚔️', 'Quiz', 'Answer questions and earn points.'),
+    ('tetris_blocks', 'Tetris Blocks', '🧱', 'Puzzle', 'Arrange blocks and clear lines.'),
+    ('flappy_brain', 'Flappy Brain', '🧠', 'Action', 'Fly through gaps and avoid obstacles.'),
+    ('snake_game', 'Snake Game', '🐍', 'Arcade', 'Collect food and grow your snake.')
+] %}
 
 <div class="dashboard">
 
     <!-- SIDEBAR -->
     <aside class="sidebar" id="sidebar">
-
-        <a href="{{ url_for('dashboard') }}" class="brand">
-            <span class="brand-logo">
-                <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="EduVision">
-            </span>
-            <span class="brand-name">Edu<span>Vision</span></span>
+        <a href="#home" class="brand">
+            <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="">
+            <span>Edu<span>Vision</span></span>
         </a>
 
         <div class="profile">
@@ -279,774 +105,523 @@
                 <strong>{{ user_name|default('Learner') }}</strong>
                 <small>{{ user_email|default('Active learner') }}</small>
             </div>
-            <span class="online-dot"></span>
         </div>
 
-        <nav class="navigation" aria-label="Dashboard">
-
-            <p class="nav-title">MAIN MENU</p>
-
-            <a class="nav-link active" href="{{ url_for('dashboard') }}">
-                <span class="nav-icon">🏠</span>
-                <span>Dashboard</span>
+        <nav aria-label="Dashboard">
+            <p class="nav-title">Learn</p>
+            <a class="nav-link" data-nav="home" href="#home">🏠 Dashboard</a>
+            <a class="nav-link" href="{{ url_for('generate_video_page') }}">✨ Generate video</a>
+            <a class="nav-link" data-nav="videos" href="#my-videos">🎬 My generated videos
+                {% if video_count %}<span class="count-badge">{{ video_count }}</span>{% endif %}
             </a>
+            <a class="nav-link" href="{{ aptitude_link }}">🧠 Aptitude Arena <span class="new-badge">NEW</span></a>
+            <a class="nav-link" href="{{ url_for('learning_progress') }}">📈 My progress</a>
 
-            <a class="nav-link" href="{{ url_for('generate_video_page') }}">
-                <span class="nav-icon">✨</span>
-                <span>Generate Educational Video</span>
-            </a>
-
-            <a class="nav-link" href="{{ cartoon_url|default('/cartoon-studio') }}">
-                <span class="nav-icon">🎨</span>
-                <span>Create Cartoon Movie</span>
-                <span class="new-badge">NEW</span>
-            </a>
-
-            <!-- Aptitude Arena.
-                 If your route has a different name, either pass aptitude_url from the view
-                 or change the fallback path below. -->
-            <a class="nav-link" href="{{ aptitude_url|default('/aptitude-arena') }}">
-                <span class="nav-icon">🧠</span>
-                <span>Aptitude Arena</span>
-                <span class="new-badge">NEW</span>
-            </a>
-
-            <a class="nav-link" href="#my-videos" data-section="my-videos">
-                <span class="nav-icon">🎬</span>
-                <span>My Generated Videos</span>
-            </a>
-
-            <a class="nav-link" href="{{ url_for('learning_progress') }}">
-                <span class="nav-icon">📈</span>
-                <span>My Progress</span>
-            </a>
-
-            <p class="nav-title">PLAY &amp; EARN</p>
-
-            <a class="nav-link" href="{{ url_for('games') }}">
-                <span class="nav-icon">🎮</span>
-                <span>All Games</span>
-            </a>
-
-            <a class="nav-link" href="#game-hub" data-section="game-hub">
-                <span class="nav-icon">🏆</span>
-                <span>Game Challenges</span>
-            </a>
-
-            <a class="nav-link" href="#daily-challenge" data-section="daily-challenge">
-                <span class="nav-icon">🌟</span>
-                <span>Daily Challenge</span>
-            </a>
-
+            <p class="nav-title">Brain break</p>
+            <a class="nav-link" href="{{ url_for('games') }}">🎮 All games</a>
+            <a class="nav-link" data-nav="game-hub" href="#game-hub">🏆 Game challenges</a>
+            <a class="nav-link" data-nav="daily-challenge" href="#daily-challenge">🌟 Daily challenge</a>
         </nav>
 
         <div class="sidebar-bottom">
-
             <div class="sidebar-tip">
-                <div class="tip-icon">💡</div>
-                <strong>Keep growing!</strong>
-                <p>Every small step takes you closer to your goals.</p>
-                <div class="tip-decoration">✦</div>
+                <strong>💡 Learn by seeing</strong>
+                <p>Pair a short video with its quiz to remember more.</p>
             </div>
-
-            <a class="logout-link" href="{{ url_for('logout') }}">
-                <span>↪</span> Logout
-            </a>
-
+            <a class="logout-link" href="{{ url_for('logout') }}">↪ Log out</a>
         </div>
-
     </aside>
 
     <div class="scrim" id="scrim"></div>
 
-    <!-- MAIN CONTENT -->
-    <main class="main-content">
-
+    <main>
         <!-- TOPBAR -->
         <header class="topbar">
-
             <div class="topbar-left">
-
-                <button type="button" class="icon-button menu-button"
-                        id="menuButton" aria-label="Open menu">☰</button>
-
-                <div class="breadcrumb">
-                    My workspace <span>/</span> <strong>Dashboard</strong>
-                </div>
-
+                <button type="button" class="icon-button menu-button" id="menuButton" aria-label="Open menu">☰</button>
+                <div class="breadcrumb">My workspace / <strong id="crumb">Dashboard</strong></div>
             </div>
-
             <div class="topbar-right">
-
-                <button type="button" class="icon-button" id="themeButton"
-                        aria-label="Switch light or dark theme">
+                <button type="button" class="icon-button" id="themeButton" aria-label="Switch light or dark theme">
                     <span id="themeIcon">☾</span>
                 </button>
-
-                <a class="top-credit" href="#daily-challenge" title="Your daily streak"
-                   style="text-decoration:none;color:inherit">
-                    <span class="credit-gem">🔥</span>
-                    <span>
-                        <strong>{{ st }}</strong>
-                        <small>Streak</small>
-                    </span>
+                <a class="chip" href="#daily-challenge" title="Your daily streak">
+                    🔥 <span><strong>{{ st }}</strong><small>Streak</small></span>
                 </a>
-
-                <div class="top-credit" title="Your credits">
-                    <span class="credit-gem">💎</span>
-                    <span>
-                        <strong id="creditValue">{{ credit_value }}</strong>
-                        <small>Credits</small>
-                    </span>
+                <div class="chip" title="Your credits">
+                    💎 <span><strong id="creditValue">{{ credit_value }}</strong><small>Credits</small></span>
                 </div>
-
-                <div class="top-avatar">
-                    {{ (user_name|default('Learner'))[:1]|upper }}
-                </div>
-
+                <div class="top-avatar">{{ (user_name|default('Learner'))[:1]|upper }}</div>
             </div>
-
         </header>
 
         <div class="page-content">
 
-            <!-- FLASH MESSAGES -->
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% for category, message in messages %}
                     <div class="flash-message {{ category }}">{{ message }}</div>
                 {% endfor %}
             {% endwith %}
 
+            <!-- ================= HOME VIEW ================= -->
 
-            <!-- 1. WELCOME -->
-            <section class="welcome-card welcome-compact reveal">
-
-                <div class="welcome-shape shape-one"></div>
-                <div class="welcome-shape shape-two"></div>
-
-                <div class="welcome-content">
-
-                    <div class="welcome-label">
-                        <span class="label-dot"></span>
-                        YOUR PERSONAL LEARNING SPACE
+            <!-- 1. HERO -->
+            <section class="hero view-home">
+                <div class="hero-main">
+                    <span class="eyebrow">AI visual learning</span>
+                    <h1><span id="greeting">Welcome back</span>, {{ user_name|default('Learner') }} 👋</h1>
+                    <p>Turn any topic, PDF or image into a narrated lesson video with a quiz. Learn it once, see it clearly.</p>
+                    <div class="hero-actions">
+                        <a class="btn big" href="{{ url_for('generate_video_page') }}">✨ Generate video</a>
+                        <a class="btn alt big" href="#my-videos">🎬 My generated videos</a>
                     </div>
+                </div>
 
-                    <h1>
-                        <span id="greeting">Welcome back</span>,
-                        <em>{{ user_name|default('Learner') }}!</em>
-                    </h1>
-
-                    <p>
-                        Your learning workspace for AI lessons, creative projects,
-                        games and progress.
+                <aside class="hero-side">
+                    <div class="side-row">
+                        <span>💎 Your credits</span>
+                        <strong>{{ credit_value }}</strong>
+                    </div>
+                    <div class="side-row">
+                        <span>🎬 Cost per video</span>
+                        <strong>{{ cost }}</strong>
+                    </div>
+                    <div class="side-row">
+                        <span>🎞️ Videos made</span>
+                        <strong>{{ video_count }}</strong>
+                    </div>
+                    <p class="side-note">
+                        {% if credit_value >= cost %}You can make {{ credit_value // cost }} more video{{ '' if credit_value // cost == 1 else 's' }}.
+                        {% else %}Not enough credits. Play a brain-break game to earn more.{% endif %}
                     </p>
+                </aside>
 
-                    <div class="welcome-meta">
-                        <span>🔥 {{ st }}-day streak</span>
-                        <span class="meta-divider"></span>
-                        <span>
-                            💎 <b id="chipCredits">{{ credit_value }}</b>
-                            credits available
-                        </span>
-                    </div>
-
-                </div>
-
-                <div class="welcome-compact-art" aria-hidden="true">
-                    <div class="welcome-art-icon">📚</div>
-                    <span class="welcome-art-star star-one">✦</span>
-                    <span class="welcome-art-star star-two">✧</span>
-                    <span class="welcome-art-star star-three">✦</span>
-                    <div class="welcome-art-caption">
-                        <strong>Learn something new</strong>
-                        <small>Every day is a fresh start</small>
-                    </div>
-                </div>
-
+                <ol class="pipeline" aria-label="How EduVision builds a lesson">
+                    <li><b>📝</b>Text &amp; notes<small>Topic, PDF or image</small></li>
+                    <li><b>🧠</b>AI script<small>Simple explanation</small></li>
+                    <li><b>🖼️</b>Visuals<small>Scenes &amp; diagrams</small></li>
+                    <li><b>🎙️</b>Voice-over<small>Your language</small></li>
+                    <li><b>🎬</b>Video<small>Lesson video</small></li>
+                    <li><b>✅</b>Quiz &amp; tutor<small>Check what you learned</small></li>
+                </ol>
             </section>
 
-
-            <!-- 2. OVERVIEW STATISTICS -->
-            <section class="section reveal">
-
+            <!-- 2. STATS -->
+            <section class="view-home">
                 <div class="section-heading">
-                    <div>
-                        <span class="eyebrow">YOUR ACHIEVEMENTS</span>
-                        <h2>Your learning at a glance</h2>
-                        <p>Every lesson makes you better.</p>
-                    </div>
-                    <span class="heading-decoration">✧</span>
+                    <div><h2>Your learning at a glance</h2><p>Every lesson adds up.</p></div>
+                    <a class="view-all-link" href="{{ url_for('learning_progress') }}">Full progress</a>
                 </div>
-
-                <div class="overview-grid">
-
-                    <div class="stats-grid">
-
-                        <article class="stat-card stat-purple tilt">
-                            <div class="stat-icon">🎬</div>
-                            <strong data-count="{{ video_count }}">{{ video_count }}</strong>
-                            <p>Videos created</p>
-                            <small>Lessons &amp; cartoons</small>
-                        </article>
-
-                        <article class="stat-card stat-blue tilt">
-                            <div class="stat-icon">✅</div>
-                            <strong data-count="{{ quizzes_completed|default(0) }}">
-                                {{ quizzes_completed|default(0) }}
-                            </strong>
-                            <p>Quizzes completed</p>
-                            <small>Knowledge gained</small>
-                        </article>
-
-                        <article class="stat-card stat-orange tilt">
-                            <div class="stat-icon">🎮</div>
-                            <strong data-count="{{ games_played|default(0) }}">
-                                {{ games_played|default(0) }}
-                            </strong>
-                            <p>Games played</p>
-                            <small>Skills in action</small>
-                        </article>
-
-                        <article class="stat-card stat-green tilt">
-                            <div class="stat-icon">🔥</div>
-                            <strong data-count="{{ st }}">{{ st }}</strong>
-                            <p>Day streak</p>
-                            <small>Stay consistent</small>
-                        </article>
-
-                    </div>
-
+                <div class="stats-grid">
+                    <article class="stat-card s1"><span>🎬</span><strong data-count="{{ video_count }}">{{ video_count }}</strong><p>Videos created</p></article>
+                    <article class="stat-card s2"><span>✅</span><strong data-count="{{ quizzes_completed|default(0) }}">{{ quizzes_completed|default(0) }}</strong><p>Quizzes completed</p></article>
+                    <article class="stat-card s3"><span>🎮</span><strong data-count="{{ games_played|default(0) }}">{{ games_played|default(0) }}</strong><p>Brain breaks taken</p></article>
+                    <article class="stat-card s4"><span>🔥</span><strong data-count="{{ st }}">{{ st }}</strong><p>Day streak</p></article>
                 </div>
-
             </section>
 
-
-            <!-- 3. MY GENERATED VIDEOS (Educational + Cartoon) -->
-            <section class="section library-section reveal" id="my-videos">
-
+            <!-- 3. CONTINUE LEARNING (latest video) -->
+            {% if video_list %}
+            {% set last = video_list[0] %}
+            <section class="view-home">
                 <div class="section-heading">
-                    <div>
-                        <span class="eyebrow">YOUR LIBRARY</span>
-                        <h2>My Generated Videos</h2>
-                        <p>Your educational videos and cartoon movies created with EduVision.</p>
+                    <div><h2>Continue learning</h2><p>Your latest lesson, ready to watch.</p></div>
+                    <a class="view-all-link" href="#my-videos">See all {{ video_count }} videos</a>
+                </div>
+                <article class="continue-card">
+                    <div class="continue-player">
+                        <video controls preload="metadata"><source src="{{ last.url }}" type="video/mp4">Your browser does not support video playback.</video>
                     </div>
-                </div>
-
-                {% if video_list %}
-
-                <div class="library-filters" id="libraryFilters" role="tablist" aria-label="Filter videos">
-                    <button type="button" class="filter-chip active" data-filter="all">All</button>
-                    <button type="button" class="filter-chip" data-filter="educational">🎓 Educational</button>
-                    <button type="button" class="filter-chip" data-filter="cartoon">🎨 Cartoon</button>
-                </div>
-
-                <div class="generated-videos-grid" id="videosGrid">
-
-                    {% for video in video_list %}
-
-                    {% set vtype = (video.video_type|default('educational'))|lower %}
-                    {% set is_cartoon = vtype in ['cartoon', 'cartoon_animation', 'animation'] %}
-
-                    <article class="generated-video-card"
-                             data-type="{{ 'cartoon' if is_cartoon else 'educational' }}">
-
-                        <div class="generated-video-preview">
-
-                            <span class="type-badge {{ 'cartoon' if is_cartoon else 'edu' }}">
-                                {{ '🎨 CARTOON' if is_cartoon else '🎓 LESSON' }}
-                            </span>
-
-                            {% if video.filename and video.url %}
-
-                            <video controls preload="metadata">
-                                <source src="{{ video.url }}" type="video/mp4">
-                                Your browser does not support video playback.
-                            </video>
-
+                    <div class="continue-info">
+                        <span class="eyebrow">Latest video</span>
+                        <h3>{{ last.title }}</h3>
+                        <div class="video-meta">
+                            {{ last.video_style|replace('_', ' ')|title }} · {{ last.language|title }}
+                            {% if last.created_at %}· {{ last.created_at.strftime('%d %b %Y') if last.created_at.strftime is defined else last.created_at }}{% endif %}
+                        </div>
+                        <p>Watch it again, then test yourself with the quiz or ask the AI tutor about anything unclear.</p>
+                        <div class="continue-actions">
+                            {% if last.quiz_taken %}
+                            <span class="quiz-done" title="You can take each quiz only once">✅ Quiz completed <small>· {{ last.quiz_score }} ({{ last.quiz_percentage }}%)</small></span>
                             {% else %}
-
-                            <div class="video-placeholder">
-                                <span>{{ '🎨' if is_cartoon else '🎬' }}</span>
-                                <p>Video preview unavailable</p>
-                            </div>
-
+                            <a class="btn small" href="{{ last.quiz_url }}">🧠 Take quiz</a>
                             {% endif %}
-
+                            <a class="btn alt small" href="{{ last.tutor_url }}">🤖 Ask AI tutor</a>
+                            <a class="btn alt small" href="{{ last.download_url }}" download>⬇ Download</a>
                         </div>
-
-                        <div class="generated-video-info">
-
-                            <h3>
-                                {{ video.title|default('Cartoon Movie' if is_cartoon else 'Educational Lesson') }}
-                            </h3>
-
-                            <div class="video-meta">
-                                <span>
-                                    {% if is_cartoon %}
-                                        {{ video.cartoon_style|default(video.video_style|default('Cartoon'))|replace('_', ' ')|title }}
-                                    {% else %}
-                                        {{ video.video_style|default('Educational')|replace('_', ' ')|title }}
-                                    {% endif %}
-                                </span>
-                                <span>·</span>
-                                <span>
-                                    {{ video.language|default('English')|title }}
-                                </span>
-                            </div>
-
-                            {% if video.created_at %}
-                            <small class="video-date">
-                                {{ video.created_at.strftime('%d %b %Y') if video.created_at.strftime is defined else video.created_at }}
-                            </small>
-                            {% endif %}
-
-                            {% if video.status and video.status|lower not in ['completed', 'complete', 'done', 'success'] %}
-                            <div>
-                                <span class="video-status {{ 'failed' if video.status|lower in ['failed', 'error'] else '' }}">
-                                    {{ video.status|title }}
-                                </span>
-                            </div>
-                            {% endif %}
-
-                            <div class="generated-video-actions">
-
-                                {% if is_cartoon %}
-
-                                    {% if video.id %}
-                                    <a class="cartoon-link"
-                                       href="/cartoon-movie/{{ video.id }}">
-                                        🎨 Open in Studio
-                                    </a>
-                                    {% endif %}
-
-                                    {% if video.url %}
-                                    <a class="download-link"
-                                       href="{{ video.download_url|default(video.url) }}"
-                                       download>
-                                        ⬇ Download MP4
-                                    </a>
-                                    {% endif %}
-
-                                {% elif video.id %}
-
-                                    <a class="quiz-link"
-                                       href="{{ url_for('video_quiz.video_quiz_page', video_id=video.id) }}">
-                                        🧠 Take Quiz
-                                    </a>
-
-                                    <a class="tutor-link"
-                                       href="{{ video.tutor_url|default('/ai-tutor/?video_id=' ~ video.id) }}">
-                                        🤖 Ask AI Tutor
-                                    </a>
-
-                                {% endif %}
-
-                            </div>
-
-                        </div>
-
-                    </article>
-
-                    {% endfor %}
-
-                </div>
-
-                <p class="filter-empty" id="filterEmpty" hidden>
-                    No videos of this type yet.
-                </p>
-
-                {% else %}
-
-                <div class="library-empty">
-                    <span>🎬</span>
-                    <h3>No videos generated yet</h3>
-                    <p>
-                        Your educational videos and cartoon movies will appear
-                        here after you create your first one.
-                    </p>
-                </div>
-
-                {% endif %}
-
+                    </div>
+                </article>
             </section>
+            {% endif %}
 
-
-            <!-- 4. GAME HUB -->
-            <section class="section game-section reveal" id="game-hub">
-
+            <!-- 4. BRAIN BREAK -->
+            <section class="view-home" id="game-hub">
                 <div class="section-heading">
+                    <div><h2>Brain break 🎮</h2><p>Short games to refresh your mind. You get a limited number of rounds each day.</p></div>
+                    <a class="view-all-link" href="{{ url_for('games') }}">View all games</a>
+                </div>
 
-                    <div>
-                        <span class="eyebrow">PLAY • THINK • GROW</span>
-                        <h2>Pick your next adventure ✨</h2>
-                        <p>
-                            Challenge your brain, improve your skills
-                            and earn rewards.
-                        </p>
+                <!-- Daily rounds: one box per round, a red cut mark (✕) for each round already played -->
+                <div class="limit-bar {{ 'full' if d_full else '' }}" id="limitBar" data-used="{{ d_used }}" data-limit="{{ d_limit }}">
+                    <div class="limit-top">
+                        <strong id="limitTitle">{{ d_used }} of {{ d_limit }} rounds played today</strong>
+                        <span id="limitSub">{% if d_full %}You have played enough today. Come back tomorrow.{% else %}{{ d_limit - d_used }} left{% endif %}</span>
+                    </div>
+                    <div class="limit-track"><div class="limit-fill" id="limitFill" style="width: {{ (d_used * 100) // d_limit }}%"></div></div>
+
+                    <div class="limit-marks" id="limitMarks" aria-hidden="true">
+                        {% for i in range(d_limit) %}<b class="limit-mark {{ 'on' if i < d_used else '' }}">{{ '✕' if i < d_used else '·' }}</b>{% endfor %}
                     </div>
 
-                    <a href="{{ url_for('games') }}" class="view-all-link">
-                        View all games <span>→</span>
-                    </a>
-
+                    <div class="enough-box" id="enoughBox" {% if not d_full %}hidden{% endif %}>
+                        <span class="big-x">✕</span>
+                        <div>
+                            <strong>Enough playing for today!</strong>
+                            <p>You have used all {{ d_limit }} rounds. Watch a lesson or ask the AI tutor, then come back tomorrow 📚</p>
+                        </div>
+                    </div>
                 </div>
-
-                {% set game_cards = [
-                    ('arrow_maze', 'Arrow Finder: Arrow Maze', '🧭', 'LOGIC', 'Find the correct route through the maze.', 'game-purple'),
-                    ('hologram_memory', 'Hologram Memory Challenge', '✨', 'MEMORY', 'Remember glowing patterns and sequences.', 'game-blue'),
-                    ('candy_match', 'Candy Match Puzzle', '🍬', 'ARCADE', 'Match candies and earn points.', 'game-pink'),
-                    ('memory_match', 'Memory Card Matching', '🃏', 'MEMORY', 'Find matching pairs of cards.', 'game-yellow'),
-                    ('bubble_shooter', 'Bubble Shooter', '🫧', 'ARCADE', 'Shoot bubbles and clear matching groups.', 'game-blue'),
-                    ('endless_runner', 'Endless Runner', '🏃', 'ACTION', 'Dodge obstacles and collect rewards.', 'game-orange'),
-                    ('neon_tic_tac_toe', 'Neon Tic-Tac-Toe', '❌', 'STRATEGY', 'Align three symbols to win.', 'game-purple'),
-                    ('puzzle_2048', '2048 Number Puzzle', '🔢', 'PUZZLE', 'Combine number tiles to reach 2048.', 'game-green'),
-                    ('arrow_direction', 'Arrow Direction Puzzle', '➡️', 'LOGIC', 'Solve directional challenges.', 'game-yellow'),
-                    ('sliding_puzzle', 'Sliding Puzzle', '🧩', 'PUZZLE', 'Arrange the tiles in correct order.', 'game-pink'),
-                    ('quiz_battle', 'Quiz Battle Arena', '⚔️', 'QUIZ', 'Answer questions and earn points.', 'game-purple'),
-                    ('tetris_blocks', 'Tetris Blocks', '🧱', 'PUZZLE', 'Arrange blocks and clear lines.', 'game-blue'),
-                    ('flappy_brain', 'Flappy Brain', '🧠', 'ACTION', 'Fly through gaps and avoid obstacles.', 'game-orange'),
-                    ('snake_game', 'Snake Game', '🐍', 'ARCADE', 'Collect food and grow your snake.', 'game-green')
-                ] %}
 
                 <div class="game-toolbar">
-
-                    <label class="game-search" for="gameSearch">
-                        <span>🔍</span>
-                        <input type="search" id="gameSearch"
-                               placeholder="Find your favourite game..."
-                               autocomplete="off">
-                    </label>
-
-                    <span class="game-count">
-                        <strong id="gameCount">{{ game_cards|length }}</strong>
-                        games to explore
-                    </span>
-
+                    <label class="sr-only" for="gameSearch">Search games</label>
+                    <input type="search" id="gameSearch" placeholder="🔍 Search games" autocomplete="off">
+                    <span><strong id="gameCount">{{ game_cards|length }}</strong> games</span>
                 </div>
 
                 <div class="game-grid" id="gameGrid">
-
-                    {% for game_key, game_title, emoji, label, description, style in game_cards %}
-
-                    <a class="game-card tilt {{ style }}"
-                       style="--i: {{ loop.index0 }}"
-                       data-name="{{ (game_title ~ ' ' ~ game_key ~ ' ' ~ label)|lower }}"
-                       href="{{ url_for('eduvision_game', game_key=game_key) }}">
-
-                        <div class="game-card-top">
-                            <div class="game-emoji">{{ emoji }}</div>
-                            <span class="game-label">{{ label }}</span>
-                        </div>
-
-                        <h3>{{ game_title }}</h3>
-                        <p>{{ description }}</p>
-
-                        <div class="game-card-footer">
-                            <span>Play now</span>
-                            <span class="game-arrow">↗</span>
-                        </div>
-
+                    {% for key, title, emoji, label, desc in game_cards %}
+                    <a class="game-card {{ 'locked' if d_full else '' }}"
+                       data-name="{{ (title ~ ' ' ~ key ~ ' ' ~ label)|lower }}"
+                       href="{{ url_for('eduvision_game', game_key=key) }}">
+                        <div class="top"><span>{{ emoji }}</span><span class="tag">{{ label }}</span></div>
+                        <h3>{{ title }}</h3>
+                        <p>{{ desc }}</p>
                     </a>
-
                     {% endfor %}
-
                 </div>
-
-                <p id="noGamesMessage" class="no-games" hidden>
-                    No games found. Try another search.
-                </p>
-
+                <p id="noGamesMessage" class="no-games" hidden>No games found. Try another search.</p>
             </section>
 
-
-            <!-- 5. DAILY CHALLENGE WITH STREAK -->
-            <section class="section reveal" id="daily-challenge">
-
+            <!-- 5. DAILY CHALLENGE + ACTIVITY -->
+            <section class="view-home" id="daily-challenge">
                 <div class="section-heading">
-                    <div>
-                        <span class="eyebrow">YOUR DAILY MISSION</span>
-                        <h2>Daily Challenge &amp; Streak</h2>
-                        <p>Finish one challenge every day to keep your streak alive.</p>
-                    </div>
-                    <span class="heading-decoration">🔥</span>
+                    <div><h2>Daily challenge &amp; streak</h2><p>Pick any game you like and finish a level to keep your streak alive.</p></div>
                 </div>
 
-                <div class="daily-streak-grid">
-
-                    <article class="daily-mission">
-
-                        <div class="daily-mission-head">
-                            <div>
-                                <span class="daily-pill {{ 'done' if done_today else '' }}">
-                                    {{ '✓ COMPLETED TODAY' if done_today else "TODAY'S MISSION" }}
-                                </span>
-                                <h2>Daily Brain Boost</h2>
-                                <p>
-                                    {% if done_today %}
-                                        Great work! You finished today's challenge. Come back
-                                        tomorrow to grow your streak.
-                                    {% else %}
-                                        Choose any game from the list, play it and make today
-                                        count. Finishing it adds a day to your streak.
-                                    {% endif %}
-                                </p>
-                            </div>
-
-                            <div class="streak-badge" title="Your current streak">
-                                <span class="flame" aria-hidden="true">🔥</span>
-                                <strong>{{ st }}</strong>
-                                <small>day streak</small>
-                            </div>
+                <div class="daily">
+                    <article class="mission">
+                        <div>
+                            <h3>{{ 'Done for today ✓' if done_today else 'Daily brain boost' }}</h3>
+                            <p>
+                                {% if done_today %}You finished today's challenge. Come back tomorrow to grow your streak.
+                                {% else %}Choose <strong>any game</strong> below, then finish one level to add a day to your streak.{% endif %}
+                            </p>
                         </div>
 
-                        <!-- Last 7 days: filled only on days a game was really played -->
+                        <!-- choose any game -->
+                        <div>
+                            <div class="daily-picker" id="dailyPicker" role="radiogroup" aria-label="Choose a game for today's challenge">
+                                {% for key, title, emoji, label, desc in game_cards %}
+                                <button type="button" class="pick-chip" role="radio" aria-checked="false"
+                                        data-title="{{ title }}" data-emoji="{{ emoji }}"
+                                        data-url="{{ url_for('eduvision_game', game_key=key) }}"
+                                        {% if d_full %}disabled{% endif %}>
+                                    <span>{{ emoji }}</span>{{ title }}
+                                </button>
+                                {% endfor %}
+                            </div>
+                            <p class="pick-hint" id="pickHint">Tap a game to choose it, or let us surprise you.</p>
+                        </div>
+
                         <div class="streak-week" id="streakWeek" aria-label="Your last 7 days">
                             {% for i in range(7) %}
                             {% set on = (week_days[i] if week_days is defined else (i >= (7 - week_filled))) %}
-                            <div class="streak-day {{ 'on' if on else '' }} {{ 'today' if i == 6 else '' }}"
-                                 data-offset="{{ 6 - i }}">
+                            <div class="streak-day {{ 'on' if on else '' }} {{ 'today' if i == 6 else '' }}" data-offset="{{ 6 - i }}">
                                 <div class="dot">{{ '🔥' if on else '' }}</div>
-                                <span>{{ 'Today' if i == 6 else '·' }}</span>
+                                <span>{{ 'Today' if i == 6 else '' }}</span>
                             </div>
                             {% endfor %}
                         </div>
 
-                        <!-- Next milestone -->
-                        <div class="milestone">
+                        <div>
                             <div class="milestone-top">
-                                <span>Next streak goal: {{ next_milestone }} days</span>
-                                <span>{{ st }} / {{ next_milestone }}</span>
+                                <span>Next goal: {{ next_milestone }} days</span><span>{{ st }} / {{ next_milestone }}</span>
                             </div>
-                            <div class="milestone-track" role="progressbar"
-                                 aria-valuemin="0" aria-valuemax="{{ next_milestone }}" aria-valuenow="{{ st }}">
+                            <div class="milestone-track" role="progressbar" aria-valuemin="0"
+                                 aria-valuemax="{{ next_milestone }}" aria-valuenow="{{ st }}">
                                 <div class="milestone-fill" style="width: {{ milestone_pct }}%"></div>
                             </div>
                         </div>
 
                         <div class="daily-actions">
-                            <a href="{{ url_for('eduvision_game', game_key='quiz_battle') }}"
-                               class="daily-button" id="dailyStart"
-                               data-prefix="{{ 'Play again: ' if done_today else 'Start: ' }}">
-                                <span id="dailyStartLabel">{{ 'Play again: ' if done_today else 'Start: ' }}Quiz Battle</span>
-                                <span>→</span>
-                            </a>
-                            <a href="{{ url_for('games') }}" class="daily-button ghost">Browse games</a>
-                            <span class="daily-reward">
-                                {% if done_today %}Streak extended today ✓{% else %}🔥 Play any game today to {{ 'keep your streak' if st > 0 else 'start your streak' }}{% endif %}
-                            </span>
+                            <a class="btn {{ 'locked' if d_full else '' }}" id="startChallenge" href="#"
+                               aria-disabled="true">{{ '✕ Enough playing for today' if d_full else 'Choose a game to start' }}</a>
+                            <button type="button" class="btn alt" id="pickRandom" {% if d_full %}disabled{% endif %}>🎲 Surprise me</button>
                         </div>
-
                     </article>
 
-                    <aside class="panel missions-panel">
-
-                        <div class="section-heading compact">
-                            <div>
-                                <span class="eyebrow">CHOOSE YOUR GAME</span>
-                                <h3>Select today's challenge</h3>
-                            </div>
-                        </div>
-
-                        {% set picks = [
-                            ('quiz_battle',  '⚔️', 'Quiz Battle',   'Answer questions fast',   url_for('eduvision_game', game_key='quiz_battle')),
-                            ('memory_match', '🃏', 'Memory Match',  'Train your memory',       url_for('eduvision_game', game_key='memory_match')),
-                            ('puzzle_2048',  '🔢', '2048 Puzzle',   'Think in numbers',        url_for('eduvision_game', game_key='puzzle_2048')),
-                            ('sliding_puzzle', '🧩', 'Sliding Puzzle', 'Arrange the tiles',    url_for('eduvision_game', game_key='sliding_puzzle')),
-                            ('snake_game',   '🐍', 'Snake Game',    'Collect food and grow',   url_for('eduvision_game', game_key='snake_game')),
-                            ('aptitude',     '🧠', 'Aptitude Test', 'Practice for placements', aptitude_url|default('/aptitude-arena'))
-                        ] %}
-
-                        <fieldset class="pick-list" id="dailyPicker">
-                            <legend class="sr-only">Choose a game for today's challenge</legend>
-
-                            {% for key, emoji, name, hint, link in picks %}
-                            <label class="pick">
-                                <input type="radio" name="daily_game" value="{{ key }}"
-                                       data-href="{{ link }}" data-name="{{ name }}"
-                                       {{ 'checked' if loop.first else '' }}>
-                                <span class="pick-body">
-                                    <span class="m-emoji">{{ emoji }}</span>
-                                    <span><strong>{{ name }}</strong><small>{{ hint }}</small></span>
-                                    <span class="pick-check" aria-hidden="true">✓</span>
-                                </span>
-                            </label>
+                    <article class="activity">
+                        <h3>Recent activity</h3>
+                        {% set acts = recent_activities|default([]) %}
+                        {% if acts %}
+                        <ul class="timeline">
+                            {% for a in acts %}
+                            <li>
+                                <strong>🎬 Created: {{ a.activity }}</strong>
+                                {% if a.date %}<small>{{ a.date.strftime('%d %b %Y') if a.date.strftime is defined else a.date }}</small>{% endif %}
+                            </li>
                             {% endfor %}
-                        </fieldset>
+                        </ul>
+                        {% else %}
+                        <div class="empty">
+                            <span>🚀</span>
+                            <p>No activity yet. Create your first lesson to get started.</p>
+                            <a href="{{ url_for('generate_video_page') }}" class="btn small">Generate video</a>
+                        </div>
+                        {% endif %}
+                        <a class="text-link" href="{{ url_for('learning_progress') }}">View full progress →</a>
+                    </article>
+                </div>
+            </section>
 
-                    </aside>
-
+            <!-- ================= LIBRARY VIEW ================= -->
+            <section class="view-videos" id="my-videos">
+                <div class="section-heading">
+                    <div><h2>My generated videos</h2><p>All the lesson videos you have created.</p></div>
+                    <a class="btn small" href="{{ url_for('generate_video_page') }}">✨ Generate video</a>
                 </div>
 
-            </section>
+                {% if missing > 0 %}
+                <div class="flash-message warning">
+                    {{ missing }} video{{ '' if missing == 1 else 's' }} could not be shown because the video file
+                    {{ 'is' if missing == 1 else 'are' }} missing from the server.
+                </div>
+                {% endif %}
 
+                {% if video_list %}
+                <div class="library-toolbar">
+                    <label class="sr-only" for="videoSearch">Search your videos</label>
+                    <input type="search" id="videoSearch" placeholder="🔍 Search your videos" autocomplete="off">
+                    <span><strong id="videoCount">{{ video_count }}</strong> video{{ '' if video_count == 1 else 's' }}</span>
+                </div>
 
-            <!-- 6. RECENT ACTIVITY -->
-            <section class="section reveal">
-
-                <article class="panel activity-panel">
-
-                    <div class="section-heading compact">
-                        <div>
-                            <span class="eyebrow">RECENT ACTIVITY</span>
-                            <h3>What you did lately</h3>
+                <div class="videos-grid" id="videosGrid">
+                    {% for video in video_list %}
+                    <article class="video-card" data-title="{{ (video.title ~ ' ' ~ video.video_style ~ ' ' ~ video.language)|lower }}">
+                        <div class="video-preview">
+                            <span class="type-badge">🎓 Lesson</span>
+                            {% if video.filename and video.url %}
+                            <video controls preload="metadata"><source src="{{ video.url }}" type="video/mp4">Your browser does not support video playback.</video>
+                            {% else %}
+                            <div class="video-placeholder"><div><span>🎬</span><p>Preview not available</p></div></div>
+                            {% endif %}
                         </div>
-                    </div>
-
-                    {% set acts = recent_activities|default([]) %}
-
-                    {% if acts %}
-
-                    <ul class="timeline">
-
-                        {% for a in acts %}
-
-                        <li>
-                            <span class="tl-dot"></span>
-
-                            <div>
-                                <strong>
-                                    {{ '🎨' if (a.type|default('')|lower) in ['cartoon', 'cartoon_animation', 'animation'] else '🎬' }}
-                                    Created: {{ a.activity }}
-                                </strong>
-
-                                {% if a.date %}
-                                <small>
-                                    {{ a.date.strftime('%d %b %Y') if a.date.strftime is defined else a.date }}
-                                </small>
+                        <div class="video-info">
+                            <h3>{{ video.title|default('Educational lesson') }}</h3>
+                            <div class="video-meta">
+                                {{ video.video_style|default('Educational')|replace('_', ' ')|title }}
+                                · {{ video.language|default('English')|title }}
+                                {% if video.created_at %}· {{ video.created_at.strftime('%d %b %Y') if video.created_at.strftime is defined else video.created_at }}{% endif %}
+                            </div>
+                            <div class="video-actions">
+                                {% if video.id %}
+                                {% if video.quiz_taken %}
+                                <span class="quiz-done" title="You can take each quiz only once">✅ Quiz completed <small>· {{ video.quiz_score }} ({{ video.quiz_percentage }}%)</small></span>
+                                {% else %}
+                                <a href="{{ video.quiz_url }}">🧠 Take quiz</a>
+                                {% endif %}
+                                <a href="{{ video.tutor_url }}">🤖 Ask AI tutor</a>
+                                <a href="{{ video.download_url }}" download>⬇ Download</a>
+                                <form method="post" action="{{ url_for('delete_generated_video', video_id=video.id) }}"
+                                      onsubmit="return confirm('Delete this video? This cannot be undone.');">
+                                    <button type="submit" class="danger">🗑 Delete</button>
+                                </form>
                                 {% endif %}
                             </div>
-                        </li>
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+                <p class="empty" id="videoEmpty" hidden>No videos match your search.</p>
 
-                        {% endfor %}
-
-                    </ul>
-
-                    {% else %}
-
-                    <div class="empty-mini">
-                        <span>🚀</span>
-                        <p>
-                            No activity yet. Create your first lesson or play a game to get started!
-                        </p>
-
-                        <a href="{{ url_for('generate_video_page') }}"
-                           class="button primary-button small">
-                            Create a lesson →
-                        </a>
-                    </div>
-
-                    {% endif %}
-
-                    <a href="{{ url_for('learning_progress') }}"
-                       class="text-link">
-                        View my full progress →
-                    </a>
-
-                </article>
-
+                {% else %}
+                <div class="empty big-empty">
+                    <span>🎬</span>
+                    <h3>No videos yet</h3>
+                    <p>Create your first lesson video. It takes just a topic.</p>
+                    <a class="btn" href="{{ url_for('generate_video_page') }}">✨ Generate video</a>
+                </div>
+                {% endif %}
             </section>
 
-
-            <!-- FOOTER -->
             <footer class="footer">
                 <span>© 2026 EduVision</span>
-                <span>Made for curious minds. Learn visually. Grow every day. ✨</span>
+                <span>AI-Based Multimodal Visual Learning &amp; Educational Video Generation</span>
             </footer>
-
         </div>
-
     </main>
-
 </div>
-
-<!-- Library filter, game search and streak weekday labels. Independent of dashboard.js. -->
-<script>
-    (function () {
-        /* Library filter (Educational / Cartoon) */
-        var filters = document.getElementById("libraryFilters");
-        var grid = document.getElementById("videosGrid");
-        var empty = document.getElementById("filterEmpty");
-        if (filters && grid) {
-            filters.addEventListener("click", function (event) {
-                var chip = event.target.closest(".filter-chip");
-                if (!chip) return;
-                var wanted = chip.getAttribute("data-filter");
-                var chips = filters.querySelectorAll(".filter-chip");
-                for (var i = 0; i < chips.length; i++) chips[i].classList.remove("active");
-                chip.classList.add("active");
-                var cards = grid.querySelectorAll(".generated-video-card");
-                var visible = 0;
-                for (var j = 0; j < cards.length; j++) {
-                    var show = wanted === "all" || cards[j].getAttribute("data-type") === wanted;
-                    cards[j].style.display = show ? "" : "none";
-                    if (show) visible++;
-                }
-                if (empty) empty.hidden = visible !== 0;
-            });
-        }
-
-        /* Game search */
-        var search = document.getElementById("gameSearch");
-        var gameGrid = document.getElementById("gameGrid");
-        var count = document.getElementById("gameCount");
-        var none = document.getElementById("noGamesMessage");
-        if (search && gameGrid) {
-            search.addEventListener("input", function () {
-                var q = search.value.trim().toLowerCase();
-                var cards = gameGrid.querySelectorAll(".game-card");
-                var shown = 0;
-                for (var i = 0; i < cards.length; i++) {
-                    var match = !q || (cards[i].getAttribute("data-name") || "").indexOf(q) !== -1;
-                    cards[i].style.display = match ? "" : "none";
-                    if (match) shown++;
-                }
-                if (count) count.textContent = shown;
-                if (none) none.hidden = shown !== 0;
-            });
-        }
-
-        /* Daily challenge: choose a game, the Start button opens that game */
-        var picker = document.getElementById("dailyPicker");
-        var startBtn = document.getElementById("dailyStart");
-        var startLabel = document.getElementById("dailyStartLabel");
-        if (picker && startBtn && startLabel) {
-            var STORE = "eduvision-daily-game";
-            var prefix = startBtn.getAttribute("data-prefix") || "Start: ";
-            var radios = picker.querySelectorAll("input[name='daily_game']");
-            var apply = function (radio) {
-                startBtn.setAttribute("href", radio.getAttribute("data-href"));
-                startLabel.textContent = prefix + radio.getAttribute("data-name");
-            };
-            var saved = null;
-            try { saved = localStorage.getItem(STORE); } catch (e) {}
-            var chosen = null;
-            for (var r = 0; r < radios.length; r++) {
-                if (saved && radios[r].value === saved) chosen = radios[r];
-            }
-            if (chosen) chosen.checked = true;
-            for (var c = 0; c < radios.length; c++) if (radios[c].checked) apply(radios[c]);
-            picker.addEventListener("change", function (event) {
-                var t = event.target;
-                if (!t || t.name !== "daily_game") return;
-                apply(t);
-                try { localStorage.setItem(STORE, t.value); } catch (e) {}
-            });
-        }
-
-        /* Weekday names for the 7-day streak row */
-        var days = document.querySelectorAll("#streakWeek .streak-day");
-        for (var d = 0; d < days.length; d++) {
-            var offset = parseInt(days[d].getAttribute("data-offset"), 10);
-            if (!offset) continue;
-            var date = new Date();
-            date.setDate(date.getDate() - offset);
-            var label = days[d].querySelector("span");
-            if (label) label.textContent = date.toLocaleDateString(undefined, { weekday: "short" });
-        }
-    })();
-</script>
 
 <script src="{{ url_for('static', filename='js/dashboard.js') }}" defer></script>
 
+<!-- Daily challenge picker + cut marks (keeps working even if dashboard.js changes) -->
+<script>
+(function () {
+    "use strict";
+
+    var bar = document.getElementById("limitBar");
+    var marks = document.getElementById("limitMarks");
+    var title = document.getElementById("limitTitle");
+    var sub = document.getElementById("limitSub");
+    var fill = document.getElementById("limitFill");
+    var enough = document.getElementById("enoughBox");
+    var picker = document.getElementById("dailyPicker");
+    var start = document.getElementById("startChallenge");
+    var hint = document.getElementById("pickHint");
+    var random = document.getElementById("pickRandom");
+
+    var PICK_KEY = "eduvision_daily_pick";
+    var PLAYS_KEY = "eduvision_daily_plays";   // written by game.js after every finished round
+    var chips = picker ? Array.prototype.slice.call(picker.querySelectorAll(".pick-chip")) : [];
+    var selected = null;
+    var full = false;
+
+    function today() {
+        var d = new Date();
+        return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2);
+    }
+
+    /* ---------- start button text / link ---------- */
+    function refreshStart() {
+        if (!start) return;
+
+        if (full) {
+            start.setAttribute("aria-disabled", "true");
+            start.setAttribute("href", "#");
+            start.textContent = "\u2715 Enough playing for today";
+            if (hint) hint.textContent = "You have used all your rounds. Come back tomorrow!";
+        } else if (selected) {
+            start.setAttribute("aria-disabled", "false");
+            start.setAttribute("href", selected.getAttribute("data-url"));
+            start.textContent = "\u25B6 Start " + selected.getAttribute("data-title");
+            if (hint) hint.textContent = "Selected: " + selected.getAttribute("data-emoji") + " " + selected.getAttribute("data-title");
+        } else {
+            start.setAttribute("aria-disabled", "true");
+            start.setAttribute("href", "#");
+            start.textContent = "Choose a game to start";
+            if (hint) hint.textContent = "Tap a game to choose it, or let us surprise you.";
+        }
+    }
+
+    function choose(chip, remember) {
+        if (full || !chip) return;
+
+        chips.forEach(function (c) {
+            var on = c === chip;
+            c.classList.toggle("selected", on);
+            c.setAttribute("aria-checked", on ? "true" : "false");
+        });
+
+        selected = chip;
+        refreshStart();
+
+        if (remember) {
+            try { localStorage.setItem(PICK_KEY, chip.getAttribute("data-url")); } catch (e) { /* ignore */ }
+        }
+    }
+
+    /* ---------- cut marks: redraw the boxes for "used" of "limit" rounds ---------- */
+    function applyUsage(used, limit) {
+        if (!bar) return;
+
+        limit = Math.max(1, parseInt(limit, 10) || 1);
+        used = Math.max(0, Math.min(parseInt(used, 10) || 0, limit));
+        full = used >= limit;
+
+        bar.classList.toggle("full", full);
+        bar.setAttribute("data-used", used);
+
+        if (title) title.textContent = used + " of " + limit + " rounds played today";
+        if (sub) sub.textContent = full ? "You have played enough today. Come back tomorrow." : (limit - used) + " left";
+        if (fill) fill.style.width = Math.floor((used * 100) / limit) + "%";
+
+        if (marks) {
+            marks.innerHTML = "";
+
+            for (var i = 0; i < limit; i++) {
+                var b = document.createElement("b");
+                b.className = "limit-mark" + (i < used ? " on" : "");
+                b.textContent = i < used ? "\u2715" : "\u00B7";
+                marks.appendChild(b);
+            }
+        }
+
+        if (enough) enough.hidden = !full;
+
+        Array.prototype.forEach.call(document.querySelectorAll(".game-card"), function (card) {
+            card.classList.toggle("locked", full);
+        });
+
+        chips.forEach(function (c) { c.disabled = full; });
+        if (random) random.disabled = full;
+        if (start) start.classList.toggle("locked", full);
+
+        refreshStart();
+    }
+
+    /* The server number is the truth. The browser copy (written by game.js right after a
+       round ends) is only used when it is higher, so the marks are never behind. */
+    function syncUsage() {
+        if (!bar) return;
+
+        var serverUsed = parseInt(bar.getAttribute("data-used"), 10) || 0;
+        var limit = parseInt(bar.getAttribute("data-limit"), 10) || 10;
+        var used = serverUsed;
+
+        try {
+            var saved = JSON.parse(localStorage.getItem(PLAYS_KEY) || "{}");
+            if (saved.date === today() && Number(saved.count) > used) used = Number(saved.count);
+        } catch (e) { /* ignore */ }
+
+        applyUsage(used, limit);
+    }
+
+    /* ---------- events ---------- */
+    chips.forEach(function (chip) {
+        chip.addEventListener("click", function () { choose(chip, true); });
+    });
+
+    if (random) {
+        random.addEventListener("click", function () {
+            if (full || !chips.length) return;
+            choose(chips[Math.floor(Math.random() * chips.length)], true);
+        });
+    }
+
+    if (start) {
+        start.addEventListener("click", function (e) {
+            if (start.getAttribute("aria-disabled") === "true") {
+                e.preventDefault();
+                if (!full && hint) hint.textContent = "Please choose a game first.";
+            }
+        });
+    }
+
+    /* coming back with the browser Back button */
+    window.addEventListener("pageshow", function (e) { if (e.persisted) syncUsage(); });
+
+    /* ---------- start ---------- */
+    try {
+        var last = localStorage.getItem(PICK_KEY);
+
+        if (last) {
+            chips.forEach(function (c) { if (!selected && c.getAttribute("data-url") === last) selected = c; });
+        }
+    } catch (e) { /* ignore */ }
+
+    syncUsage();
+    if (selected && !full) choose(selected, false);
+})();
+</script>
 </body>
 </html>

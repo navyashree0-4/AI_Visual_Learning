@@ -5,50 +5,172 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Quiz | EduVision</title>
 <style>
-:root{--paper:#f2f5fb;--card:#fff;--ink:#101a3a;--muted:#64748b;--line:#dde3f0;--indigo:#4338ca;--indigo-l:#eef2ff;--aqua:#0891b2;--rose:#e11d48;--green:#059669;--green-l:#ecfdf5;--rose-l:#fff1f2}
+:root{
+  --paper:#f3f6fc;--card:#fff;--ink:#0f1938;--muted:#64748b;--line:#e2e8f4;
+  --indigo:#4338ca;--indigo-d:#3730a3;--indigo-l:#eef2ff;--violet:#7c3aed;--aqua:#0891b2;
+  --rose:#e11d48;--rose-l:#fff1f2;--green:#059669;--green-l:#ecfdf5;--amber:#d97706;--amber-l:#fffbeb;
+  --shadow:0 16px 44px rgba(49,46,129,.10);--shadow-s:0 6px 18px rgba(49,46,129,.08)
+}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:"Segoe UI","Noto Sans Kannada","Nirmala UI",Arial,sans-serif;background:radial-gradient(circle at 10% 10%,#e0e7ff 0,transparent 35%),radial-gradient(circle at 90% 25%,#cffafe 0,transparent 35%),var(--paper);color:var(--ink);min-height:100vh;line-height:1.6}
+body{font-family:"Segoe UI","Noto Sans Kannada","Nirmala UI",Arial,sans-serif;color:var(--ink);min-height:100vh;line-height:1.6;
+  background:radial-gradient(circle at 6% 6%,#e0e7ff 0,transparent 34%),radial-gradient(circle at 94% 18%,#cffafe 0,transparent 34%),
+  radial-gradient(circle at 50% 100%,#ede9fe 0,transparent 40%),var(--paper)}
 a{text-decoration:none}
-.navbar{position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;align-items:center;gap:20px;padding:15px 5%;background:rgba(255,255,255,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.hidden{display:none!important}
+
+/* ---------- navbar ---------- */
+.navbar{position:sticky;top:0;z-index:20;display:flex;justify-content:space-between;align-items:center;gap:20px;padding:14px 5%;
+  background:rgba(255,255,255,.9);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
 .logo{font-size:23px;font-weight:800;color:var(--indigo)}.logo span{color:var(--aqua)}
 .nav-links{display:flex;gap:22px;flex-wrap:wrap}
 .nav-links a{color:var(--muted);font-size:14px;font-weight:600}.nav-links a:hover{color:var(--indigo)}
-.wrap{max-width:780px;margin:0 auto;padding:36px 18px 70px}
-h1{font-size:clamp(24px,4vw,32px)}
-.sub{color:var(--muted);margin:6px 0 24px;overflow-wrap:anywhere}
-.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:26px;box-shadow:0 10px 30px rgba(49,46,129,.07)}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:12px 20px;border-radius:10px;background:var(--indigo);color:#fff;font-size:14px;font-weight:700;border:none;cursor:pointer}
-.btn:hover:not(:disabled){background:#3730a3}
+
+.wrap{max-width:1080px;margin:0 auto;padding:26px 18px 80px}
+.crumbs{font-size:13px;color:var(--muted);margin-bottom:14px}
+.crumbs a{color:var(--indigo);font-weight:600}.crumbs span{margin:0 6px;opacity:.6}
+
+/* ---------- hero ---------- */
+.hero{position:relative;overflow:hidden;border-radius:26px;padding:26px 30px;color:#fff;margin-bottom:22px;
+  background:linear-gradient(115deg,#1e1b4b 0%,#4338ca 48%,#0891b2 100%);box-shadow:var(--shadow)}
+.hero::before{content:"";position:absolute;width:260px;height:260px;border-radius:50%;right:-70px;top:-110px;background:rgba(255,255,255,.10)}
+.hero::after{content:"";position:absolute;width:150px;height:150px;border-radius:50%;right:150px;bottom:-90px;background:rgba(255,255,255,.08)}
+.hero .art{position:absolute;right:34px;top:50%;transform:translateY(-50%);font-size:74px;opacity:.9;filter:drop-shadow(0 8px 14px rgba(0,0,0,.25))}
+.hero .eyebrow{position:relative;display:inline-block;font-size:11.5px;font-weight:800;letter-spacing:.14em;padding:5px 12px;border-radius:99px;background:rgba(255,255,255,.18)}
+.hero h1{position:relative;font-size:clamp(22px,3.8vw,31px);line-height:1.25;margin:11px 0 5px;max-width:calc(100% - 100px);overflow-wrap:anywhere}
+.hero p{position:relative;opacity:.9;font-size:14.5px;max-width:560px}
+.chips{position:relative;display:flex;flex-wrap:wrap;gap:8px;margin-top:15px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 13px;border-radius:99px;background:rgba(255,255,255,.17);font-size:12.5px;font-weight:700}
+
+/* ---------- layout ---------- */
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:22px;align-items:start}
+.layout.solo{grid-template-columns:minmax(0,1fr);max-width:780px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:28px;box-shadow:var(--shadow)}
+.side{position:sticky;top:84px;display:grid;gap:16px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:20px;box-shadow:var(--shadow-s)}
+.panel h4{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+
+/* ---------- buttons ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:13px 22px;border-radius:12px;background:var(--indigo);color:#fff;
+  font:inherit;font-size:14px;font-weight:700;border:none;cursor:pointer;transition:background .15s,transform .1s,box-shadow .15s}
+.btn:hover:not(:disabled){background:var(--indigo-d);transform:translateY(-1px);box-shadow:0 9px 20px rgba(67,56,202,.28)}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 .btn.secondary{background:var(--indigo-l);color:var(--indigo)}
-.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}
-.bar{height:8px;background:#e5e9f5;border-radius:99px;overflow:hidden;margin-bottom:20px}
-.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--indigo),var(--aqua));transition:width .3s}
-.qcount{font-size:13px;color:var(--muted);font-weight:600;margin-bottom:8px}
-.question{font-size:clamp(18px,3vw,22px);font-weight:700;margin-bottom:18px;overflow-wrap:anywhere}
-.opt{display:flex;gap:12px;align-items:flex-start;width:100%;text-align:left;padding:14px 16px;margin-bottom:10px;background:#fff;border:2px solid var(--line);border-radius:12px;font:inherit;color:inherit;cursor:pointer}
-.opt:hover{border-color:#a5b4fc}
-.opt:focus-visible{outline:3px solid #a5b4fc;outline-offset:2px}
-.opt.sel{border-color:var(--indigo);background:var(--indigo-l)}
-.opt .key{flex:none;width:28px;height:28px;border-radius:50%;background:var(--indigo-l);color:var(--indigo);display:grid;place-items:center;font-weight:800;font-size:13px}
-.opt.sel .key{background:var(--indigo);color:#fff}
-.loading,.error{text-align:center;padding:40px 10px}
-.spin{width:44px;height:44px;border:5px solid #e0e7ff;border-top-color:var(--indigo);border-radius:50%;margin:0 auto 16px;animation:sp 1s linear infinite}
+.btn.secondary:hover:not(:disabled){background:#e0e7ff;box-shadow:none}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:26px}
+.row.center{justify-content:center}
+.row .grow{margin-left:auto}
+
+/* ---------- loading / error ---------- */
+.loading,.error{text-align:center;padding:54px 10px}
+.spin{width:48px;height:48px;border:5px solid #e0e7ff;border-top-color:var(--indigo);border-radius:50%;margin:0 auto 16px;animation:sp 1s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
-@media (prefers-reduced-motion:reduce){.spin{animation-duration:3s}}
+.loading .note{color:var(--muted);font-size:14px;margin-top:4px}
 .error{color:#991b1b}.error p{margin-bottom:16px}
-.score{text-align:center;padding:6px 0 22px}
-.score .big{font-size:56px;font-weight:800;color:var(--indigo);line-height:1.1}
-.score .msg{font-size:18px;font-weight:700;margin-top:4px}
-.earn{display:inline-block;margin-top:10px;padding:6px 14px;border-radius:99px;background:var(--green-l);color:var(--green);font-weight:700;font-size:14px}
-.review{border-top:1px solid var(--line);padding:18px 0}
-.review h3{font-size:16px;margin-bottom:10px;overflow-wrap:anywhere}
-.ans{padding:9px 13px;border-radius:9px;margin:6px 0;font-size:14px;overflow-wrap:anywhere}
+
+/* ---------- question ---------- */
+.topline{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px}
+.qcount{font-size:12.5px;color:var(--indigo);font-weight:800;letter-spacing:.08em;background:var(--indigo-l);padding:5px 12px;border-radius:99px}
+.timer{font-size:13px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
+.bar{height:8px;background:#e8ecf7;border-radius:99px;overflow:hidden;margin-bottom:26px}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--indigo),var(--violet),var(--aqua));transition:width .35s}
+.question{font-size:clamp(19px,3vw,25px);font-weight:800;line-height:1.4;margin-bottom:22px;overflow-wrap:anywhere}
+.opt{position:relative;display:flex;gap:14px;align-items:center;width:100%;text-align:left;padding:15px 18px;margin-bottom:12px;background:#fff;border:2px solid var(--line);
+  border-radius:15px;font:inherit;color:inherit;cursor:pointer;transition:border-color .15s,background .15s,transform .12s,box-shadow .15s}
+.opt:hover{border-color:#a5b4fc;transform:translateX(3px)}
+.opt:focus-visible{outline:3px solid #a5b4fc;outline-offset:2px}
+.opt.sel{border-color:var(--indigo);background:linear-gradient(90deg,var(--indigo-l),#fff);box-shadow:0 8px 18px rgba(67,56,202,.15)}
+.opt .key{flex:none;width:36px;height:36px;border-radius:11px;background:var(--indigo-l);color:var(--indigo);display:grid;place-items:center;font-weight:800;font-size:14px;transition:background .15s,color .15s}
+.opt.sel .key{background:var(--indigo);color:#fff}
+.opt .txt{overflow-wrap:anywhere;flex:1}
+.opt .tick{flex:none;width:22px;height:22px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;font-size:12px;color:#fff;transition:all .15s}
+.opt.sel .tick{background:var(--indigo);border-color:var(--indigo)}
+.tip{font-size:12.5px;color:var(--muted);text-align:center;margin-top:18px}
+.once{font-size:13px;color:var(--amber);background:var(--amber-l);border:1px solid #fde68a;border-radius:12px;padding:9px 13px;text-align:center;margin-top:16px}
+
+/* ---------- side panels ---------- */
+.stat-row{display:flex;justify-content:space-between;align-items:center;font-size:14px;padding:7px 0;border-bottom:1px dashed var(--line)}
+.stat-row:last-child{border-bottom:none}.stat-row b{font-weight:800}
+.qmap{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.qmap button{aspect-ratio:1;border-radius:11px;border:2px solid var(--line);background:#fff;font:inherit;font-weight:800;font-size:14px;color:var(--muted);cursor:pointer;transition:all .15s}
+.qmap button:hover{border-color:#a5b4fc;color:var(--indigo)}
+.qmap button.done{background:var(--indigo-l);border-color:#c7d2fe;color:var(--indigo)}
+.qmap button.now{background:var(--indigo);border-color:var(--indigo);color:#fff;box-shadow:0 6px 14px rgba(67,56,202,.3)}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:12px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.rule{display:flex;gap:10px;font-size:13px;color:var(--muted);padding:6px 0}
+.rule b{color:var(--ink)}
+
+/* ---------- ring + result ---------- */
+.ring{position:relative;width:176px;height:176px;margin:0 auto}
+.ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ring .track{fill:none;stroke:#e8ecf7;stroke-width:11}
+.ring .prog{fill:none;stroke-width:11;stroke-linecap:round;stroke-dasharray:339.292;stroke-dashoffset:339.292;transition:stroke-dashoffset 1.2s cubic-bezier(.2,.8,.2,1)}
+.ring .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ring .center b{font-size:40px;line-height:1.05;font-weight:800}
+.ring .center small{font-size:13px;color:var(--muted);font-weight:700}
+.ring.good .prog{stroke:var(--green)}.ring.good .center b{color:var(--green)}
+.ring.ok .prog{stroke:var(--amber)}.ring.ok .center b{color:var(--amber)}
+.ring.low .prog{stroke:var(--rose)}.ring.low .center b{color:var(--rose)}
+
+.result{text-align:center}
+.medal{display:inline-flex;align-items:center;gap:8px;padding:7px 18px;border-radius:99px;font-weight:800;font-size:14px;margin-bottom:18px;border:1px solid}
+.medal.gold{background:#fffbeb;color:#b45309;border-color:#fde68a}
+.medal.silver{background:#f1f5f9;color:#475569;border-color:#cbd5e1}
+.medal.bronze{background:#fff7ed;color:#c2410c;border-color:#fed7aa}
+.medal.learner{background:var(--indigo-l);color:var(--indigo);border-color:#c7d2fe}
+.result h2{font-size:clamp(22px,4vw,29px);margin:18px 0 4px}
+.result .sub2{color:var(--muted);font-size:15px}
+.stats{display:flex;justify-content:center;flex-wrap:wrap;gap:10px;margin-top:18px}
+.stat{display:inline-flex;align-items:center;gap:7px;padding:8px 15px;border-radius:99px;font-weight:700;font-size:14px}
+.stat.g{background:var(--green-l);color:var(--green)}.stat.r{background:var(--rose-l);color:var(--rose)}
+.stat.c{background:var(--indigo-l);color:var(--indigo)}.stat.t{background:#f1f5f9;color:#475569}
+.strip{display:flex;gap:5px;margin:22px auto 0;max-width:420px}
+.strip i{flex:1;height:10px;border-radius:99px}
+.strip i.g{background:var(--green)}.strip i.r{background:var(--rose)}
+.strip-cap{font-size:12px;color:var(--muted);margin-top:6px}
+
+.rev-head{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px;margin:32px 0 12px;text-align:left}
+.rev-head h3{font-size:19px;font-weight:800}.rev-head p{font-size:13px;color:var(--muted)}
+.tabs{display:inline-flex;background:#eef1f9;border-radius:12px;padding:4px;gap:2px}
+.tabs button{border:none;background:transparent;font:inherit;font-size:13px;font-weight:700;color:var(--muted);padding:7px 14px;border-radius:9px;cursor:pointer}
+.tabs button.on{background:#fff;color:var(--indigo);box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.reviews[data-filter="wrong"] .review.good{display:none}
+.reviews[data-filter="right"] .review.bad{display:none}
+.review{border:1px solid var(--line);border-radius:16px;padding:16px 18px;margin-bottom:12px;text-align:left;background:#fff}
+.review.good{border-left:5px solid var(--green)}.review.bad{border-left:5px solid var(--rose)}
+.review .head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px}
+.review h3{font-size:16px;line-height:1.4;overflow-wrap:anywhere}
+.pill{flex:none;font-size:12px;font-weight:800;padding:3px 10px;border-radius:99px}
+.pill.g{background:var(--green-l);color:var(--green)}.pill.r{background:var(--rose-l);color:var(--rose)}
+.ans{padding:9px 13px;border-radius:10px;margin:6px 0;font-size:14px;overflow-wrap:anywhere}
 .ans.good{background:var(--green-l);color:#065f46;border:1px solid #a7f3d0}
 .ans.bad{background:var(--rose-l);color:#9f1239;border:1px solid #fecdd3}
-.why{font-size:13px;color:var(--muted);margin-top:8px}
-.hidden{display:none}
-.best{font-size:13px;color:var(--muted);margin-bottom:14px}
+.why{font-size:13px;color:var(--muted);margin-top:9px;padding:8px 12px;border-radius:10px;background:#f8fafc;border-left:3px solid #c7d2fe}
+.final-note{font-size:13px;color:var(--muted);margin-top:18px;text-align:center}
+
+/* ---------- already taken ---------- */
+.blocked{text-align:center;padding:12px 4px 4px}
+.lockbadge{display:inline-flex;align-items:center;gap:8px;padding:7px 16px;border-radius:99px;background:var(--rose-l);color:var(--rose);font-weight:800;font-size:14px;margin-bottom:18px}
+.blocked h2{font-size:clamp(22px,4vw,28px);margin:18px 0 8px}
+.blocked p{color:var(--muted);max-width:480px;margin:0 auto;overflow-wrap:anywhere}
+
+/* ---------- confetti ---------- */
+.confetti{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:50}
+.confetti i{position:absolute;top:-20px;width:10px;height:14px;border-radius:2px;opacity:.9;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(105vh) rotate(720deg)}}
+
+@media (max-width:900px){
+  .layout{grid-template-columns:minmax(0,1fr)}
+  .side{position:static;order:-1;grid-template-columns:1fr 1fr}
+  .hero .art{display:none}.hero h1{max-width:100%}
+}
+@media (max-width:560px){
+  .card{padding:20px 16px}.hero{padding:22px 18px}.opt{padding:13px 14px}
+  .side{grid-template-columns:1fr}.nav-links{gap:14px}.qmap{grid-template-columns:repeat(6,1fr)}
+}
+@media (prefers-reduced-motion:reduce){
+  .spin{animation-duration:3s}.ring .prog{transition:none}.opt:hover{transform:none}.confetti{display:none}
+}
 </style>
 </head>
 <body>
@@ -63,102 +185,313 @@ h1{font-size:clamp(24px,4vw,32px)}
 </header>
 
 <main class="wrap">
-  <h1>📝 Quiz: {{ video_title }}</h1>
-  <p class="sub">Questions are based on what the video taught. Earn {{ credits_per_correct }} credits per correct answer on your first try.</p>
+  <div class="crumbs"><a href="{{ url_for('dashboard') }}">Dashboard</a><span>›</span><a href="{{ url_for('my_generated_videos') }}">My videos</a><span>›</span>Quiz</div>
 
-  <section class="card" id="box" aria-live="polite">
-    <div class="loading" id="loading">
-      <div class="spin"></div>
-      <strong>Creating your quiz…</strong>
-      <p class="sub">The first time this can take up to a minute.</p>
+  <section class="hero">
+    <div class="art" aria-hidden="true">🧠</div>
+    <span class="eyebrow">📝 LESSON QUIZ</span>
+    <h1>{{ video_title }}</h1>
+    <p>Check what you learned from this video. {% if already_taken %}This quiz can only be attempted once.{% else %}You get one attempt, so take your time and answer carefully.{% endif %}</p>
+    <div class="chips">
+      <span class="chip">🌐 {{ language }}</span>
+      <span class="chip" id="countChip">❓ Questions</span>
+      <span class="chip">💎 +{{ credits_per_correct }} credits per correct answer</span>
+      <span class="chip">🔒 One attempt</span>
     </div>
-    <div class="error hidden" id="error">
-      <p id="error-text"></p>
-      <button class="btn" id="retry-load" type="button">Try again</button>
-    </div>
-    <div class="hidden" id="quiz"></div>
   </section>
+
+{% if already_taken %}
+  {% set pct = already_taken.percentage|int %}
+  <div class="layout solo">
+  <section class="card">
+    <div class="blocked" role="alert">
+      <span class="lockbadge">🔒 Not allowed</span>
+      <div class="ring {{ 'good' if pct >= 70 else ('ok' if pct >= 40 else 'low') }}">
+        <svg viewBox="0 0 120 120" aria-hidden="true">
+          <circle class="track" cx="60" cy="60" r="54"></circle>
+          <circle class="prog" cx="60" cy="60" r="54" style="stroke-dashoffset:{{ (339.292 * (100 - pct) / 100)|round(2) }}"></circle>
+        </svg>
+        <div class="center"><b>{{ pct }}%</b><small>{{ already_taken.score }} / {{ already_taken.total_questions }} correct</small></div>
+      </div>
+      <h2>You have already taken this quiz</h2>
+      <p>{{ already_taken_text }}</p>
+      <div class="row center">
+        <a class="btn" href="{{ url_for('my_generated_videos') }}">🎬 My videos</a>
+        <a class="btn secondary" href="{{ tutor_url_for_video(video_id) }}">🤖 Ask AI tutor</a>
+        <a class="btn secondary" href="{{ url_for('dashboard') }}">🏠 Dashboard</a>
+      </div>
+    </div>
+  </section>
+  </div>
+
+{% else %}
+  <div class="layout solo" id="layout">
+    <section class="card" id="box" aria-live="polite"
+             data-video-id="{{ video_id }}"
+             data-credits="{{ credits_per_correct }}"
+             data-my-videos-url="{{ url_for('my_generated_videos') }}"
+             data-dashboard-url="{{ url_for('dashboard') }}"
+             data-tutor-url="{{ tutor_url_for_video(video_id) }}">
+      <div class="loading" id="loading">
+        <div class="spin"></div>
+        <strong>Creating your quiz…</strong>
+        <p class="note">The first time this can take up to a minute.</p>
+      </div>
+      <div class="error hidden" id="error">
+        <p id="error-text"></p>
+        <button class="btn" id="retry-load" type="button">Try again</button>
+      </div>
+      <div class="hidden" id="quiz"></div>
+    </section>
+
+    <aside class="side hidden" id="side" aria-label="Quiz overview">
+      <div class="panel">
+        <h4>Question map</h4>
+        <div class="qmap" id="qmap"></div>
+        <div class="legend">
+          <span><i style="background:var(--indigo)"></i>Current</span>
+          <span><i style="background:#c7d2fe"></i>Answered</span>
+          <span><i style="background:#fff;border:1px solid var(--line)"></i>Left</span>
+        </div>
+      </div>
+      <div class="panel">
+        <h4>Your progress</h4>
+        <div class="stat-row"><span>Answered</span><b id="sAnswered">0 / 0</b></div>
+        <div class="stat-row"><span>Time</span><b id="sTimer">00:00</b></div>
+        <div class="stat-row"><span>Max credits</span><b id="sCredits">0</b></div>
+      </div>
+      <div class="panel">
+        <h4>Good to know</h4>
+        <div class="rule">🔒<span><b>One attempt.</b> You cannot retake this quiz.</span></div>
+        <div class="rule">↩️<span>You can go back and change answers before you submit.</span></div>
+      </div>
+    </aside>
+  </div>
+{% endif %}
 </main>
 
+{% if not already_taken %}
 <script>
 (function(){
-  var VIDEO_ID = {{ video_id|tojson }};
+  var box = document.getElementById('box');
+  var VIDEO_ID = box.getAttribute('data-video-id');
+  var CREDITS = parseInt(box.getAttribute('data-credits'), 10) || 0;
+  var MY_VIDEOS_URL = box.getAttribute('data-my-videos-url');
+  var DASHBOARD_URL = box.getAttribute('data-dashboard-url');
+  var TUTOR_URL = box.getAttribute('data-tutor-url');
+  var layout = document.getElementById('layout');
+  var side = document.getElementById('side');
   var loading = document.getElementById('loading');
   var errorBox = document.getElementById('error');
   var errorText = document.getElementById('error-text');
   var quizBox = document.getElementById('quiz');
-  var questions = [], answers = [], current = 0;
+  var countChip = document.getElementById('countChip');
+  var qmap = document.getElementById('qmap');
+  var sAnswered = document.getElementById('sAnswered');
+  var sTimer = document.getElementById('sTimer');
+  var sCredits = document.getElementById('sCredits');
+  var questions = [], answers = [], current = 0, finished = false;
+  var startedAt = 0, timerId = null, tookSeconds = 0;
   var LETTERS = ['A','B','C','D'];
+  var SVGNS = 'http://www.w3.org/2000/svg';
 
   function show(which){
     loading.classList.toggle('hidden', which !== 'loading');
     errorBox.classList.toggle('hidden', which !== 'error');
     quizBox.classList.toggle('hidden', which !== 'quiz');
   }
-  function fail(msg){ errorText.textContent = msg; show('error'); }
+  function showSide(on){
+    side.classList.toggle('hidden', !on);
+    layout.classList.toggle('solo', !on);
+  }
+  function fail(msg){ stopTimer(); showSide(false); errorText.textContent = msg; show('error'); }
   function el(tag, cls, text){
     var e = document.createElement(tag);
     if (cls) e.className = cls;
     if (text !== undefined) e.textContent = text;
     return e;
   }
+  function link(text, href, cls){ var a = el('a', cls, text); a.href = href; return a; }
+  function pad(n){ return (n < 10 ? '0' : '') + n; }
+  function fmt(s){ return pad(Math.floor(s / 60)) + ':' + pad(s % 60); }
 
+  /* ---------- timer (only for display) ---------- */
+  function startTimer(){
+    stopTimer(); startedAt = Date.now();
+    timerId = setInterval(function(){
+      tookSeconds = Math.floor((Date.now() - startedAt) / 1000);
+      sTimer.textContent = fmt(tookSeconds);
+      var t = document.getElementById('topTimer'); if (t) t.textContent = '⏱ ' + fmt(tookSeconds);
+    }, 1000);
+  }
+  function stopTimer(){
+    if (timerId) { clearInterval(timerId); timerId = null; }
+    if (startedAt) tookSeconds = Math.floor((Date.now() - startedAt) / 1000);
+  }
+
+  /* ---------- score ring (SVG built with the DOM) ---------- */
+  function makeRing(pct, line1, line2){
+    var tone = pct >= 70 ? 'good' : (pct >= 40 ? 'ok' : 'low');
+    var ring = el('div', 'ring ' + tone);
+    var svg = document.createElementNS(SVGNS, 'svg');
+    svg.setAttribute('viewBox', '0 0 120 120'); svg.setAttribute('aria-hidden', 'true');
+    var track = document.createElementNS(SVGNS, 'circle');
+    track.setAttribute('class', 'track'); track.setAttribute('cx', 60); track.setAttribute('cy', 60); track.setAttribute('r', 54);
+    var prog = document.createElementNS(SVGNS, 'circle');
+    prog.setAttribute('class', 'prog'); prog.setAttribute('cx', 60); prog.setAttribute('cy', 60); prog.setAttribute('r', 54);
+    svg.appendChild(track); svg.appendChild(prog); ring.appendChild(svg);
+    var center = el('div', 'center');
+    center.appendChild(el('b', '', line1));
+    center.appendChild(el('small', '', line2));
+    ring.appendChild(center);
+    setTimeout(function(){ prog.style.strokeDashoffset = String(339.292 * (100 - pct) / 100); }, 80);
+    return ring;
+  }
+  function medalFor(pct){
+    if (pct >= 90) return ['gold', '🏆 Gold level'];
+    if (pct >= 70) return ['silver', '🥈 Silver level'];
+    if (pct >= 40) return ['bronze', '🥉 Bronze level'];
+    return ['learner', '📚 Keep learning'];
+  }
+  function confetti(){
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var wrap = el('div', 'confetti'); wrap.setAttribute('aria-hidden', 'true');
+    var colors = ['#4338ca','#0891b2','#059669','#d97706','#e11d48','#7c3aed'];
+    for (var i = 0; i < 48; i++){
+      var p = document.createElement('i');
+      p.style.left = (Math.random() * 100) + 'vw';
+      p.style.background = colors[i % colors.length];
+      p.style.animationDuration = (2.4 + Math.random() * 2.2) + 's';
+      p.style.animationDelay = (Math.random() * 0.8) + 's';
+      wrap.appendChild(p);
+    }
+    document.body.appendChild(wrap);
+    setTimeout(function(){ if (wrap.parentNode) wrap.parentNode.removeChild(wrap); }, 6500);
+  }
+
+  /* ---------- "already taken" (server says so) ---------- */
+  function showBlocked(d){
+    finished = true; stopTimer(); showSide(false);
+    quizBox.textContent = '';
+    var b = el('div', 'blocked'); b.setAttribute('role', 'alert');
+    b.appendChild(el('span', 'lockbadge', '🔒 Not allowed'));
+    if (d.total) b.appendChild(makeRing(d.percentage || 0, (d.percentage || 0) + '%', d.score + ' / ' + d.total + ' correct'));
+    b.appendChild(el('h2', '', 'You have already taken this quiz'));
+    b.appendChild(el('p', '', d.error || 'You have already taken this quiz once. It can only be attempted one time.'));
+    var row = el('div', 'row center');
+    row.appendChild(link('🎬 My videos', MY_VIDEOS_URL, 'btn'));
+    row.appendChild(link('🤖 Ask AI tutor', TUTOR_URL, 'btn secondary'));
+    row.appendChild(link('🏠 Dashboard', DASHBOARD_URL, 'btn secondary'));
+    b.appendChild(row);
+    quizBox.appendChild(b);
+    show('quiz');
+  }
+
+  /* ---------- load ---------- */
   function load(){
-    show('loading');
+    showSide(false); show('loading');
     fetch('/api/video-quiz/' + VIDEO_ID, {credentials:'same-origin'})
       .then(function(r){ return r.json().catch(function(){ return {ok:false,error:'Unexpected server reply.'}; }); })
       .then(function(d){
+        if (d.already_attempted) { showBlocked(d); return; }
         if (!d.ok) { fail(d.error || 'The quiz could not be loaded.'); return; }
-        questions = d.questions; best = d.best;
+        questions = d.questions;
+        countChip.textContent = '❓ ' + questions.length + ' questions';
+        sCredits.textContent = '💎 ' + (questions.length * CREDITS);
         start();
       })
       .catch(function(){ fail('Could not reach the server. Check your connection and try again.'); });
   }
-  var best = null;
 
   function start(){
     answers = new Array(questions.length).fill(-1);
-    current = 0;
+    current = 0; finished = false;
+    showSide(true); startTimer();
     renderQuestion();
     show('quiz');
   }
 
+  /* ---------- side panel ---------- */
+  function updateSide(){
+    var done = answers.filter(function(a){ return a >= 0; }).length;
+    sAnswered.textContent = done + ' / ' + questions.length;
+    qmap.textContent = '';
+    questions.forEach(function(_, i){
+      var b = el('button', i === current ? 'now' : (answers[i] >= 0 ? 'done' : ''), String(i + 1));
+      b.type = 'button'; b.setAttribute('aria-label', 'Go to question ' + (i + 1));
+      b.addEventListener('click', function(){ current = i; renderQuestion(); });
+      qmap.appendChild(b);
+    });
+  }
+
+  /* ---------- one question ---------- */
   function renderQuestion(){
     quizBox.textContent = '';
-    if (best && current === 0) {
-      quizBox.appendChild(el('p','best','Your best score so far: ' + best.score + ' / ' + best.total_questions + ' (' + best.percentage + '%)'));
-    }
-    var bar = el('div','bar'); var fill = document.createElement('i');
+    updateSide();
+
+    var top = el('div', 'topline');
+    top.appendChild(el('div', 'qcount', 'QUESTION ' + (current + 1) + ' OF ' + questions.length));
+    var tt = el('div', 'timer', '⏱ ' + fmt(tookSeconds)); tt.id = 'topTimer';
+    top.appendChild(tt);
+    quizBox.appendChild(top);
+
+    var bar = el('div', 'bar'); var fill = document.createElement('i');
     fill.style.width = (current / questions.length * 100) + '%';
     bar.appendChild(fill); quizBox.appendChild(bar);
-    quizBox.appendChild(el('div','qcount','Question ' + (current+1) + ' of ' + questions.length));
+
     var q = questions[current];
-    quizBox.appendChild(el('div','question',q.question));
+    quizBox.appendChild(el('div', 'question', q.question));
+
     q.options.forEach(function(text, i){
-      var b = el('button','opt'); b.type = 'button';
-      b.appendChild(el('span','key',LETTERS[i]));
-      b.appendChild(el('span','',text));
+      var b = el('button', 'opt'); b.type = 'button';
+      b.appendChild(el('span', 'key', LETTERS[i]));
+      b.appendChild(el('span', 'txt', text));
+      b.appendChild(el('span', 'tick', '✓'));
       if (answers[current] === i) b.classList.add('sel');
-      b.addEventListener('click', function(){
-        answers[current] = i;
-        renderQuestion();
-      });
+      b.addEventListener('click', function(){ answers[current] = i; renderQuestion(); });
       quizBox.appendChild(b);
     });
-    var row = el('div','row');
+
+    var row = el('div', 'row');
     if (current > 0) {
-      var back = el('button','btn secondary','Back'); back.type='button';
+      var back = el('button', 'btn secondary', '← Back'); back.type = 'button';
       back.addEventListener('click', function(){ current--; renderQuestion(); });
       row.appendChild(back);
     }
     var last = current === questions.length - 1;
-    var next = el('button','btn', last ? 'Submit answers' : 'Next'); next.type='button';
+    var next = el('button', 'btn grow', last ? 'Submit answers ✓' : 'Next →'); next.type = 'button';
+    next.id = 'nextBtn';
     next.disabled = answers[current] < 0;
-    next.addEventListener('click', function(){ if (last) submit(next); else { current++; renderQuestion(); } });
+    next.addEventListener('click', function(){
+      if (last) {
+        var left = answers.filter(function(a){ return a < 0; }).length;
+        if (left > 0) { alert('Please answer every question first. ' + left + ' left.'); return; }
+        submit(next);
+      } else { current++; renderQuestion(); }
+    });
     row.appendChild(next);
     quizBox.appendChild(row);
+
+    quizBox.appendChild(el('p', 'tip', 'Tip: press A–D to choose, Enter for next, ← → to move.'));
+    if (last) quizBox.appendChild(el('p', 'once', '⚠️ You can submit only once. You cannot retake this quiz.'));
   }
 
+  /* keyboard shortcuts */
+  document.addEventListener('keydown', function(e){
+    if (finished || quizBox.classList.contains('hidden') || !questions.length) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    var k = (e.key || '').toLowerCase(), idx = -1;
+    if (k >= 'a' && k <= 'd') idx = k.charCodeAt(0) - 97;
+    else if (k >= '1' && k <= '4') idx = parseInt(k, 10) - 1;
+    if (idx >= 0 && questions[current] && idx < questions[current].options.length) {
+      answers[current] = idx; renderQuestion();
+    } else if (k === 'enter') {
+      var nb = document.getElementById('nextBtn'); if (nb && !nb.disabled) nb.click();
+    } else if (k === 'arrowright' && current < questions.length - 1) { current++; renderQuestion(); }
+    else if (k === 'arrowleft' && current > 0) { current--; renderQuestion(); }
+  });
+
+  /* ---------- submit ---------- */
   function submit(btn){
     btn.disabled = true; btn.textContent = 'Checking…';
     fetch('/api/video-quiz/' + VIDEO_ID + '/submit', {
@@ -168,49 +501,102 @@ h1{font-size:clamp(24px,4vw,32px)}
     })
     .then(function(r){ return r.json().catch(function(){ return {ok:false,error:'Unexpected server reply.'}; }); })
     .then(function(d){
-      if (!d.ok) { btn.disabled=false; btn.textContent='Submit answers'; alert(d.error || 'Could not submit.'); return; }
-      best = {score:Math.max(d.score, best ? best.score : 0), total_questions:d.total,
-              percentage:Math.max(d.percentage, best ? best.percentage : 0)};
+      if (d.already_attempted) { showBlocked(d); return; }
+      if (!d.ok) { btn.disabled = false; btn.textContent = 'Submit answers ✓'; alert(d.error || 'Could not submit.'); return; }
       renderResult(d);
     })
-    .catch(function(){ btn.disabled=false; btn.textContent='Submit answers'; alert('Could not reach the server. Try again.'); });
+    .catch(function(){ btn.disabled = false; btn.textContent = 'Submit answers ✓'; alert('Could not reach the server. Try again.'); });
   }
 
+  /* ---------- result (no retake button: one attempt only) ---------- */
   function renderResult(d){
+    finished = true; stopTimer(); showSide(false);
     quizBox.textContent = '';
-    var s = el('div','score');
-    s.appendChild(el('div','big', d.score + ' / ' + d.total));
-    var msg = d.percentage === 100 ? 'Perfect score! 🎉' : d.percentage >= 70 ? 'Great job! 👏' : d.percentage >= 40 ? 'Good effort. Watch the video again and retry.' : 'Keep learning. Rewatch the video and try again.';
-    s.appendChild(el('div','msg', msg));
-    if (d.credits_earned > 0) s.appendChild(el('span','earn','+' + d.credits_earned + ' credits earned'));
-    else if (!d.first_attempt) s.appendChild(el('span','best','Credits are awarded on the first attempt only.'));
-    quizBox.appendChild(s);
+    var wrong = d.total - d.score;
+    var m = medalFor(d.percentage);
+
+    var res = el('div', 'result');
+    res.appendChild(el('span', 'medal ' + m[0], m[1]));
+    res.appendChild(makeRing(d.percentage, d.percentage + '%', d.score + ' / ' + d.total + ' correct'));
+    var msg = d.percentage === 100 ? 'Perfect score! 🎉'
+            : d.percentage >= 70 ? 'Great job! 👏'
+            : d.percentage >= 40 ? 'Good effort 👍'
+            : 'Keep learning 📚';
+    res.appendChild(el('h2', '', msg));
+    res.appendChild(el('p', 'sub2', d.percentage >= 70
+      ? 'You understood this lesson very well.'
+      : 'Watch the video again and ask the AI tutor about anything unclear.'));
+
+    var stats = el('div', 'stats');
+    stats.appendChild(el('span', 'stat g', '✓ ' + d.score + ' correct'));
+    stats.appendChild(el('span', 'stat r', '✗ ' + wrong + ' wrong'));
+    stats.appendChild(el('span', 'stat c', d.credits_earned > 0 ? '💎 +' + d.credits_earned + ' credits' : '💎 No credits this time'));
+    stats.appendChild(el('span', 'stat t', '⏱ ' + fmt(tookSeconds)));
+    res.appendChild(stats);
+
+    var strip = el('div', 'strip');
+    d.results.forEach(function(r){ strip.appendChild(el('i', r.is_correct ? 'g' : 'r')); });
+    res.appendChild(strip);
+    res.appendChild(el('p', 'strip-cap', 'Each bar is one question: green = correct, red = wrong'));
+    quizBox.appendChild(res);
+
+    var head = el('div', 'rev-head');
+    var htxt = el('div');
+    htxt.appendChild(el('h3', '', 'Review your answers'));
+    htxt.appendChild(el('p', '', 'Learn from the explanations below.'));
+    head.appendChild(htxt);
+    var tabs = el('div', 'tabs');
+    var list = el('div', 'reviews'); list.setAttribute('data-filter', 'all');
+    [['all','All'],['wrong','Wrong'],['right','Correct']].forEach(function(t){
+      var tb = el('button', t[0] === 'all' ? 'on' : '', t[1]); tb.type = 'button';
+      tb.addEventListener('click', function(){
+        Array.prototype.forEach.call(tabs.children, function(c){ c.classList.remove('on'); });
+        tb.classList.add('on'); list.setAttribute('data-filter', t[0]);
+      });
+      tabs.appendChild(tb);
+    });
+    head.appendChild(tabs);
+    quizBox.appendChild(head);
 
     d.results.forEach(function(r, i){
       var q = questions[i];
-      var block = el('div','review');
-      block.appendChild(el('h3','', (i+1) + '. ' + q.question));
-      var mine = el('div','ans ' + (r.is_correct ? 'good' : 'bad'),
-        (r.is_correct ? '✓ Your answer: ' : '✗ Your answer: ') + q.options[r.chosen]);
-      block.appendChild(mine);
-      if (!r.is_correct) block.appendChild(el('div','ans good','✓ Correct answer: ' + q.options[r.correct_index]));
-      if (r.explanation) block.appendChild(el('p','why',r.explanation));
-      quizBox.appendChild(block);
-    });
+      var block = el('div', 'review ' + (r.is_correct ? 'good' : 'bad'));
+      var h = el('div', 'head');
+      h.appendChild(el('h3', '', (i + 1) + '. ' + q.question));
+      h.appendChild(el('span', 'pill ' + (r.is_correct ? 'g' : 'r'), r.is_correct ? 'Correct' : 'Wrong'));
+      block.appendChild(h);
 
-    var row = el('div','row');
-    var again = el('button','btn','Retake quiz'); again.type='button';
-    again.addEventListener('click', start);
-    var vids = el('a','btn secondary','My videos'); vids.href = {{ url_for('my_generated_videos')|tojson }};
-    var dash = el('a','btn secondary','Dashboard'); dash.href = {{ url_for('dashboard')|tojson }};
-    row.appendChild(again); row.appendChild(vids); row.appendChild(dash);
+      var mine = el('div', 'ans ' + (r.is_correct ? 'good' : 'bad'));
+      mine.appendChild(el('b', '', r.is_correct ? '✓ Your answer: ' : '✗ Your answer: '));
+      mine.appendChild(document.createTextNode(q.options[r.chosen]));
+      block.appendChild(mine);
+
+      if (!r.is_correct) {
+        var right = el('div', 'ans good');
+        right.appendChild(el('b', '', '✓ Correct answer: '));
+        right.appendChild(document.createTextNode(q.options[r.correct_index]));
+        block.appendChild(right);
+      }
+      if (r.explanation) block.appendChild(el('p', 'why', '💡 ' + r.explanation));
+      list.appendChild(block);
+    });
+    quizBox.appendChild(list);
+
+    var row = el('div', 'row center');
+    row.appendChild(link('🎬 My videos', MY_VIDEOS_URL, 'btn'));
+    row.appendChild(link('🤖 Ask AI tutor', TUTOR_URL, 'btn secondary'));
+    row.appendChild(link('🏠 Dashboard', DASHBOARD_URL, 'btn secondary'));
     quizBox.appendChild(row);
-    window.scrollTo({top:0});
+    quizBox.appendChild(el('p', 'final-note', '🔒 This quiz can be attempted only once.'));
+
+    window.scrollTo({top: 0, behavior: 'smooth'});
+    if (d.percentage >= 70) confetti();
   }
 
   document.getElementById('retry-load').addEventListener('click', load);
   load();
 })();
 </script>
+{% endif %}
 </body>
 </html>

@@ -1,32 +1,85 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EduVision Arcade</title>
-    <link rel="stylesheet"
-      href="{{ url_for('static', filename='css/arcade.css') }}">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/arcade.css') }}?v=2">
 </head>
-<body>
+<body class="ar-body">
+
+{# icon, category, description for every game (used when app.py does not give them) #}
+{% set meta = {
+    'arrow_maze':       ('🏹', 'Logic',    'Tap arrows to slide them out of the board. A blocked arrow costs a heart!'),
+    'hologram_memory':  ('✨', 'Memory',   'Watch the glowing tiles, then repeat the sequence perfectly.'),
+    'candy_match':      ('🍬', 'Arcade',   'Swap candies, match 3 or more and make special candies.'),
+    'memory_match':     ('🃏', 'Memory',   'Flip the cards and find every matching pair.'),
+    'bubble_shooter':   ('🫧', 'Arcade',   'Aim, shoot and pop groups of bubbles of the same colour.'),
+    'endless_runner':   ('🏃', 'Action',   'Run, jump over the cacti and reach the goal score.'),
+    'neon_tic_tac_toe': ('❌', 'Strategy', 'Beat the computer by lining up three marks in a row.'),
+    'puzzle_2048':      ('🔢', 'Puzzle',   'Merge matching numbers and build the target tile.'),
+    'arrow_direction':  ('➡️', 'Logic',    'Press the arrow that matches the one on screen. One mistake and you are out!'),
+    'sliding_puzzle':   ('🧩', 'Puzzle',   'Slide the tiles into the right order.'),
+    'quiz_battle':      ('⚔️', 'Quiz',     'Answer questions to defeat the monster in the arena.'),
+    'tetris_blocks':    ('🧱', 'Puzzle',   'Drop and rotate blocks to clear full lines.'),
+    'flappy_brain':     ('🧠', 'Action',   'Flap your brain through the gaps without touching a pipe.'),
+    'snake_game':       ('🐍', 'Arcade',   'Eat apples, grow longer and never hit yourself.')
+} %}
+
+<!-- floating background -->
+<div class="ar-bg" aria-hidden="true">
+    <span class="ar-blob b1"></span>
+    <span class="ar-blob b2"></span>
+    <span class="ar-blob b3"></span>
+    <span class="ar-float f1">🎮</span>
+    <span class="ar-float f2">⭐</span>
+    <span class="ar-float f3">🧩</span>
+    <span class="ar-float f4">🚀</span>
+    <span class="ar-float f5">💎</span>
+    <span class="ar-float f6">🎯</span>
+</div>
+
 <header class="arcade-topbar">
     <a class="brand" href="{{ url_for('dashboard') }}">
-        <span class="brand-icon">E</span> EduVision
+        <span class="brand-icon">E</span> Edu<b>Vision</b>
     </a>
     <a class="nav-link" href="{{ url_for('dashboard') }}">← Back to Dashboard</a>
 </header>
 
 <main class="arcade-container">
+
+    <!-- HERO -->
     <section class="arcade-hero">
         <div class="hero-content">
             <span class="eyebrow">YOUR LEARNING PLAYGROUND</span>
             <h1>EduVision <span>Arcade</span></h1>
             <p>Play exciting games, challenge your brain, unlock levels, and learn while having fun.</p>
-            <a href="#gameLibrary" class="primary-button">🎮 Explore Games</a>
+
+            <div class="hero-actions">
+                <a href="#gameLibrary" class="primary-button">🎮 Explore Games</a>
+                <span class="hero-pill">⭐ Earn credits on every level</span>
+            </div>
+
+            <div class="hero-stats">
+                <div><b>{{ games|length }}</b><span>Games</span></div>
+                <div><b>∞</b><span>Levels</span></div>
+                <div><b>60</b><span>Max credits</span></div>
+            </div>
         </div>
-        <div class="hero-art" aria-hidden="true">🎮</div>
+
+        <div class="hero-art" aria-hidden="true">
+            <span class="art-main">🎮</span>
+            <span class="art-orbit o1">⭐</span>
+            <span class="art-orbit o2">🏆</span>
+            <span class="art-orbit o3">💎</span>
+        </div>
     </section>
 
+    <!-- LIBRARY -->
     <section id="gameLibrary">
         <div class="section-heading">
             <div>
@@ -34,50 +87,54 @@
                 <h2>Game Library</h2>
                 <p>Choose a game and start playing.</p>
             </div>
-            <span class="game-count">🎯 {{ games|length }} Games</span>
+            <span class="game-count">🎯 <span id="shownCount">{{ games|length }}</span> Games</span>
         </div>
 
-        {% set icons = {
-            'candy_match':'🍬',
-            'bubble_shooter':'🫧',
-            'mind_match':'🧠',
-            'cosmic_quiz':'🚀',
-            'daily_brain_boost':'⚡',
-            'word_wizard':'🔤',
-            'match_concept':'🧩',
-            'sprint_game':'⏱️',
-            'concept_detective':'🔎',
-            'code_builder':'💻',
-            'tech_escape_room':'🔐',
-            'listen_recall':'🎧',
-            'knowledge_league':'🏆',
-            'sequence_master':'🔢',
-            'brainy_puzzle':'🧩',
-            'falling_blocks':'🟪'
-        } %}
+        <div class="filter-row" role="tablist" aria-label="Filter games">
+            <button type="button" class="chip active" data-filter="all">All</button>
+            <button type="button" class="chip" data-filter="logic">🧭 Logic</button>
+            <button type="button" class="chip" data-filter="memory">🧠 Memory</button>
+            <button type="button" class="chip" data-filter="arcade">🕹 Arcade</button>
+            <button type="button" class="chip" data-filter="action">⚡ Action</button>
+            <button type="button" class="chip" data-filter="puzzle">🧩 Puzzle</button>
+            <button type="button" class="chip" data-filter="strategy">♟ Strategy</button>
+            <button type="button" class="chip" data-filter="quiz">❓ Quiz</button>
+        </div>
 
-        <div class="game-grid">
+        <div class="game-grid" id="gameGrid">
             {% for game_key, game in games.items() %}
-            <article class="game-card game-{{ loop.index0 % 6 }}">
+            {% set m = meta.get(game_key) %}
+            {% set g_icon = game.get('icon') or (m[0] if m else '🎮') %}
+            {% set g_cat = game.get('category') or (m[1] if m else 'Learning Game') %}
+            {% set g_desc = game.get('description') or (m[2] if m else 'Play, learn and improve your skills.') %}
+            {% set g_title = game.get('title') or game_key.replace('_', ' ').title() %}
+
+            <article class="game-card game-{{ loop.index0 % 6 }}" data-cat="{{ g_cat|lower }}"
+                     style="animation-delay: {{ loop.index0 * 55 }}ms">
                 <div class="card-top">
-                    <div class="game-art">{{ game.get('icon', icons.get(game_key, '🎮')) }}</div>
+                    <div class="game-art">{{ g_icon }}</div>
                     <span class="game-number">{{ "%02d"|format(loop.index) }}</span>
                 </div>
+
                 <div class="card-content">
-                    <span class="game-category">{{ game.get('category', 'Learning Game') }}</span>
-                    <h3>{{ game.get('title', game_key.replace('_', ' ').title()) }}</h3>
-                    <p>{{ game.get('description', 'Play, learn and improve your skills.') }}</p>
+                    <span class="game-category">{{ g_cat }}</span>
+                    <h3>{{ g_title }}</h3>
+                    <p>{{ g_desc }}</p>
+
                     <a class="play-button" href="{{ url_for('eduvision_game', game_key=game_key) }}">
                         Play Now <span>→</span>
                     </a>
                 </div>
             </article>
             {% else %}
-            <p>No games have been configured yet in app.py.</p>
+            <p class="empty">No games have been configured yet in app.py.</p>
             {% endfor %}
         </div>
+
+        <p class="no-match" id="noMatch" hidden>No games in this category yet.</p>
     </section>
 
+    <!-- FOOTER CARD -->
     <section class="arcade-footer-card">
         <span class="footer-trophy">🏆</span>
         <div>
@@ -89,5 +146,33 @@
 </main>
 
 <footer class="arcade-footer">EduVision Arcade · Learn. Play. Grow.</footer>
+
+<script>
+/* category filter */
+(function () {
+    var chips = document.querySelectorAll('.chip');
+    var cards = document.querySelectorAll('.game-card');
+    var count = document.getElementById('shownCount');
+    var none = document.getElementById('noMatch');
+
+    chips.forEach(function (chip) {
+        chip.addEventListener('click', function () {
+            var f = chip.dataset.filter;
+            var shown = 0;
+
+            chips.forEach(function (c) { c.classList.toggle('active', c === chip); });
+
+            cards.forEach(function (card) {
+                var ok = f === 'all' || card.dataset.cat === f;
+                card.hidden = !ok;
+                if (ok) shown++;
+            });
+
+            if (count) count.textContent = shown;
+            if (none) none.hidden = shown !== 0;
+        });
+    });
+})();
+</script>
 </body>
 </html>

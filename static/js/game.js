@@ -1,6 +1,20 @@
 /* =========================================================
    EDUVISION GAME ENGINE  ->  static/js/game.js
-   14 games, mobile friendly, Time + Moves bar in every game
+   14 games, mobile friendly, Time LEFT + Moves bar in every game
+   Every level has a TIME LIMIT (countdown). Time up = level failed.
+
+   LATEST UPDATE
+   - Arrow Escape: the arrow head ALWAYS points the same way the arrow
+     slides out (head direction = last body segment). Blocked arrows
+     cost a heart. Every board can be cleared.
+   - Level complete popup AND level failed popup both have a red X
+     button (top right) that closes the game and goes back to the
+     dashboard.
+   - Level failed (wrong move, game over, time up) -> big red X popup
+     in the CENTER of the screen: "Try Again" or "Back to Dashboard".
+   - Tic-Tac-Toe: a draw no longer fails the level, the board resets.
+     The computer can make mistakes at low levels so you can win.
+   - No scrolling: board fits the screen, status sticks to the bottom.
    ========================================================= */
 
 function onReady(fn) {
@@ -195,7 +209,7 @@ const EduVisionLevels = (() => {
         }
 
         if (message) {
-            message.textContent = `Complete Level ${state.level} to unlock Level ${state.level + 1}.`;
+            message.textContent = `Complete Level ${state.level} before the timer ends to unlock Level ${state.level + 1}.`;
         }
 
         if (badge) {
@@ -252,6 +266,51 @@ const EduVisionLevels = (() => {
 
 window.EduVisionLevels = EduVisionLevels;
 
+/* ---------- DAILY PLAY LIMIT (shared by all games) ----------
+   The server (MySQL) is the real counter. localStorage is only a fast cache. */
+const DailyLimit = (() => {
+    const KEY = "eduvision_daily_plays";
+    let limit = 10;                      // replaced by the server value (DAILY_GAME_LIMIT in .env)
+
+    const today = () => {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    };
+
+    const read = () => {
+        try {
+            const s = JSON.parse(localStorage.getItem(KEY) || "{}");
+            if (s.date === today()) {
+                if (Number(s.limit) > 0) limit = Number(s.limit);
+                return Math.max(0, Number(s.count) || 0);
+            }
+        } catch (e) { /* ignore */ }
+        return 0;
+    };
+
+    let count = read();
+
+    const write = () => {
+        try { localStorage.setItem(KEY, JSON.stringify({ date: today(), count, limit })); } catch (e) { /* ignore */ }
+    };
+
+    return {
+        get limit() { return limit; },
+        used: () => count,
+        remaining: () => Math.max(0, limit - count),
+        reached: () => count >= limit,
+        record() { count += 1; write(); },
+        set(used, newLimit) {
+            if (Number.isFinite(newLimit) && newLimit > 0) limit = newLimit;
+            count = Math.max(0, Number(used) || 0);
+            write();
+        },
+        fill() { count = limit; write(); }
+    };
+})();
+
+window.EduVisionDaily = DailyLimit;
+
 onReady(() => EduVisionLevels.load());
 
 /* =========================================================
@@ -304,12 +363,13 @@ const el = (tag, cls, html) => {
     return element;
 };
 
-// Canvas drawn at full size and scaled down on small screens.
+// Canvas drawn at full size and scaled down so the WHOLE board fits on the screen
+// (no scrolling up and down). Height is limited so the board + time bar fit in one screen.
 const cv = (root, width, height, maxW) => {
     const canvas = el("canvas", "gcanvas");
     canvas.width = width;
     canvas.height = height;
-    canvas.style.width = `min(100%, ${maxW || width}px)`;
+    canvas.style.width = `min(100%, ${maxW || width}px, calc(max(240px, 100vh - 300px) * ${width} / ${height}))`;
     canvas.style.height = "auto";
     canvas.style.touchAction = "none";
     root.append(canvas);
@@ -399,6 +459,30 @@ const shake = node => {
     node.classList.add("ev-shake");
 };
 
+// Red alert banner + red screen edge, used when the player goes the wrong way / answers wrong.
+let wrongTimer = 0;
+const wrongAlert = (message = "Wrong way!", kind = "wrong") => {
+    document.querySelectorAll(".ev-wrong-alert,.ev-wrong-flash").forEach(n => n.remove());
+
+    const info = kind === "info";
+    const flash = el("div", "ev-wrong-flash");
+    const banner = el("div", "ev-wrong-alert" + (info ? " info" : ""), `<b>${info ? "💡" : "✕"}</b><span></span>`);
+    banner.querySelector("span").textContent = message;
+    banner.setAttribute("role", "alert");
+
+    if (!info) document.body.append(flash);
+    document.body.append(banner);
+
+    clearTimeout(wrongTimer);
+    wrongTimer = setTimeout(() => {
+        flash.remove();
+        banner.remove();
+    }, 1300);
+};
+
+// blue tip banner (hints, info)
+const infoAlert = message => wrongAlert(message, "info");
+
 /* =========================================================
    STYLES
    ========================================================= */
@@ -425,20 +509,27 @@ const ensureGameStyle = () => {
 .game-status{transition:background .25s,color .25s}
 .game-status.win{animation:evPulse .7s ease 2}
 .game-status.lose{animation:evShake .45s}
-.gcanvas{display:block;margin:12px auto;border-radius:20px;max-width:100%;box-shadow:0 14px 34px rgba(20,25,60,.35),0 0 0 4px rgba(255,255,255,.75);animation:evDrop .5s ease both}
+.gcanvas{display:block;margin:8px auto;border-radius:20px;max-width:100%;box-shadow:0 14px 34px rgba(20,25,60,.35),0 0 0 4px rgba(255,255,255,.75);animation:evDrop .5s ease both}
 .ev-shake{animation:evShake .45s !important}
-.ev-board{display:grid;justify-content:center;margin:16px auto;gap:10px}
+.ev-board{display:grid;justify-content:center;margin:10px auto;gap:10px}
 .ev-board button:disabled{opacity:1;cursor:default}
 
-/* ---------- time + moves bar ---------- */
-.ev-hud{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin:10px auto 4px}
+/* ---------- time left + moves bar ---------- */
+.ev-hud{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin:8px auto 4px}
 .ev-chip{min-width:96px;padding:6px 16px;border-radius:16px;background:linear-gradient(180deg,#fff,#eef2ff);box-shadow:0 4px 0 #c7d2fe,0 8px 14px rgba(99,102,241,.18);text-align:center;font-weight:900;color:#4338ca}
 .ev-chip small{display:block;font-size:.62rem;letter-spacing:.08em;color:#818cf8}
 .ev-chip b{display:block;font-size:1.35rem;line-height:1.15;font-variant-numeric:tabular-nums}
 .ev-chip.low b{color:#e11d48;animation:evPulse .6s infinite}
+.ev-chip.low{background:linear-gradient(180deg,#fff,#ffe4e6);box-shadow:0 4px 0 #fda4af,0 8px 14px rgba(225,29,72,.18)}
+.ev-limit{margin:6px auto 0;font-size:.9rem;font-weight:700;color:#4338ca}
+.ev-limit b{color:#db2777}
+.ev-timebar{max-width:320px;height:10px;margin:8px auto 2px;border-radius:99px;background:#e0e7ff;overflow:hidden;box-shadow:inset 0 1px 3px rgba(0,0,0,.15)}
+.ev-timebar i{display:block;height:100%;width:100%;border-radius:99px;background:linear-gradient(90deg,#22c55e,#a3e635);transition:width .25s linear,background .3s}
+.ev-timebar.mid i{background:linear-gradient(90deg,#facc15,#fb923c)}
+.ev-timebar.warn i{background:linear-gradient(90deg,#f97316,#ef4444)}
 
 /* ---------- memory cards ---------- */
-.mem-board{--card:clamp(56px,19vw,104px);gap:10px;perspective:900px}
+.mem-board{--card:clamp(52px,17vw,96px);gap:10px;perspective:900px}
 .mcard{position:relative;width:var(--card);aspect-ratio:1/1;padding:0;border:0;background:none;cursor:pointer;transform-style:preserve-3d;transition:transform .5s cubic-bezier(.4,1.5,.5,1);animation:evPop .45s backwards}
 .mcard:not(.flipped):hover{transform:translateY(-5px)}
 .mcard.flipped{transform:rotateY(180deg)}
@@ -451,7 +542,7 @@ const ensureGameStyle = () => {
 .mem-moves{text-align:center;font-weight:800}
 
 /* ---------- hologram ---------- */
-.holo-board{--holo:clamp(72px,24vw,128px);grid-template-columns:repeat(3,var(--holo));gap:12px;padding:16px;border-radius:28px;background:radial-gradient(circle at 30% 20%,#312e81,#0b1020);width:max-content;max-width:100%;box-shadow:0 0 40px rgba(99,102,241,.45)}
+.holo-board{--holo:clamp(68px,22vw,116px);grid-template-columns:repeat(3,var(--holo));gap:12px;padding:16px;border-radius:28px;background:radial-gradient(circle at 30% 20%,#312e81,#0b1020);width:max-content;max-width:100%;box-shadow:0 0 40px rgba(99,102,241,.45)}
 .holo-cell{width:var(--holo);height:var(--holo);border:2px solid rgba(165,180,252,.5);border-radius:24px;background:linear-gradient(145deg,#1e1b4b,#312e81);color:#a5b4fc;font-size:calc(var(--holo)*.4);cursor:pointer;transition:transform .15s,background .15s,box-shadow .15s;animation:evPop .4s backwards}
 .holo-cell:hover:not(:disabled){transform:scale(1.06)}
 .holo-cell.lit{background:linear-gradient(145deg,#c4b5fd,#7c3aed);color:#fff;transform:scale(1.12);box-shadow:0 0 30px #8b5cf6,0 0 70px rgba(139,92,246,.7)}
@@ -459,7 +550,7 @@ const ensureGameStyle = () => {
 .holo-cell.bad{background:linear-gradient(145deg,#fca5a5,#dc2626);color:#fff;animation:evShake .4s}
 
 /* ---------- tic tac toe ---------- */
-.ttt-board{--ttt:clamp(84px,26vw,130px);grid-template-columns:repeat(3,var(--ttt));gap:10px;padding:14px;border-radius:26px;background:radial-gradient(circle at 30% 20%,#312e81,#0f172a);width:max-content;max-width:100%;box-shadow:0 0 40px rgba(99,102,241,.45)}
+.ttt-board{--ttt:clamp(78px,24vw,120px);grid-template-columns:repeat(3,var(--ttt));gap:10px;padding:14px;border-radius:26px;background:radial-gradient(circle at 30% 20%,#312e81,#0f172a);width:max-content;max-width:100%;box-shadow:0 0 40px rgba(99,102,241,.45)}
 .ttt-cell{width:var(--ttt);height:var(--ttt);border:2px solid rgba(165,180,252,.35);border-radius:20px;background:rgba(15,23,42,.85);font-size:calc(var(--ttt)*.6);font-weight:900;cursor:pointer;transition:background .2s,transform .15s;color:#fff}
 .ttt-cell:hover:not(.x):not(.o){background:rgba(99,102,241,.4);transform:scale(1.05)}
 .ttt-cell span{display:block;animation:evPop .35s both}
@@ -469,7 +560,7 @@ const ensureGameStyle = () => {
 @keyframes tttWin{50%{transform:scale(1.12)}}
 
 /* ---------- 2048 ---------- */
-.p48-board{--t:clamp(56px,19vw,104px);grid-template-columns:repeat(var(--n),var(--t));gap:8px;padding:10px;border-radius:18px;background:#bbada0;width:max-content;max-width:100%;touch-action:none;box-shadow:0 12px 30px rgba(0,0,0,.25)}
+.p48-board{--t:clamp(52px,17vw,96px);grid-template-columns:repeat(var(--n),var(--t));gap:8px;padding:10px;border-radius:18px;background:#bbada0;width:max-content;max-width:100%;touch-action:none;box-shadow:0 12px 30px rgba(0,0,0,.25)}
 .p48-cell{width:var(--t);height:var(--t);display:grid;place-items:center;border-radius:12px;background:rgba(238,228,218,.35);font-weight:900;font-size:calc(var(--t)*.4)}
 .p48-cell.big{font-size:calc(var(--t)*.3)}
 .p48-cell.has{box-shadow:0 4px 10px rgba(0,0,0,.2)}
@@ -486,62 +577,117 @@ const ensureGameStyle = () => {
 @keyframes p48D{from{transform:translateY(-30px)}}
 
 /* ---------- arrow direction ---------- */
-.arw-stage{display:grid;place-items:center;width:clamp(170px,50vw,280px);height:clamp(170px,50vw,280px);margin:16px auto;border-radius:50%;background:radial-gradient(circle,#fff,#e0e7ff);box-shadow:0 0 0 8px #c7d2fe,0 18px 40px rgba(99,102,241,.35);transition:background .2s,box-shadow .2s}
+.arw-stage{display:grid;place-items:center;width:clamp(150px,42vw,240px);height:clamp(150px,42vw,240px);margin:10px auto;border-radius:50%;background:radial-gradient(circle,#fff,#e0e7ff);box-shadow:0 0 0 8px #c7d2fe,0 18px 40px rgba(99,102,241,.35);transition:background .2s,box-shadow .2s}
 .arw-stage.ok{background:radial-gradient(circle,#dcfce7,#86efac);box-shadow:0 0 0 8px #4ade80,0 0 50px rgba(34,197,94,.6)}
 .arw-stage.bad{background:radial-gradient(circle,#fee2e2,#fca5a5);box-shadow:0 0 0 8px #f87171;animation:evShake .4s}
-.arw-sym{font-size:clamp(70px,20vw,140px);line-height:1;animation:evPop .35s cubic-bezier(.2,1.6,.4,1) both}
+.arw-sym{font-size:clamp(60px,18vw,120px);line-height:1;animation:evPop .35s cubic-bezier(.2,1.6,.4,1) both}
 .arw-bar{max-width:420px;height:14px;margin:8px auto;border-radius:99px;background:#e0e7ff;overflow:hidden}
 .arw-bar i{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,#6366f1,#ec4899);transition:width .4s}
-.arw-round{text-align:center;font-weight:800}
+.arw-round{text-align:center;font-weight:800;margin:4px 0}
 
 /* ---------- sliding puzzle ---------- */
-.sl-board{--cell:clamp(54px,19vw,104px);--gap:8px;position:relative;box-sizing:content-box;margin:16px auto;padding:12px;border-radius:22px;background:linear-gradient(145deg,#1e293b,#334155);width:calc(var(--n)*var(--cell) + (var(--n) - 1)*var(--gap));height:calc(var(--n)*var(--cell) + (var(--n) - 1)*var(--gap));max-width:100%;box-shadow:0 14px 34px rgba(15,23,42,.45)}
+.sl-board{--cell:clamp(50px,17vw,96px);--gap:8px;position:relative;box-sizing:content-box;margin:10px auto;padding:12px;border-radius:22px;background:linear-gradient(145deg,#1e293b,#334155);width:calc(var(--n)*var(--cell) + (var(--n) - 1)*var(--gap));height:calc(var(--n)*var(--cell) + (var(--n) - 1)*var(--gap));max-width:100%;box-shadow:0 14px 34px rgba(15,23,42,.45)}
 .sl-tile{position:absolute;left:12px;top:12px;width:var(--cell);height:var(--cell);border:0;border-radius:16px;color:#fff;font-size:calc(var(--cell)*.4);font-weight:900;cursor:pointer;text-shadow:0 2px 4px rgba(0,0,0,.3);box-shadow:inset 0 -5px 0 rgba(0,0,0,.2),0 6px 12px rgba(0,0,0,.3);transform:translate(calc(var(--c)*(var(--cell) + var(--gap))),calc(var(--r)*(var(--cell) + var(--gap))));transition:transform .2s cubic-bezier(.3,1.3,.5,1),filter .15s;animation:evFade .4s backwards}
 .sl-tile:hover{filter:brightness(1.12)}
 
 /* ---------- quiz battle ---------- */
-.qb-arena{display:flex;align-items:center;justify-content:space-between;gap:12px;max-width:760px;margin:14px auto;padding:16px 20px;border-radius:24px;background:linear-gradient(135deg,#1e1b4b,#4c1d95);color:#fff;box-shadow:0 14px 34px rgba(76,29,149,.4)}
+.qb-arena{display:flex;align-items:center;justify-content:space-between;gap:12px;max-width:760px;margin:10px auto;padding:12px 20px;border-radius:24px;background:linear-gradient(135deg,#1e1b4b,#4c1d95);color:#fff;box-shadow:0 14px 34px rgba(76,29,149,.4)}
 .qb-fighter{flex:1;text-align:center;font-weight:800}
-.qb-sprite{font-size:clamp(48px,10vw,92px);line-height:1;display:inline-block;animation:evFloat 2.2s ease-in-out infinite}
+.qb-sprite{font-size:clamp(40px,9vw,72px);line-height:1;display:inline-block;animation:evFloat 2.2s ease-in-out infinite}
 .qb-sprite.hit{animation:evShake .4s,evFlash .4s}
 .qb-hp{height:14px;border-radius:99px;background:rgba(255,255,255,.2);overflow:hidden;margin-top:8px}
 .qb-hp i{display:block;height:100%;width:100%;border-radius:99px;transition:width .5s}
 .qb-hp.me i{background:linear-gradient(90deg,#34d399,#10b981)}
 .qb-hp.foe i{background:linear-gradient(90deg,#f87171,#ef4444)}
 .qb-vs{font-weight:900;font-size:24px;color:#fcd34d}
-.qb-q{max-width:760px;margin:14px auto;padding:16px 18px;border-radius:20px;background:#f5f3ff;text-align:center;animation:evDrop .35s both}
+.qb-q{max-width:760px;margin:10px auto;padding:12px 18px;border-radius:20px;background:#f5f3ff;text-align:center;animation:evDrop .35s both}
 .qb-q h3{margin:0 0 6px;color:#6d28d9}
 .qb-q p{margin:0;font-size:1.15rem;font-weight:700}
 .qb-opts{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;max-width:760px;margin:0 auto}
-.qb-opt{padding:16px;border:0;border-radius:16px;font-size:1rem;font-weight:700;cursor:pointer;background:#fff;box-shadow:0 4px 0 #c7d2fe,0 8px 16px rgba(0,0,0,.08);transition:transform .15s,box-shadow .15s;animation:evPop .35s backwards}
+.qb-opt{padding:14px;border:0;border-radius:16px;font-size:1rem;font-weight:700;cursor:pointer;background:#fff;box-shadow:0 4px 0 #c7d2fe,0 8px 16px rgba(0,0,0,.08);transition:transform .15s,box-shadow .15s;animation:evPop .35s backwards}
 .qb-opt:hover:not(:disabled){transform:translateY(-3px)}
 .qb-opt.ok{background:#bbf7d0;box-shadow:0 4px 0 #22c55e}
 .qb-opt.bad{background:#fecaca;box-shadow:0 4px 0 #ef4444;animation:evShake .4s}
 @media(max-width:560px){.qb-opts{grid-template-columns:1fr}.ev-chip{min-width:84px;padding:5px 12px}}
 
 /* ---------- look & feel for every game ---------- */
-#playArea{min-height:60vh;padding:10px 6px 28px}
-#playArea .game-heading{text-align:center;margin:4px 0 6px}
-#playArea .game-heading h2{margin:0;font-size:clamp(1.4rem,5vw,2.3rem);font-weight:900;letter-spacing:-.01em;background:linear-gradient(90deg,#6366f1,#ec4899,#f59e0b);-webkit-background-clip:text;background-clip:text;color:transparent}
-#playArea .game-heading p{margin:6px auto 0;max-width:560px;opacity:.78}
-.ev-toolbar{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin:12px 0 2px}
+#playArea{min-height:60vh;padding:6px 6px 70px;scroll-margin-top:96px}
+/* the page header already shows the game title, so keep the in-game bar small */
+.game-heading>h2,.game-heading>p{display:none}
+.ev-hud{align-items:center}
+.ev-hud .ev-restart{padding:8px 16px !important;font-size:.9rem !important;box-shadow:0 4px 0 #c7d2fe !important}
+
+/* RED "WRONG" ALERT (all games) */
+@keyframes evWrongIn{0%{opacity:0;transform:translate(-50%,-20px) scale(.7)}25%{opacity:1;transform:translate(-50%,0) scale(1.08)}40%{transform:translate(-50%,0) scale(1)}85%{opacity:1}100%{opacity:0;transform:translate(-50%,0) scale(1)}}
+@keyframes evRedFlash{0%{opacity:1}100%{opacity:0}}
+.ev-wrong-alert{position:fixed;left:50%;top:110px;z-index:99990;display:flex;align-items:center;gap:10px;padding:12px 26px;border-radius:99px;background:linear-gradient(180deg,#ef4444,#b91c1c);color:#fff;font-weight:900;font-size:1.15rem;white-space:nowrap;box-shadow:0 8px 0 #7f1d1d,0 16px 30px rgba(185,28,28,.5);pointer-events:none;animation:evWrongIn 1.3s ease forwards}
+.ev-wrong-alert b{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#fff;color:#dc2626;font-size:1.05rem}
+.ev-wrong-alert.info{background:linear-gradient(180deg,#6366f1,#4338ca);box-shadow:0 8px 0 #312e81,0 16px 30px rgba(67,56,202,.5)}
+.ev-wrong-alert.info b{background:#fff;color:#4338ca}
+.ev-hint-glow{box-shadow:0 0 0 4px #22c55e,0 0 26px 6px #22c55e !important;outline:3px solid #22c55e}
+.ev-hearts{display:flex;justify-content:center;align-items:center;gap:18px;font-size:1.25rem;font-weight:900;color:#4338ca;margin:6px 0}
+.ev-hint:disabled{opacity:.45;cursor:not-allowed}
+.ev-daily{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin:4px 0;font-size:.78rem;font-weight:800;color:#4338ca}
+.edu-marks{display:flex;justify-content:center;gap:4px;flex-wrap:wrap}
+.edu-mark{width:20px;height:20px;display:grid;place-items:center;border-radius:6px;background:#eef2ff;color:#a5b4fc;font-size:.75rem}
+.edu-mark.on{background:#dc2626;color:#fff}
+.edu-mark.stamp{animation:evStamp .6s cubic-bezier(.2,1.4,.4,1) both}
+@keyframes evStamp{0%{transform:scale(3.2) rotate(-25deg);opacity:0}60%{transform:scale(.85) rotate(4deg);opacity:1}100%{transform:scale(1) rotate(0)}}
+.ev-wrong-flash{position:fixed;inset:0;z-index:99989;pointer-events:none;box-shadow:inset 0 0 140px 40px rgba(220,38,38,.55);animation:evRedFlash .7s ease-out forwards}
+#playArea .game-heading{text-align:center;margin:2px 0 4px}
+#playArea .game-heading h2{margin:0;font-size:clamp(1.3rem,4.5vw,2rem);font-weight:900;letter-spacing:-.01em;background:linear-gradient(90deg,#6366f1,#ec4899,#f59e0b);-webkit-background-clip:text;background-clip:text;color:transparent}
+#playArea .game-heading p{margin:4px auto 0;max-width:560px;opacity:.78;font-size:.95rem}
+.ev-toolbar{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin:8px 0 2px}
 #playArea .gbtn{border:0;border-radius:14px;padding:12px 22px;font:inherit;font-weight:800;font-size:1rem;color:#fff;cursor:pointer;background:linear-gradient(180deg,#8b5cf6,#6366f1);box-shadow:0 5px 0 #4338ca,0 10px 18px rgba(67,56,202,.35);transition:transform .1s,box-shadow .1s,filter .15s}
 #playArea .gbtn:hover{filter:brightness(1.08)}
 #playArea .gbtn:active{transform:translateY(4px);box-shadow:0 1px 0 #4338ca}
 #playArea .gbtn.secondary{color:#4338ca;background:linear-gradient(180deg,#fff,#eef2ff);box-shadow:0 5px 0 #c7d2fe,0 10px 18px rgba(99,102,241,.2)}
 #playArea .gbtn.secondary:active{box-shadow:0 1px 0 #c7d2fe}
-#playArea .game-status{display:table;margin:12px auto;padding:8px 18px;border-radius:99px;background:#eef2ff;color:#3730a3;font-weight:700;text-align:center;max-width:94%}
+
+/* status message sticks to the bottom of the screen, so the player never scrolls to read it */
+#playArea .game-status{position:sticky;bottom:10px;z-index:20;display:table;margin:10px auto;padding:8px 18px;border-radius:99px;background:#eef2ff;color:#3730a3;font-weight:700;text-align:center;max-width:94%;box-shadow:0 6px 18px rgba(30,27,75,.22)}
 #playArea .game-status.win{background:#dcfce7;color:#166534}
 #playArea .game-status.lose{background:#fee2e2;color:#991b1b}
 #playArea .game-result-panel{max-width:420px;margin:18px auto;padding:24px;border-radius:24px;text-align:center;background:#fff;box-shadow:0 18px 40px rgba(30,27,75,.25);animation:evPop .4s both}
 #playArea .game-result-panel h3{margin:0 0 6px;font-size:1.6rem}
 #playArea .game-result-panel .gbtn{margin-top:12px}
+#playArea .game-result-panel .ev-big{font-size:56px;line-height:1;margin-bottom:6px}
 `;
 
     document.head.append(style);
 };
 
 ensureGameStyle();
+
+/* ---------- FAILED LEVEL POPUP (big red X in the middle of the screen) ---------- */
+const ensureFailStyle = () => {
+    if (document.getElementById("evFailStyle")) return;
+
+    const style = el("style");
+    style.id = "evFailStyle";
+
+    style.textContent = `
+@keyframes evFailPop{0%{opacity:0;transform:scale(.7) translateY(20px)}60%{transform:scale(1.05)}100%{opacity:1;transform:none}}
+@keyframes evFailX{0%{transform:scale(0) rotate(-90deg)}60%{transform:scale(1.25) rotate(8deg)}100%{transform:scale(1) rotate(0)}}
+.edu-fail-overlay{position:fixed;inset:0;z-index:99998;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(15,23,42,.62);backdrop-filter:blur(4px);-webkit-user-select:none;user-select:none}
+.edu-fail-card{position:relative;width:min(380px,100%);padding:26px 22px 22px;border-radius:26px;text-align:center;color:#1f2a44;background:#fff;box-shadow:0 24px 60px rgba(15,23,42,.45);animation:evFailPop .4s ease-out both}
+.edu-fail-x{width:92px;height:92px;margin:0 auto 10px;display:grid;place-items:center;border-radius:50%;background:linear-gradient(145deg,#f87171,#dc2626);color:#fff;font-size:58px;font-weight:900;line-height:1;box-shadow:0 8px 0 #991b1b,0 14px 28px rgba(220,38,38,.45);animation:evFailX .55s cubic-bezier(.2,1.6,.4,1) both}
+.edu-fail-card h2{margin:10px 0 6px;font-size:1.6rem;color:#b91c1c}
+.edu-fail-card p{margin:0 0 4px;color:#4b5563;line-height:1.5}
+.edu-fail-level{display:inline-block;margin:8px 0 2px;padding:4px 14px;border-radius:99px;background:#fee2e2;color:#991b1b;font-weight:800;font-size:.9rem}
+.edu-fail-actions{display:grid;gap:12px;margin-top:18px}
+.edu-fail-actions button{width:100%;padding:14px;border:0;border-radius:14px;font:inherit;font-size:1.05rem;font-weight:800;cursor:pointer;transition:transform .1s,filter .15s}
+.edu-fail-actions button:hover{filter:brightness(1.07)}
+.edu-fail-actions button:active{transform:translateY(3px)}
+.edu-fail-retry{color:#fff;background:linear-gradient(180deg,#8b5cf6,#6366f1);box-shadow:0 5px 0 #4338ca}
+.edu-fail-back{color:#4338ca;background:#eef2ff;box-shadow:0 5px 0 #c7d2fe}
+.edu-x-close{position:absolute;top:10px;right:10px;z-index:2;width:38px;height:38px;display:grid;place-items:center;padding:0;border:0;border-radius:50%;background:#fee2e2;color:#dc2626;font-size:20px;font-weight:900;line-height:1;cursor:pointer;box-shadow:0 3px 0 #fca5a5;transition:transform .1s,background .15s}
+.edu-x-close:hover{background:#fecaca}
+.edu-x-close:active{transform:translateY(2px);box-shadow:0 1px 0 #fca5a5}
+`;
+
+    document.head.append(style);
+};
 
 const ensureCandyStyle = () => {
     if (document.getElementById("evCandyStyle")) return;
@@ -564,7 +710,7 @@ const ensureCandyStyle = () => {
 @keyframes ccFloat{0%{opacity:1;transform:translate(-50%,0) scale(.8)}100%{opacity:0;transform:translate(-50%,-70px) scale(1.25)}}
 @keyframes ccPraise{0%{opacity:0;transform:translate(-50%,-50%) scale(.3) rotate(-8deg)}25%{opacity:1;transform:translate(-50%,-50%) scale(1.15) rotate(3deg)}75%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-80%) scale(1)}}
 
-.cc-hud{display:flex;align-items:stretch;justify-content:center;gap:10px;flex-wrap:wrap;max-width:600px;margin:10px auto}
+.cc-hud{display:flex;align-items:stretch;justify-content:center;gap:10px;flex-wrap:wrap;max-width:600px;margin:8px auto}
 .cc-chip{min-width:70px;padding:6px 14px;border-radius:16px;background:linear-gradient(180deg,#fff,#f3e8ff);box-shadow:0 4px 0 #d8b4fe,0 8px 14px rgba(124,58,237,.18);text-align:center;font-weight:900;color:#6d28d9}
 .cc-chip small{display:block;font-size:.65rem;letter-spacing:.08em;color:#a78bfa}
 .cc-chip b{font-size:1.5rem;line-height:1.1}
@@ -574,7 +720,7 @@ const ensureCandyStyle = () => {
 .cc-bar span{position:absolute;top:-10px;font-size:20px;color:#d4d4d8;transform:translateX(-50%);transition:.3s;text-shadow:0 1px 0 #fff}
 .cc-bar span.on{color:#fbbf24;transform:translateX(-50%) scale(1.3)}
 .cc-snd{border:0;border-radius:14px;padding:0 14px;font-size:1.3rem;cursor:pointer;background:#fff;box-shadow:0 4px 0 #d8b4fe}
-.cc-wrap{--cell:clamp(36px,10.8vw,64px);width:max-content;max-width:100%;margin:12px auto;padding:12px;border-radius:30px;background:linear-gradient(160deg,#a855f7,#ec4899 55%,#fb923c);box-shadow:0 20px 44px rgba(168,85,247,.45),inset 0 0 0 4px rgba(255,255,255,.4)}
+.cc-wrap{--cell:clamp(34px,min(10.2vw,6.4vh),62px);width:max-content;max-width:100%;margin:10px auto;padding:12px;border-radius:30px;background:linear-gradient(160deg,#a855f7,#ec4899 55%,#fb923c);box-shadow:0 20px 44px rgba(168,85,247,.45),inset 0 0 0 4px rgba(255,255,255,.4)}
 .cc-board{position:relative;overflow:hidden;width:calc(var(--cols) * var(--cell));height:calc(var(--rows) * var(--cell));border-radius:20px;touch-action:none;user-select:none;-webkit-user-select:none;cursor:pointer;background:repeating-conic-gradient(rgba(255,255,255,.2) 0 25%,rgba(255,255,255,.08) 0 50%) 0 0/calc(var(--cell) * 2) calc(var(--cell) * 2),rgba(76,29,149,.6)}
 .cc-board.nope{animation:evShake .35s}
 .cc-candy{position:absolute;left:0;top:0;width:var(--cell);height:var(--cell);padding:calc(var(--cell) * .06);box-sizing:border-box;pointer-events:none;will-change:transform;transform:translate(calc(var(--x) * var(--cell)),calc(var(--y) * var(--cell)));transition:transform .36s cubic-bezier(.34,1.28,.64,1)}
@@ -601,6 +747,34 @@ const ensureCandyStyle = () => {
 
 const currentLevel = () => Math.max(1, Number(Levels.level) || 1);
 
+/* =========================================================
+   TIME LIMIT PER LEVEL
+   [base seconds, extra seconds per level, maximum seconds]
+   Change these numbers to make levels easier or harder.
+   ========================================================= */
+
+const TIME_LIMITS = {
+    arrow_maze:       [90, 10, 600],
+    hologram_memory:  [60, 8, 300],
+    candy_match:      [150, 10, 420],
+    memory_match:     [60, 10, 300],
+    bubble_shooter:   [180, 10, 480],
+    endless_runner:   [45, 5, 240],
+    neon_tic_tac_toe: [90, 0, 90],
+    puzzle_2048:      [180, 20, 900],
+    arrow_direction:  [20, 3, 150],
+    sliding_puzzle:   [120, 15, 600],
+    quiz_battle:      [60, 15, 420],
+    tetris_blocks:    [150, 15, 600],
+    flappy_brain:     [40, 4, 150],
+    snake_game:       [60, 8, 300]
+};
+
+const timeLimitFor = (gameId, level) => {
+    const [base, perLevel, max] = TIME_LIMITS[gameId] || [120, 10, 600];
+    return Math.round(Math.min(max, base + perLevel * (Math.max(1, level) - 1)));
+};
+
 /* ---------- engine state ---------- */
 let session = 0;
 let score = 0;
@@ -608,9 +782,17 @@ let over = false;
 let cleanups = [];
 let moveCount = 0;
 let hudTimeEl = null;
+let hudTimeChip = null;
+let hudTimeBar = null;
 let hudMovesEl = null;
 let hudMovesLabel = null;
 let hudMovesChip = null;
+let timeLimit = 0;       // seconds allowed for this level
+let elapsedSec = 0;      // seconds used so far
+let winPending = false;  // true once the level is won (stops the clock)
+let hintsLeft = 3;       // hints per level
+let hintFn = null;       // each game registers its own hint with onHint()
+let hintBtn = null;
 
 const onClean = fn => cleanups.push(fn);
 
@@ -667,8 +849,20 @@ const setScore = (value, bump = true) => {
 
 const addScore = n => setScore(score + (Number(n) || 0));
 
-/* ---------- time + moves bar (every game) ---------- */
-const fmtTime = s => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+/* ---------- time left + moves bar (every game) ---------- */
+const fmtTime = s => {
+    s = Math.max(0, Math.floor(s));
+    return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+};
+
+// "3 min", "1 min 30 sec", "45 sec"
+const fmtMinutes = s => {
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+
+    if (m === 0) return `${r} sec`;
+    return r ? `${m} min ${r} sec` : `${m} min`;
+};
 
 // Show an exact value (and optionally rename the label, e.g. "MOVES LEFT").
 const setMoves = (value, label) => {
@@ -702,7 +896,14 @@ const resetGame = () => {
     over = false;
     score = 0;
     moveCount = 0;
-    hudTimeEl = hudMovesEl = hudMovesLabel = hudMovesChip = null;
+    timeLimit = 0;
+    elapsedSec = 0;
+    winPending = false;
+    hintsLeft = 3;
+    hintFn = null;
+    hintBtn = null;
+    hudTimeEl = hudTimeChip = hudTimeBar = null;
+    hudMovesEl = hudMovesLabel = hudMovesChip = null;
 
     area.innerHTML = "";
     scoreEl.textContent = "0";
@@ -712,6 +913,8 @@ const resetGame = () => {
     area.classList.add("ev-in");
 
     document.getElementById("eduRewardPopup")?.remove();
+    document.getElementById("eduFailPopup")?.remove();
+    document.querySelectorAll(".ev-wrong-alert,.ev-wrong-flash").forEach(n => n.remove());
 };
 
 /* ---------- UI helpers ---------- */
@@ -719,8 +922,63 @@ const makeButton = (label, callback, className = "gbtn") => {
     const button = el("button", className);
     button.type = "button";
     button.textContent = label;
-    button.addEventListener("click", callback);
+    button.addEventListener("click", e => {
+        callback(e);
+        button.blur();   // so Space / Enter keep controlling the game
+    });
     return button;
+};
+
+/* ---------- HINT (every game, 3 hints per level) ---------- */
+const hintLabel = () => `💡 Hint (${hintsLeft})`;
+
+const onHint = fn => { hintFn = fn; };
+
+const useHint = () => {
+    if (over || winPending) return;
+
+    if (hintsLeft <= 0) {
+        infoAlert("No hints left in this level");
+        return;
+    }
+
+    let ok = false;
+    try { ok = hintFn ? hintFn() : false; } catch (e) { ok = false; }
+
+    if (ok === false) {
+        infoAlert("No hint available right now");
+        return;
+    }
+
+    hintsLeft--;
+
+    if (hintBtn) {
+        hintBtn.textContent = hintLabel();
+        hintBtn.disabled = hintsLeft <= 0;
+    }
+};
+
+/* ---------- today's rounds: one red cut mark for every finished round ---------- */
+const dailyHTML = () => {
+    const used = Math.min(DailyLimit.used(), DailyLimit.limit);
+    const marks = Array.from({ length: DailyLimit.limit }, (_, i) =>
+        i < used ? '<b class="edu-mark on">✕</b>' : '<b class="edu-mark">·</b>').join("");
+
+    return `<span>Today's rounds</span><div class="edu-marks">${marks}</div><span>${used}/${DailyLimit.limit}</span>`;
+};
+
+const refreshDailyStrip = () => {
+    document.querySelectorAll(".ev-daily").forEach(n => { n.innerHTML = dailyHTML(); });
+};
+
+// Called when the countdown reaches zero.
+const timeUp = () => {
+    if (over || winPending) return;
+
+    finishLose(
+        `You had ${fmtMinutes(timeLimit)} to finish Level ${currentLevel()}. Try again, you can do it!`,
+        "Time's Up!"
+    );
 };
 
 const addHeading = (title, description = "") => {
@@ -736,29 +994,63 @@ const addHeading = (title, description = "") => {
         wrapper.append(p);
     }
 
-    // Time + Moves bar
+    // How long the player has for this level
+    timeLimit = timeLimitFor(Levels.gameId, currentLevel());
+
+    // Time LEFT + Moves bar (the time limit is shown in the TIME LEFT chip, no extra line)
     const hud = el("div", "ev-hud",
-        `<div class="ev-chip"><small>⏱ TIME</small><b class="ev-time">00:00</b></div>
+        `<div class="ev-chip ev-tchip"><small>⏱ TIME LEFT</small><b class="ev-time">${fmtTime(timeLimit)}</b></div>
          <div class="ev-chip ev-mchip"><small class="ev-mlabel">👣 MOVES</small><b class="ev-moves">0</b></div>`);
 
     hudTimeEl = hud.querySelector(".ev-time");
+    hudTimeChip = hud.querySelector(".ev-tchip");
     hudMovesEl = hud.querySelector(".ev-moves");
     hudMovesLabel = hud.querySelector(".ev-mlabel");
     hudMovesChip = hud.querySelector(".ev-mchip");
 
+    wrapper.append(hud);
+
+    // Shrinking time bar (green -> orange -> red)
+    const timeBar = el("div", "ev-timebar", "<i></i>");
+    hudTimeBar = timeBar;
+    wrapper.append(timeBar);
+
+    const daily = el("div", "ev-daily", dailyHTML());
+    wrapper.append(daily);
+
+    const fill = timeBar.querySelector("i");
     const startedAt = performance.now();
 
     every(250, () => {
-        if (over || !hudTimeEl) return;
-        hudTimeEl.textContent = fmtTime(Math.floor((performance.now() - startedAt) / 1000));
+        if (over || winPending || !hudTimeEl) return;
+
+        elapsedSec = Math.floor((performance.now() - startedAt) / 1000);
+
+        const left = Math.max(0, timeLimit - elapsedSec);
+        const ratio = timeLimit ? left / timeLimit : 0;
+
+        hudTimeEl.textContent = fmtTime(left);
+        fill.style.width = `${ratio * 100}%`;
+
+        hudTimeChip.classList.toggle("low", left <= 10);
+        timeBar.classList.toggle("mid", ratio <= 0.5 && ratio > 0.25);
+        timeBar.classList.toggle("warn", ratio <= 0.25);
+
+        if (left <= 0) timeUp();
     });
 
-    wrapper.append(hud);
+    // Hint + Restart in the same row as time + moves (saves space)
+    hintBtn = makeButton(hintLabel(), () => useHint(), "gbtn secondary ev-restart ev-hint");
+    hud.append(hintBtn);
+    hud.append(makeButton("🔄 Restart", () => restartLevel(), "gbtn secondary ev-restart"));
 
-    // Restart button inside every game
-    const bar = el("div", "ev-toolbar");
-    bar.append(makeButton("🔄 Restart Level", () => restartLevel(), "gbtn secondary ev-restart"));
-    wrapper.append(bar);
+    // press H for a hint
+    on(window, "keydown", e => {
+        if (e.code !== "KeyH" || e.ctrlKey || e.metaKey || e.altKey) return;
+        const tg = e.target;
+        if (tg && (tg.tagName === "INPUT" || tg.tagName === "TEXTAREA" || tg.isContentEditable)) return;
+        useHint();
+    });
 
     area.append(wrapper);
     return wrapper;
@@ -824,7 +1116,7 @@ const dpad = handler => {
     pad.style.gridTemplateRows = "repeat(2, 62px)";
     pad.style.gap = "8px";
     pad.style.justifyContent = "center";
-    pad.style.marginTop = "14px";
+    pad.style.marginTop = "10px";
 
     [["up", "▲", "2 / 1"], ["left", "◀", "1 / 2"], ["down", "▼", "2 / 2"], ["right", "▶", "3 / 2"]]
         .forEach(([dir, label, cellPos]) => {
@@ -951,7 +1243,7 @@ const ensureRewardStyle = () => {
 
     style.textContent = `
         .edu-reward-overlay{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(31,42,68,.55);backdrop-filter:blur(4px)}
-        .edu-reward-card{width:min(400px,100%);padding:26px 22px;border-radius:22px;text-align:center;color:#1f2a44;background:#fff;box-shadow:0 20px 50px rgba(31,42,68,.3);animation:eduRewardPop .35s ease-out}
+        .edu-reward-card{position:relative;width:min(400px,100%);max-height:94vh;overflow:auto;padding:26px 22px;border-radius:22px;text-align:center;color:#1f2a44;background:#fff;box-shadow:0 20px 50px rgba(31,42,68,.3);animation:eduRewardPop .35s ease-out}
         .edu-reward-confetti{font-size:26px;margin-bottom:6px}
         .edu-reward-trophy{font-size:62px;margin:6px 0}
         .edu-reward-card h2{margin:8px 0;font-size:26px}
@@ -964,66 +1256,123 @@ const ensureRewardStyle = () => {
         .edu-reward-balance strong{display:inline-block;margin:6px;color:#22b573;font-size:28px}
         #eduRewardContinue{width:100%;padding:14px;border:0;border-bottom:4px solid #178a57;border-radius:12px;background:#22b573;color:#fff;font-size:16px;font-weight:700;cursor:pointer}
         #eduRewardContinue:hover{filter:brightness(1.08)}
+        #eduRewardBack{width:100%;margin-top:10px;padding:12px;border:0;border-radius:12px;background:#eef2ff;color:#4338ca;font-size:15px;font-weight:700;cursor:pointer}
         @keyframes eduRewardPop{from{opacity:0;transform:scale(.88) translateY(12px)}to{opacity:1;transform:none}}
+        .edu-daily{margin:0 0 14px;padding:12px;border-radius:16px;background:#f5f3ff;color:#4338ca;text-align:center}
+        .edu-daily span{display:block;margin-bottom:8px;font-size:14px;font-weight:700}
+        .edu-daily small{display:block;margin-top:8px;color:#6b7794;font-weight:700}
+        .edu-limit-box{margin:14px 0;padding:14px;border-radius:16px;background:#fee2e2;color:#991b1b}
+        .edu-limit-box p{margin:6px 0;font-size:.9rem}
+        .edu-limit-x{font-size:44px;font-weight:900;line-height:1;color:#dc2626}
+        .edu-marks{display:flex;justify-content:center;gap:4px;flex-wrap:wrap;margin-top:8px}
+        .edu-mark{width:22px;height:22px;display:grid;place-items:center;border-radius:6px;background:#fff;color:#fca5a5;font-size:.8rem}
+        .edu-mark.on{background:#dc2626;color:#fff}
     `;
 
     document.head.append(style);
 };
 
-const showRewardPopup = ({ level, earned, balance, duplicate = false, time = "", moves = 0 }) => {
+const showRewardPopup = ({ level, earned, balance, duplicate = false, time = "", moves = 0, blocked = false, capped = false }) => {
     ensureRewardStyle();
+    ensureFailStyle();   // for the shared red X close button style
 
     document.getElementById("eduRewardPopup")?.remove();
 
     const overlay = el("div", "edu-reward-overlay");
     overlay.id = "eduRewardPopup";
 
+    const used = Math.min(DailyLimit.used(), DailyLimit.limit);
+    const marks = Array.from({ length: DailyLimit.limit }, (_, i) =>
+        i < used
+            ? `<b class="edu-mark on${i === used - 1 && !blocked ? " stamp" : ""}">✕</b>`
+            : '<b class="edu-mark">·</b>').join("");
+
+    // every finished round gets one red cut mark, so the player can see how much was played today
+    const left = DailyLimit.remaining();
+    const dailyBlock = (blocked || capped) ? "" : `
+        <div class="edu-daily">
+            <span>Rounds played today: <b>${used} / ${DailyLimit.limit}</b></span>
+            <div class="edu-marks">${marks}</div>
+            <small>${left} round${left === 1 ? "" : "s"} left today</small>
+        </div>`;
+
+    const limitBox = (blocked || capped) ? `
+        <div class="edu-limit-box">
+            <div class="edu-limit-x">✕</div>
+            <strong>Enough playing for today!</strong>
+            <p>You have used all ${DailyLimit.limit} game rounds. Time to learn something new 📚</p>
+            <div class="edu-marks">${marks}</div>
+        </div>` : "";
+
+    const rewardBlock = blocked ? "" : `
+        <div class="edu-reward-stats"><span>⏱ Time used: ${time}</span><span>👣 ${moves}</span></div>
+        <div class="edu-reward-earned">
+            <span>Credits ${duplicate ? "already claimed" : "earned"}</span>
+            <strong id="eduRewardEarned">${duplicate ? 0 : earned}</strong>
+        </div>
+        <div class="edu-reward-balance">
+            <span>Your total balance</span>
+            <strong id="eduRewardBalance">${balance}</strong>
+            <span>⭐ Credits</span>
+        </div>`;
+
     overlay.innerHTML = `
-        <div class="edu-reward-card">
-            <div class="edu-reward-confetti">🎉 ✨ 🎊</div>
-            <div class="edu-reward-trophy">🏆</div>
-            <h2>Level ${level} Completed!</h2>
+        <div class="edu-reward-card" role="dialog" aria-modal="true">
+            <button type="button" class="edu-x-close" id="eduRewardClose" aria-label="Close and go back to dashboard" title="Close">✕</button>
+            <div class="edu-reward-confetti">${blocked ? "✕ ✕ ✕" : "🎉 ✨ 🎊"}</div>
+            <div class="edu-reward-trophy">${blocked ? "🛑" : "🏆"}</div>
+            <h2>${blocked ? "Daily limit reached" : `Level ${level} Completed!`}</h2>
             <p class="edu-reward-message">
-                ${duplicate
-                    ? "You have already received the reward for this level."
-                    : "Amazing work! Keep learning and playing."}
+                ${blocked
+                    ? "No credits this round. Come back tomorrow!"
+                    : duplicate
+                        ? "You have already received the reward for this level."
+                        : "Amazing work! Keep learning and playing."}
             </p>
-            <div class="edu-reward-stats"><span>⏱ ${time}</span><span>👣 ${moves}</span></div>
-            <div class="edu-reward-earned">
-                <span>Credits ${duplicate ? "already claimed" : "earned"}</span>
-                <strong id="eduRewardEarned">${duplicate ? 0 : earned}</strong>
-            </div>
-            <div class="edu-reward-balance">
-                <span>Your total balance</span>
-                <strong id="eduRewardBalance">${balance}</strong>
-                <span>⭐ Credits</span>
-            </div>
+            ${rewardBlock}
+            ${dailyBlock}
+            ${limitBox}
             <button type="button" id="eduRewardContinue">
-                Continue to Level ${level + 1} →
+                ${(blocked || capped) ? "OK" : `Continue to Level ${level + 1} →`}
             </button>
         </div>
     `;
 
     document.body.append(overlay);
 
-    if (!duplicate) countUp(document.getElementById("eduRewardEarned"), earned);
-    countUp(document.getElementById("eduRewardBalance"), balance);
+    if (!blocked) {
+        if (!duplicate) countUp(document.getElementById("eduRewardEarned"), earned);
+        countUp(document.getElementById("eduRewardBalance"), balance);
+    }
 
-    document.getElementById("eduRewardContinue")
-        .addEventListener("click", () => {
-            overlay.remove();
-            window.location.reload();
-        });
+    // stay on the same game page (reload shows the next level, or the daily-limit screen)
+    const stayHere = () => {
+        overlay.remove();
+        window.location.reload();
+    };
+
+    document.getElementById("eduRewardContinue").addEventListener("click", stayHere);
+
+    // red X in the corner: close the popup and stay on the same page
+    document.getElementById("eduRewardClose").addEventListener("click", stayHere);
 };
 
 const completeLevelAndAwardCredits = async (completedLevel, finalScore) => {
     if (over) return;
 
     over = true;
+    winPending = true;
 
     const mySession = session;
     const stillHere = () => session === mySession;
-    const finalTime = hudTimeEl ? hudTimeEl.textContent : "";
+
+    // daily limit already used up: no credits, show the X screen
+    if (DailyLimit.reached()) {
+        showRewardPopup({ level: completedLevel, earned: 0, balance: 0, blocked: true });
+        return;
+    }
+
+    const finalTime = fmtTime(elapsedSec);
     const finalMoves = hudMovesEl ? hudMovesEl.textContent : String(moveCount);
 
     const status = makeStatus("⏳ Checking your level and saving credits...");
@@ -1057,6 +1406,23 @@ const completeLevelAndAwardCredits = async (completedLevel, finalScore) => {
 
         console.log("Reward API status:", response.status, result);
 
+        // server says the daily limit is used up
+        if (response.status === 429 || result.limit_reached) {
+            if (Number.isFinite(Number(result.daily_used))) {
+                DailyLimit.set(Number(result.daily_used), Number(result.daily_limit));
+            } else {
+                DailyLimit.fill();
+            }
+
+            refreshDailyStrip();
+
+            if (stillHere()) {
+                showRewardPopup({ level: completedLevel, earned: 0, balance: 0, blocked: true });
+            }
+
+            return;
+        }
+
         if (!response.ok || !result.success) {
             throw new Error(
                 result.message || result.error ||
@@ -1068,6 +1434,15 @@ const completeLevelAndAwardCredits = async (completedLevel, finalScore) => {
         const balance = Math.max(0, Number(result.balance) || 0);
 
         showCredits(balance);
+
+        // keep the local counter in step with the server
+        if (Number.isFinite(Number(result.daily_used))) {
+            DailyLimit.set(Number(result.daily_used), Number(result.daily_limit));
+        } else if (!result.duplicate) {
+            DailyLimit.record();
+        }
+
+        refreshDailyStrip();
 
         Levels.complete(true, finalScore);
 
@@ -1099,6 +1474,7 @@ const completeLevelAndAwardCredits = async (completedLevel, finalScore) => {
             earned,
             balance,
             duplicate: Boolean(result.duplicate),
+            capped: DailyLimit.reached(),
             time: finalTime,
             moves: finalMoves
         });
@@ -1124,192 +1500,434 @@ const completeLevelAndAwardCredits = async (completedLevel, finalScore) => {
 const finishWin = finalScore => {
     if (over) return;
 
+    winPending = true;
     completeLevelAndAwardCredits(currentLevel(), Math.max(0, Number(finalScore) || 0));
 };
 
-const finishLose = (message = "Game over! Try again.") => {
+/* LEVEL FAILED: a big red X popup appears in the middle of the screen.
+   The player chooses "Try Again" (same level) or "Back to Dashboard"
+   (or the small red X in the corner, which also goes back).
+   The next level is NOT opened. No scrolling needed. */
+function finishLose(message = "Game over! Try again.", title = "Level Failed") {
     if (over) return;
 
     over = true;
 
-    const panel = el("div", "game-result-panel");
-    const heading = el("h3");
-    const description = el("p");
+    ensureFailStyle();
+    document.getElementById("eduFailPopup")?.remove();
 
-    heading.textContent = "Game Over";
-    description.textContent = message;
+    const overlay = el("div", "edu-fail-overlay");
+    overlay.id = "eduFailPopup";
 
-    panel.append(heading, description, makeButton("🔄 Try Again", () => restartLevel()));
-    area.append(panel);
+    overlay.innerHTML = `
+        <div class="edu-fail-card" role="alertdialog" aria-modal="true">
+            <button type="button" class="edu-x-close" aria-label="Close and go back to dashboard" title="Close">✕</button>
+            <div class="edu-fail-x">✕</div>
+            <h2></h2>
+            <div class="edu-fail-level"></div>
+            <p></p>
+            <div class="edu-fail-actions"></div>
+        </div>`;
+
+    overlay.querySelector("h2").textContent = title;
+    overlay.querySelector(".edu-fail-level").textContent = `Level ${currentLevel()} not completed`;
+    overlay.querySelector("p").textContent = message;
+
+    const actions = overlay.querySelector(".edu-fail-actions");
+
+    const retry = el("button", "edu-fail-retry");
+    retry.type = "button";
+    retry.textContent = "🔄 Try Again";
+    retry.addEventListener("click", () => {
+        overlay.remove();
+        restartLevel();
+    });
+
+    // red X in the corner: close the popup and stay on the same page (same level restarts)
+    overlay.querySelector(".edu-x-close").addEventListener("click", () => {
+        overlay.remove();
+        restartLevel();
+    });
+
+    actions.append(retry);
+    document.body.append(overlay);
+
+    try { retry.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
+}
+
+const winLater = (finalScore, ms = 700) => {
+    winPending = true;   // stop the clock, the level is already won
+    return later(ms, () => finishWin(finalScore));
 };
 
-const winLater = (finalScore, ms = 700) => later(ms, () => finishWin(finalScore));
 const loseLater = (message, ms = 600) => later(ms, () => finishLose(message));
 
 /* =========================================================
-   GAME 1: ARROW MAZE
+   GAME 1: ARROW ESCAPE  (key: arrow_maze)
+   Style of arrowsgames.io: the board is full of arrows (snake lines
+   with an arrow head). Tap an arrow to slide it out of the board.
+
+   RULES (all perfect now)
+   - The arrow head ALWAYS points the same way the arrow slides out
+     (head direction = direction of the last body segment).
+   - If another arrow is in its way, it is BLOCKED: red alert, red
+     arrow, and you lose a heart.
+   - Arrows are placed one by one and every arrow has a free line to
+     the border from every arrow placed BEFORE it, so removing them in
+     reverse order always clears the board. Every level is solvable.
    ========================================================= */
 
 function gameArrowMaze() {
     resetGame();
 
-    addHeading("🏹 Arrow Finder: Arrow Maze", "Follow the path and reach the glowing goal.");
+    addHeading("🏹 Arrow Escape", "Tap an arrow to slide it out of the board.");
 
     const level = currentLevel();
-    const size = Math.min(9 + Math.floor(level / 2) * 2, 31);
-    const gridSize = size % 2 === 0 ? size + 1 : size;
+    const N = Math.min(5 + Math.floor((level - 1) / 2), 12);          // board size
+    const maxLen = Math.min(3 + Math.floor(level / 3), 8);            // longest arrow
+    const cell = clamp(Math.floor(640 / N), 40, 96);
+    const W = N * cell;
+    const MAX_HEARTS = 3;
+    const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
 
-    const cell = clamp(Math.floor(680 / gridSize), 20, 72);
-    const W = gridSize * cell;
+    const heartsBox = el("div", "ev-hearts");
+    area.append(heartsBox);
 
-    const [canvas, ctx] = cv(area, W, W, 760);
-    const status = makeStatus("Use arrow keys, WASD, swipe or the pad to find the exit.");
+    const [canvas, ctx] = cv(area, W, W, 700);
+    const status = makeStatus("Tap an arrow with a clear path. A blocked arrow costs a heart!");
     const fx = makeFX();
 
-    const maze = Array.from({ length: gridSize }, () => Array(gridSize).fill(1));
-    const directions = [[0, -2], [2, 0], [0, 2], [-2, 0]];
+    const inside = (x, y) => x >= 0 && y >= 0 && x < N && y < N;
 
-    // iterative carve (no deep recursion on big mazes)
-    (function carveAll() {
-        const stack = [[1, 1]];
-        maze[1][1] = 0;
+    let owner = [];
+    let arrows = [];
 
-        while (stack.length) {
-            const [x, y] = stack[stack.length - 1];
-            const options = shuffle(directions).filter(([dx, dy]) => {
-                const nx = x + dx;
-                const ny = y + dy;
-                return nx > 0 && ny > 0 && nx < gridSize - 1 && ny < gridSize - 1 && maze[ny][nx] === 1;
-            });
+    // The ray from the head to the border must not touch arrows that were placed
+    // earlier (and not the arrow's own body). Arrows are removed in the reverse
+    // order of placement, so the board can always be cleared.
+    function rayFree(x, y, d, own) {
+        let cx = x + d[0];
+        let cy = y + d[1];
 
-            if (!options.length) {
-                stack.pop();
-                continue;
-            }
-
-            const [dx, dy] = options[0];
-            maze[y + dy / 2][x + dx / 2] = 0;
-            maze[y + dy][x + dx] = 0;
-            stack.push([x + dx, y + dy]);
-        }
-    })();
-
-    const player = { x: 1, y: 1 };
-    const goal = { x: gridSize - 2, y: gridSize - 2 };
-    const visited = new Set(["1,1"]);
-
-    let px = 1, py = 1;
-    let moves = 0, t = 0, won = false, squash = 0;
-
-    function draw() {
-        const bg = ctx.createLinearGradient(0, 0, W, W);
-        bg.addColorStop(0, "#0f172a");
-        bg.addColorStop(1, "#1e1b4b");
-        ctx.fillStyle = bg;
-        ctx.fillRect(0, 0, W, W);
-
-        for (let y = 0; y < gridSize; y++) {
-            for (let x = 0; x < gridSize; x++) {
-                if (maze[y][x]) {
-                    ctx.fillStyle = "#334155";
-                    rr(ctx, x * cell + 1, y * cell + 1, cell - 2, cell - 2, cell * 0.22);
-                    ctx.fill();
-                    ctx.fillStyle = "rgba(255,255,255,.08)";
-                    rr(ctx, x * cell + 3, y * cell + 3, cell - 6, (cell - 6) * 0.45, cell * 0.15);
-                    ctx.fill();
-                } else {
-                    ctx.fillStyle = visited.has(x + "," + y) ? "#c7d7ff" : "#eef2ff";
-                    ctx.fillRect(x * cell, y * cell, cell, cell);
-                }
-            }
+        while (inside(cx, cy)) {
+            if (owner[cy][cx] !== -1 || own.has(cx + "," + cy)) return false;
+            cx += d[0];
+            cy += d[1];
         }
 
-        const pulse = 0.5 + Math.sin(t * 0.12) * 0.5;
-        const gx = goal.x * cell + cell / 2;
-        const gy = goal.y * cell + cell / 2;
+        return true;
+    }
 
-        ctx.fillStyle = `rgba(34,197,94,${0.25 + pulse * 0.3})`;
-        ctx.beginPath();
-        ctx.arc(gx, gy, cell * (0.55 + pulse * 0.18), 0, Math.PI * 2);
-        ctx.fill();
+    function makeArrow(sx, sy) {
+        for (let attempt = 0; attempt < 10; attempt++) {
+            const len = 2 + rnd(maxLen - 1);
+            const path = [{ x: sx, y: sy }];
+            const used = new Set([sx + "," + sy]);
+            let cx = sx;
+            let cy = sy;
 
-        ctx.textBaseline = "middle";
-        txt(ctx, "🏁", gx, gy, `${Math.round(cell * 0.62)}px sans-serif`);
+            while (path.length < len) {
+                const options = shuffle(DIRS).filter(([dx, dy]) => {
+                    const nx = cx + dx;
+                    const ny = cy + dy;
+                    return inside(nx, ny) && owner[ny][nx] === -1 && !used.has(nx + "," + ny);
+                });
 
-        const cx = px * cell + cell / 2;
-        const cy = py * cell + cell / 2;
-        const rad = cell * 0.34;
+                if (!options.length) break;
 
-        ctx.fillStyle = "rgba(0,0,0,.25)";
-        ctx.beginPath();
-        ctx.ellipse(cx, cy + rad * 0.9, rad * 0.9, rad * 0.35, 0, 0, Math.PI * 2);
-        ctx.fill();
+                cx += options[0][0];
+                cy += options[0][1];
+                path.push({ x: cx, y: cy });
+                used.add(cx + "," + cy);
+            }
+
+            if (path.length < 2) continue;
+
+            const head = path[path.length - 1];
+            const prev = path[path.length - 2];
+
+            // The head points the SAME way as the last body segment, so what you see
+            // is exactly how the arrow will slide out.
+            const dir = [head.x - prev.x, head.y - prev.y];
+
+            if (!rayFree(head.x, head.y, dir, used)) continue;
+
+            return {
+                cells: path,
+                dir,
+                state: "idle",
+                flash: 0,
+                s: 0
+            };
+        }
+
+        return null;
+    }
+
+    function generate() {
+        owner = Array.from({ length: N }, () => Array(N).fill(-1));
+        arrows = [];
+
+        const spots = shuffle(Array.from({ length: N * N }, (_, i) => i));
+
+        for (let pass = 0; pass < 3; pass++) {
+            for (const i of spots) {
+                const sx = i % N;
+                const sy = Math.floor(i / N);
+
+                if (owner[sy][sx] !== -1) continue;
+
+                const a = makeArrow(sx, sy);
+                if (!a) continue;
+
+                a.id = arrows.length;
+                a.cells.forEach(c => { owner[c.y][c.x] = a.id; });
+                arrows.push(a);
+            }
+        }
+    }
+
+    const wanted = Math.min(4 + level, Math.floor(N * N / 4));
+
+    for (let tries = 0; tries < 40; tries++) {
+        generate();
+        if (arrows.length >= wanted) break;
+    }
+
+    let remaining = arrows.length;
+    let hearts = MAX_HEARTS;
+    let dead = false, won = false, t = 0;
+    let hintId = -1, hintUntil = 0;
+
+    const drawHearts = () => {
+        heartsBox.innerHTML =
+            `<span>${"❤️".repeat(hearts)}${"🖤".repeat(MAX_HEARTS - hearts)}</span>` +
+            `<span>🏹 ${remaining} left</span>`;
+    };
+
+    drawHearts();
+
+    // first arrow in the way of this arrow (null = the way is clear)
+    function blockerOf(a) {
+        const head = a.cells[a.cells.length - 1];
+        let cx = head.x + a.dir[0];
+        let cy = head.y + a.dir[1];
+
+        while (inside(cx, cy)) {
+            if (owner[cy][cx] !== -1) return arrows[owner[cy][cx]];
+            cx += a.dir[0];
+            cy += a.dir[1];
+        }
+
+        return null;
+    }
+
+    // path of the arrow when it slides out (cell centres, then off the board)
+    function buildExit(a) {
+        const pts = a.cells.map(c => [(c.x + 0.5) * cell, (c.y + 0.5) * cell]);
+        const head = a.cells[a.cells.length - 1];
+        let cx = head.x;
+        let cy = head.y;
+        let beyond = 0;
+
+        do {
+            cx += a.dir[0];
+            cy += a.dir[1];
+            pts.push([(cx + 0.5) * cell, (cy + 0.5) * cell]);
+            if (!inside(cx, cy)) beyond++;
+        } while (beyond < a.cells.length + 2);
+
+        const cum = [0];
+        for (let i = 1; i < pts.length; i++) {
+            cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+        }
+
+        a.pts = pts;
+        a.cum = cum;
+        a.total = cum[cum.length - 1];
+        a.bodyLen = (a.cells.length - 1) * cell;
+        a.s = 0;
+    }
+
+    function pointAt(a, d) {
+        d = clamp(d, 0, a.total);
+
+        for (let i = 1; i < a.cum.length; i++) {
+            if (d <= a.cum[i]) {
+                const k = (d - a.cum[i - 1]) / ((a.cum[i] - a.cum[i - 1]) || 1);
+                return [lerp(a.pts[i - 1][0], a.pts[i][0], k), lerp(a.pts[i - 1][1], a.pts[i][1], k)];
+            }
+        }
+
+        return a.pts[a.pts.length - 1];
+    }
+
+    function slice(a, from, to) {
+        const out = [pointAt(a, from)];
+
+        for (let i = 0; i < a.pts.length; i++) {
+            if (a.cum[i] > from && a.cum[i] < to) out.push(a.pts[i]);
+        }
+
+        out.push(pointAt(a, to));
+        return out;
+    }
+
+    function tap(a) {
+        if (over || dead || won || !a || a.state !== "idle") return;
+
+        addMove();
+
+        const blocker = blockerOf(a);
+
+        if (blocker) {
+            a.flash = 1;
+            blocker.flash = 0.7;
+            hearts--;
+            drawHearts();
+            shake(canvas);
+            wrongAlert("Wrong way! This arrow is blocked");
+            status("❌ Blocked! Free the other arrow first.", "lose");
+
+            if (hearts <= 0) {
+                dead = true;
+                loseLater("You ran out of hearts. Think before you tap!", 800);
+            }
+
+            return;
+        }
+
+        a.cells.forEach(c => { owner[c.y][c.x] = -1; });
+        buildExit(a);
+        a.state = "leaving";
+        remaining--;
+        drawHearts();
+        addScore(100);
+
+        const head = a.cells[a.cells.length - 1];
+        fx.burst((head.x + 0.5) * cell, (head.y + 0.5) * cell, "#22c55e", 8, 3);
+
+        if (remaining <= 0) {
+            won = true;
+            status("🎉 Board cleared! Saving your reward...", "win");
+            setScore(score + hearts * 100);
+            winLater(score, 1100);
+        } else {
+            status(`✅ Out! ${remaining} arrow${remaining === 1 ? "" : "s"} left.`);
+        }
+    }
+
+    on(canvas, "pointerdown", e => {
+        e.preventDefault();
+        if (over || dead || won) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const x = Math.floor(((e.clientX - rect.left) / rect.width) * N);
+        const y = Math.floor(((e.clientY - rect.top) / rect.height) * N);
+
+        if (!inside(x, y) || owner[y][x] === -1) return;
+
+        tap(arrows[owner[y][x]]);
+    });
+
+    // HINT: glow a free arrow (the one that unblocks the most other arrows)
+    onHint(() => {
+        if (over || dead || won) return false;
+
+        const free = arrows.filter(a => a.state === "idle" && !blockerOf(a));
+        if (!free.length) return false;
+
+        const score2 = a => arrows.filter(b => b.state === "idle" && blockerOf(b) === a).length;
+        free.sort((a, b) => score2(b) - score2(a));
+
+        hintId = free[0].id;
+        hintUntil = t + 200;
+
+        infoAlert("Tap the green arrow");
+        status("💡 The green arrow can leave now.");
+        return true;
+    });
+
+    function drawArrow(a) {
+        if (a.state === "gone") return;
+
+        const poly = a.state === "leaving"
+            ? slice(a, a.s, a.s + a.bodyLen)
+            : a.cells.map(c => [(c.x + 0.5) * cell, (c.y + 0.5) * cell]);
+
+        const hinted = a.id === hintId && t < hintUntil;
+        const color = a.flash > 0 ? "#dc2626" : hinted ? "#16a34a" : "#1f2937";
+        const shakeX = a.flash > 0 ? Math.sin(t * 1.6) * 4 * a.flash : 0;
 
         ctx.save();
-        ctx.translate(cx, cy);
-        ctx.scale(1 + squash * 0.25, 1 - squash * 0.25);
+        ctx.translate(shakeX, 0);
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
 
-        const ball = ctx.createRadialGradient(-rad * 0.3, -rad * 0.3, rad * 0.1, 0, 0, rad);
-        ball.addColorStop(0, "#fecaca");
-        ball.addColorStop(1, "#dc2626");
-        ctx.fillStyle = ball;
+        const path = () => {
+            ctx.beginPath();
+            poly.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])));
+        };
+
+        if (hinted) {
+            ctx.strokeStyle = `rgba(34,197,94,${0.25 + (0.5 + Math.sin(t * 0.3) * 0.5) * 0.3})`;
+            ctx.lineWidth = cell * 0.5;
+            path();
+            ctx.stroke();
+        }
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = cell * 0.17;
+        path();
+        ctx.stroke();
+
+        const [hx, hy] = poly[poly.length - 1];
+
+        // arrow head: points exactly along a.dir (same way the arrow leaves)
+        ctx.fillStyle = color;
+        ctx.translate(hx, hy);
+        ctx.rotate(Math.atan2(a.dir[1], a.dir[0]));
         ctx.beginPath();
-        ctx.arc(0, 0, rad, 0, Math.PI * 2);
+        ctx.moveTo(cell * 0.36, 0);
+        ctx.lineTo(-cell * 0.04, -cell * 0.22);
+        ctx.lineTo(-cell * 0.04, cell * 0.22);
+        ctx.closePath();
         ctx.fill();
+
         ctx.restore();
+    }
+
+    function draw() {
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, W, W);
+
+        ctx.fillStyle = "#e5e7eb";
+        for (let y = 0; y < N; y++) {
+            for (let x = 0; x < N; x++) {
+                ctx.beginPath();
+                ctx.arc((x + 0.5) * cell, (y + 0.5) * cell, 2.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        arrows.filter(a => a.state === "idle").forEach(drawArrow);
+        arrows.filter(a => a.state === "leaving").forEach(drawArrow);
 
         fx.draw(ctx);
     }
 
-    function move(direction) {
-        if (over || won) return;
-
-        const vectors = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
-        const v = vectors[direction];
-        if (!v) return;
-
-        const nx = player.x + v[0];
-        const ny = player.y + v[1];
-
-        if (nx < 0 || ny < 0 || nx >= gridSize || ny >= gridSize || maze[ny][nx] === 1) {
-            squash = 1;
-            return;
-        }
-
-        player.x = nx;
-        player.y = ny;
-        moves++;
-        addMove();
-        visited.add(nx + "," + ny);
-
-        setScore(Math.max(0, 1000 - moves * 5));
-
-        if (player.x === goal.x && player.y === goal.y) {
-            won = true;
-
-            const finalScore = Math.max(100, 1000 - moves * 5);
-
-            setScore(finalScore);
-            status("🎉 Maze completed! Saving your credits...", "win");
-
-            for (let i = 0; i < 5; i++) {
-                fx.burst(goal.x * cell + cell / 2, goal.y * cell + cell / 2,
-                    pick(["#facc15", "#22c55e", "#38bdf8", "#f472b6"]), 14, 6);
-            }
-
-            winLater(finalScore, 900);
-        }
-    }
-
-    keys(move);
-    swipe(canvas, move);
-    dpad(move);
-
     loop(dt => {
         t += dt;
-        px = lerp(px, player.x, clamp(0.35 * dt, 0, 1));
-        py = lerp(py, player.y, clamp(0.35 * dt, 0, 1));
-        squash = Math.max(0, squash - 0.08 * dt);
+
+        arrows.forEach(a => {
+            if (a.flash > 0) a.flash = Math.max(0, a.flash - 0.035 * dt);
+
+            if (a.state === "leaving") {
+                a.s += cell * 0.55 * dt;
+                if (a.s >= a.total - a.bodyLen) a.state = "gone";
+            }
+        });
+
         fx.update(dt);
         draw();
     });
@@ -1356,6 +1974,7 @@ function gameHologramMemory() {
 
     async function showSequence() {
         accepting = false;
+        cells.forEach(button => { button.disabled = true; });
         status("Memorize the glowing tiles...");
 
         await wait(700);
@@ -1386,8 +2005,9 @@ function gameHologramMemory() {
         if (index !== sequence[position]) {
             accepting = false;
             cells[index].classList.add("bad");
+            wrongAlert("Wrong tile!");
             status("Wrong tile!", "lose");
-            loseLater("Memory challenge failed. Try again.", 700);
+            loseLater("Wrong tile! Memory challenge failed. Try again.", 600);
             return;
         }
 
@@ -1408,6 +2028,20 @@ function gameHologramMemory() {
             winLater(finalScore, 800);
         }
     }
+
+    // HINT: show the glowing sequence again
+    let replaying = false;
+
+    onHint(() => {
+        if (!accepting || replaying || over) return false;
+
+        replaying = true;
+        position = 0;
+        setScore(0);
+        showSequence().then(() => { replaying = false; });
+
+        return true;
+    });
 
     showSequence();
 }
@@ -1953,6 +2587,7 @@ function gameCandyMatch() {
 
     async function afterMove() {
         if (score >= target) {
+            winPending = true;   // goal reached: stop the clock
             status("🎉 Sugar Crush! Bonus points for the moves you have left...", "win");
             banner("Sugar Crush!");
 
@@ -2048,6 +2683,7 @@ function gameCandyMatch() {
         if (!forced && analyze([a, b]).matched.size === 0) {
             swapGrid(a, b);
             blip(180, 0.12, "sawtooth", 0.03);
+            wrongAlert("No match there!");
 
             board.classList.remove("nope");
             void board.offsetWidth;
@@ -2161,6 +2797,21 @@ function gameCandyMatch() {
         o.el.style.animationDelay = `${(i % C + Math.floor(i / C)) * 30}ms`;
     });
 
+    // HINT: show a swap that makes a match
+    onHint(() => {
+        if (busy || stale()) return false;
+
+        clearHint();
+
+        const m = findMove();
+        if (!m) return false;
+
+        hinted = [grid[m[0]], grid[m[1]]];
+        hinted.forEach(o => o.el.classList.add("hint"));
+
+        return true;
+    });
+
     status(`Reach ${target} points in ${moves} moves.`);
     scheduleHint();
 }
@@ -2254,6 +2905,7 @@ function gameMemoryMatch() {
         }
 
         locked = true;
+        wrongAlert("Not a match, try again");
 
         const a = first;
         const b = second;
@@ -2270,6 +2922,46 @@ function gameMemoryMatch() {
             locked = false;
         });
     }
+
+    // HINT: peek at a matching pair for one second
+    onHint(() => {
+        if (locked || over) return false;
+
+        const open = nodes.map((_, i) => i).filter(i => !nodes[i].classList.contains("matched"));
+
+        if (first !== -1) {
+            const b = open.find(i => i !== first && cards[i] === cards[first]);
+            if (b === undefined) return false;
+
+            locked = true;
+            nodes[b].classList.add("flipped");
+
+            later(900, () => {
+                nodes[b].classList.remove("flipped");
+                locked = false;
+            });
+
+            return true;
+        }
+
+        const pairs = open.filter(i => open.some(j => j !== i && cards[j] === cards[i]));
+        if (!pairs.length) return false;
+
+        const a = pick(pairs);
+        const b = open.find(i => i !== a && cards[i] === cards[a]);
+
+        locked = true;
+        nodes[a].classList.add("flipped");
+        nodes[b].classList.add("flipped");
+
+        later(1000, () => {
+            nodes[a].classList.remove("flipped");
+            nodes[b].classList.remove("flipped");
+            locked = false;
+        });
+
+        return true;
+    });
 }
 
 /* =========================================================
@@ -2530,6 +3222,28 @@ function gameBubbleShooter() {
 
     area.append(makeButton("🎯 Shoot Bubble", shoot));
 
+    // HINT: aim at the lowest bubble that has the same colour as the bubble in the cannon
+    let hintRing = null;
+
+    onHint(() => {
+        if (proj || won || dead) return false;
+
+        let best = null;
+
+        grid.forEach((row, r) => row.forEach((col, c) => {
+            if (col === cur && nbrs(r, c).some(([nr, nc]) => nr >= 0 && !get(nr, nc)) && (!best || r > best.r)) {
+                best = { r, c };
+            }
+        }));
+
+        if (!best) return false;
+
+        angle = clamp(Math.atan2(by(best.r) - sy, bx(best.r, best.c) - sx), -Math.PI + 0.15, -0.15);
+        hintRing = { x: bx(best.r, best.c), y: by(best.r), until: t + 150 };
+
+        return true;
+    });
+
     function drawBubble(x, y, color, r = R - 1) {
         ctx.fillStyle = color;
         ctx.beginPath();
@@ -2625,6 +3339,14 @@ function gameBubbleShooter() {
 
         if (proj) drawBubble(proj.x, proj.y, proj.color);
 
+        if (hintRing && t < hintRing.until) {
+            ctx.strokeStyle = "#22c55e";
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.arc(hintRing.x, hintRing.y, R + 4 + Math.sin(t * 0.3) * 3, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
         fx.draw(ctx);
 
         txt(ctx, `Score ${score} / ${target}`, W - 16, H - 14, "bold 16px sans-serif", "#e2e8f0", "right");
@@ -2719,6 +3441,15 @@ function gameEndlessRunner() {
     on(canvas, "pointerdown", e => { e.preventDefault(); jump(); });
     area.append(makeButton("⬆ Jump", jump));
 
+    // HINT: show a JUMP marker over the next cactus
+    let hintUntil = 0;
+
+    onHint(() => {
+        if (dead || won || !obstacles.some(o => o.x + o.width > P.x)) return false;
+        hintUntil = t + 180;
+        return true;
+    });
+
     function drawCactus(o) {
         ctx.fillStyle = "#15803d";
         rr(ctx, o.x, o.y, o.width, o.height, 8);
@@ -2811,6 +3542,25 @@ function gameEndlessRunner() {
         for (let x = -((scroll) % 60); x < W; x += 60) ctx.fillRect(x, GROUND + 24, 28, 4);
 
         obstacles.forEach(drawCactus);
+
+        if (t < hintUntil) {
+            const o = obstacles.find(ob => ob.x + ob.width > P.x);
+
+            if (o) {
+                const cx = o.x + o.width / 2;
+
+                ctx.fillStyle = "#16a34a";
+                rr(ctx, cx - 40, o.y - 62, 80, 30, 15);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(cx - 8, o.y - 33);
+                ctx.lineTo(cx + 8, o.y - 33);
+                ctx.lineTo(cx, o.y - 22);
+                ctx.fill();
+                txt(ctx, "JUMP!", cx, o.y - 41, "bold 16px sans-serif", "#fff");
+            }
+        }
+
         drawPlayer();
         fx.draw(ctx);
 
@@ -2885,7 +3635,7 @@ function gameEndlessRunner() {
                 dead = true;
                 fx.burst(P.x + 17, P.y + 25, "#ef4444", 28, 6);
                 shake(canvas);
-                loseLater(`Game over! You scored ${score}.`, 800);
+                loseLater(`You hit an obstacle! You scored ${score}.`, 700);
             } else if (score >= target) {
                 won = true;
                 status("🎉 Target reached! Saving your reward...", "win");
@@ -2907,6 +3657,12 @@ function gameEndlessRunner() {
 
 /* =========================================================
    GAME 7: NEON TIC-TAC-TOE
+   - You are X, the computer is O.
+   - Win = level complete. Computer win = level failed.
+   - A DRAW is not a failure: the board is cleared and you play again
+     (as long as the time lasts).
+   - At low levels the computer sometimes makes a mistake, so the
+     game can be won. The computer gets smarter every level.
    ========================================================= */
 
 function gameNeonTicTacToe() {
@@ -2914,12 +3670,16 @@ function gameNeonTicTacToe() {
 
     addHeading("⭕ Neon Tic-Tac-Toe", "Get three marks in a row before the computer.");
 
+    const level = currentLevel();
+    // chance that the computer plays a random (weak) move
+    const mistakeChance = Math.max(0.08, 0.5 - level * 0.04);
+
     const board = el("div", "ev-board ttt-board");
     area.append(board);
 
     const status = makeStatus("Your turn: X");
 
-    const cells = Array(9).fill("");
+    let cells = Array(9).fill("");
     let playerTurn = true;
     let busy = false;
 
@@ -2939,16 +3699,16 @@ function gameNeonTicTacToe() {
         return button;
     });
 
-    function getWin() {
+    function winnerOf(b) {
         for (const line of wins) {
-            const [a, b, c] = line;
-            if (cells[a] && cells[a] === cells[b] && cells[a] === cells[c]) {
-                return { mark: cells[a], line };
-            }
+            const [a, c, d] = line;
+            if (b[a] && b[a] === b[c] && b[a] === b[d]) return { mark: b[a], line };
         }
 
         return null;
     }
+
+    const getWin = () => winnerOf(cells);
 
     function draw(lastIndex = -1) {
         cells.forEach((value, index) => {
@@ -2979,16 +3739,26 @@ function gameNeonTicTacToe() {
                 winLater(100, 1100);
             } else {
                 status("The computer wins this round.", "lose");
-                loseLater("The computer won. Try again.", 1100);
+                loseLater("The computer won this round. Try again.", 900);
             }
 
             return true;
         }
 
         if (cells.every(Boolean)) {
+            // draw: not a failure, clear the board and play again
             busy = true;
-            status("It's a draw!", "lose");
-            loseLater("It is a draw. Play another round.", 900);
+            status("It's a draw! New board...", "lose");
+            wrongAlert("Draw! Play again", "info");
+
+            later(1100, () => {
+                cells = Array(9).fill("");
+                buttons.forEach(b => { b.className = "ttt-cell"; b.innerHTML = ""; });
+                busy = false;
+                playerTurn = true;
+                status("Your turn: X");
+            });
+
             return true;
         }
 
@@ -3009,8 +3779,55 @@ function gameNeonTicTacToe() {
         return -1;
     }
 
+    // minimax: computer (O) is the maximiser
+    function minimax(b, isO) {
+        const w = winnerOf(b);
+        if (w) return w.mark === "O" ? 10 : -10;
+        if (b.every(Boolean)) return 0;
+
+        let best = isO ? -99 : 99;
+
+        for (let i = 0; i < 9; i++) {
+            if (b[i]) continue;
+
+            b[i] = isO ? "O" : "X";
+            const s = minimax(b, !isO);
+            b[i] = "";
+
+            best = isO ? Math.max(best, s) : Math.min(best, s);
+        }
+
+        return best;
+    }
+
+    function computerChoice() {
+        const empty = cells.map((v, i) => (v ? -1 : i)).filter(i => i !== -1);
+
+        // sometimes a weak (random) move, less often at higher levels
+        if (Math.random() < mistakeChance) return pick(empty);
+
+        let bestScore = -99;
+        let bestMoves = [];
+
+        for (const i of empty) {
+            cells[i] = "O";
+            const s = minimax(cells, false);
+            cells[i] = "";
+
+            if (s > bestScore) { bestScore = s; bestMoves = [i]; }
+            else if (s === bestScore) bestMoves.push(i);
+        }
+
+        return pick(bestMoves);
+    }
+
     function move(index) {
-        if (over || busy || !playerTurn || cells[index]) return;
+        if (over || busy || !playerTurn) return;
+
+        if (cells[index]) {
+            wrongAlert("Already taken!");
+            return;
+        }
 
         cells[index] = "X";
         addMove();
@@ -3023,14 +3840,9 @@ function gameNeonTicTacToe() {
         status("Computer is thinking...");
 
         later(550, () => {
-            const empty = cells.map((v, i) => (v ? -1 : i)).filter(i => i !== -1);
+            if (over) return;
 
-            if (!empty.length) return;
-
-            let choice = findWinningMove("O");
-            if (choice === -1) choice = findWinningMove("X");
-            if (choice === -1 && !cells[4]) choice = 4;
-            if (choice === -1) choice = pick(empty);
+            const choice = computerChoice();
 
             cells[choice] = "O";
             draw(choice);
@@ -3041,6 +3853,41 @@ function gameNeonTicTacToe() {
             if (!checkEnd()) status("Your turn: X");
         });
     }
+
+    // HINT: glow the best square (win, else block, else best by minimax for X)
+    function bestMove() {
+        let c = findWinningMove("X");
+        if (c === -1) c = findWinningMove("O");
+        if (c !== -1) return c;
+
+        let bestScore = 99;
+        let best = [];
+
+        cells.forEach((v, i) => {
+            if (v) return;
+
+            cells[i] = "X";
+            const s = minimax(cells, true);
+            cells[i] = "";
+
+            if (s < bestScore) { bestScore = s; best = [i]; }
+            else if (s === bestScore) best.push(i);
+        });
+
+        return best.length ? pick(best) : -1;
+    }
+
+    onHint(() => {
+        if (over || busy || !playerTurn) return false;
+
+        const i = bestMove();
+        if (i < 0) return false;
+
+        buttons[i].classList.add("ev-hint-glow");
+        later(2200, () => buttons[i].classList.remove("ev-hint-glow"));
+
+        return true;
+    });
 
     draw();
 }
@@ -3213,7 +4060,7 @@ function gamePuzzle2048() {
 
         if (!emptyCells().length && !canMove()) {
             shake(board);
-            loseLater("No moves remain. Try again.", 700);
+            loseLater("No moves remain. Try again.", 600);
         }
     }
 
@@ -3222,6 +4069,66 @@ function gamePuzzle2048() {
     keys(safeMove);
     swipe(board, safeMove);
     dpad(safeMove);
+
+    // HINT: try every swipe on a copy of the board and suggest the best one
+    function preview(direction) {
+        const g = grid.map(r => [...r]);
+        let gained = 0;
+
+        for (let i = 0; i < size; i++) {
+            if (direction === "left" || direction === "right") {
+                const line = [...g[i]];
+                const rev = direction === "right";
+                if (rev) line.reverse();
+
+                const m = slideLine(line);
+                gained += m.gained;
+                g[i] = rev ? [...m.result].reverse() : m.result;
+            } else {
+                const line = g.map(row => row[i]);
+                const rev = direction === "down";
+                if (rev) line.reverse();
+
+                const m = slideLine(line);
+                gained += m.gained;
+
+                const values = rev ? [...m.result].reverse() : m.result;
+                for (let r = 0; r < size; r++) g[r][i] = values[r];
+            }
+        }
+
+        return {
+            changed: JSON.stringify(g) !== JSON.stringify(grid),
+            gained,
+            empties: g.flat().filter(v => !v).length
+        };
+    }
+
+    onHint(() => {
+        if (over || locked) return false;
+
+        let best = null;
+
+        ["left", "up", "right", "down"].forEach(d => {
+            const p = preview(d);
+            if (!p.changed) return;
+
+            const sc = p.gained * 2 + p.empties * 8;
+            if (!best || sc > best.sc) best = { d, sc };
+        });
+
+        if (!best) return false;
+
+        const arrow = { left: "⬅", right: "➡", up: "⬆", down: "⬇" }[best.d];
+
+        status(`💡 Hint: swipe ${arrow} ${best.d.toUpperCase()}`);
+        infoAlert(`Try ${arrow} ${best.d}`);
+
+        board.style.outline = "5px solid #22c55e";
+        later(1800, () => { board.style.outline = ""; });
+
+        return true;
+    });
 
     spawn();
     spawn();
@@ -3253,10 +4160,26 @@ function gameArrowDirection() {
     const bar = el("div", "arw-bar", "<i></i>");
     area.append(bar);
 
-    const status = makeStatus("Ready? Follow the arrows!");
-
     const roundLabel = el("p", "arw-round");
     area.append(roundLabel);
+
+    // on-screen arrow buttons for everyone (phones, tablets, mouse)
+    const pad = el("div", "ev-toolbar");
+    const padBtns = {};
+
+    [["left", "◀"], ["up", "▲"], ["down", "▼"], ["right", "▶"]].forEach(([dir, label]) => {
+        const b = makeButton(label, () => {}, "gbtn secondary");
+        padBtns[dir] = b;
+        b.style.minWidth = "64px";
+        b.style.minHeight = "56px";
+        b.style.fontSize = "22px";
+        b.addEventListener("pointerdown", e => { e.preventDefault(); answer(dir); });
+        pad.append(b);
+    });
+
+    area.append(pad);
+
+    const status = makeStatus("Ready? Follow the arrows!");
 
     let round = 0;
     let current = null;
@@ -3297,26 +4220,25 @@ function gameArrowDirection() {
             later(420, nextRound);
         } else {
             stage.classList.add("bad");
+            wrongAlert("Wrong arrow!");
             status("Wrong arrow!", "lose");
-            loseLater("Incorrect arrow. Try again.", 700);
+            loseLater("Wrong arrow! Try the level again.", 500);
         }
     }
 
     keys(answer);
 
-    // on-screen arrow buttons for everyone (phones, tablets, mouse)
-    const pad = el("div", "ev-toolbar");
+    // HINT: glow the right button
+    onHint(() => {
+        if (!accepting || !current) return false;
 
-    [["left", "◀"], ["up", "▲"], ["down", "▼"], ["right", "▶"]].forEach(([dir, label]) => {
-        const b = makeButton(label, () => {}, "gbtn secondary");
-        b.style.minWidth = "64px";
-        b.style.minHeight = "56px";
-        b.style.fontSize = "22px";
-        b.addEventListener("pointerdown", e => { e.preventDefault(); answer(dir); });
-        pad.append(b);
+        const b = padBtns[current.direction];
+        b.classList.add("ev-hint-glow");
+        later(2000, () => b.classList.remove("ev-hint-glow"));
+
+        infoAlert(`Press ${current.symbol}`);
+        return true;
     });
-
-    area.append(pad);
 
     nextRound();
 }
@@ -3357,6 +4279,7 @@ function gameSlidingPuzzle() {
 
     const solved = () => tiles.every((value, index) => value === (index + 1) % total);
 
+    // shuffle by making real moves, so the puzzle can always be solved
     let empty = total - 1;
 
     do {
@@ -3394,7 +4317,10 @@ function gameSlidingPuzzle() {
 
         const emptyIndex = tiles.indexOf(0);
 
-        if (!neighbors(emptyIndex).includes(index)) return;
+        if (!neighbors(emptyIndex).includes(index)) {
+            wrongAlert("This tile can't move");
+            return;
+        }
 
         [tiles[index], tiles[emptyIndex]] = [tiles[emptyIndex], tiles[index]];
 
@@ -3424,8 +4350,273 @@ function gameSlidingPuzzle() {
         move(from);
     });
 
+    // HINT: glow a tile that gets closer to its place
+    onHint(() => {
+        if (over) return false;
+
+        const e = tiles.indexOf(0);
+        const far = (idx, v) => {
+            const tr = Math.floor((v - 1) / size);
+            const tc = (v - 1) % size;
+            return Math.abs(Math.floor(idx / size) - tr) + Math.abs((idx % size) - tc);
+        };
+
+        let best = -1;
+        let bestGain = -99;
+
+        neighbors(e).forEach(i => {
+            const v = tiles[i];
+            const gain = far(i, v) - far(e, v);
+
+            if (gain > bestGain) {
+                bestGain = gain;
+                best = i;
+            }
+        });
+
+        if (best < 0) return false;
+
+        const node = nodes[tiles[best]];
+        node.classList.add("ev-hint-glow");
+        later(2200, () => node.classList.remove("ev-hint-glow"));
+
+        infoAlert(`Slide tile ${tiles[best]}`);
+        return true;
+    });
+
     place();
 }
+
+/* =========================================================
+   QUIZ BANK + LEVEL-WISE QUESTION BUILDER
+   - Every level gets a different set of questions.
+   - No question is repeated inside a level.
+   - Part of each level is generated (maths, binary, hex, sequences...),
+     so there are always fresh questions at any level.
+   - To add more questions, just add rows to QUIZ_BANK:
+     [ "Question?", "Correct answer", ["Wrong 1", "Wrong 2", "Wrong 3"] ]
+   ========================================================= */
+
+const QUIZ_BANK = [
+    ["Which language is mainly used to style web pages?", "CSS", ["HTML", "SQL", "Python"]],
+    ["Which data structure follows FIFO?", "Queue", ["Stack", "Tree", "Graph"]],
+    ["What does CPU stand for?", "Central Processing Unit", ["Computer Primary Utility", "Central Program User", "Control Processing Utility"]],
+    ["Which SQL command retrieves data?", "SELECT", ["GET", "PUSH", "FETCHALL"]],
+    ["Which Python collection stores key-value pairs?", "Dictionary", ["List", "Tuple", "String"]],
+    ["Which protocol is commonly used for secure web browsing?", "HTTPS", ["FTP", "SMTP", "Telnet"]],
+    ["Which number system uses only 0 and 1?", "Binary", ["Decimal", "Octal", "Hexadecimal"]],
+    ["Which of these is a relational database?", "MySQL", ["HTML", "CSS", "React"]],
+    ["Which keyword declares a constant in JavaScript?", "const", ["let", "var", "static"]],
+    ["What is the full form of AI?", "Artificial Intelligence", ["Automated Internet", "Advanced Interface", "Applied Integration"]],
+    ["Which data structure follows LIFO?", "Stack", ["Queue", "Array", "Graph"]],
+    ["What does RAM stand for?", "Random Access Memory", ["Read Access Memory", "Rapid Action Memory", "Run Anytime Memory"]],
+    ["What does HTML stand for?", "HyperText Markup Language", ["High Tech Modern Language", "Hyperlinks Text Mode Language", "Home Tool Markup Language"]],
+    ["Which HTML tag creates the largest heading?", "<h1>", ["<h6>", "<head>", "<title>"]],
+    ["Which symbol starts a single-line comment in Python?", "#", ["//", "/*", "--"]],
+    ["Which SQL clause filters rows?", "WHERE", ["ORDER BY", "GROUP BY", "LIMIT"]],
+    ["Which of these is NOT a programming language?", "HTTP", ["Python", "Java", "Ruby"]],
+    ["Which company created the Java language?", "Sun Microsystems", ["Microsoft", "Apple", "Google"]],
+    ["Who is known as the father of the computer?", "Charles Babbage", ["Isaac Newton", "Thomas Edison", "Nikola Tesla"]],
+    ["What is the time complexity of binary search?", "O(log n)", ["O(n)", "O(n²)", "O(1)"]],
+    ["Which key uniquely identifies each row in a table?", "Primary key", ["Foreign key", "Index", "View"]],
+    ["Which Python function shows output on the screen?", "print()", ["echo()", "write()", "show()"]],
+    ["Which HTML tag creates a hyperlink?", "<a>", ["<link>", "<href>", "<url>"]],
+    ["What does URL stand for?", "Uniform Resource Locator", ["Universal Reference Link", "Uniform Retrieval Logic", "United Resource Locator"]],
+    ["How many bits are in one byte?", "8", ["4", "16", "2"]],
+    ["Which of these is an operating system?", "Linux", ["Oracle", "Python", "Excel"]],
+    ["Which HTTP status code means Not Found?", "404", ["200", "500", "301"]],
+    ["Which HTTP status code means OK?", "200", ["404", "500", "403"]],
+    ["Which Git command saves changes to the local repository?", "git commit", ["git push", "git clone", "git pull"]],
+    ["Which CSS property changes the text colour?", "color", ["font-style", "text-align", "background"]],
+    ["Which loop always runs at least once?", "do...while", ["for", "while", "foreach"]],
+    ["Which data type stores True or False?", "Boolean", ["Integer", "String", "Float"]],
+    ["Which sorting algorithm repeatedly swaps neighbouring items?", "Bubble sort", ["Merge sort", "Quick sort", "Heap sort"]],
+    ["Which of these is NOT a JavaScript framework or library?", "Django", ["React", "Vue", "Angular"]],
+    ["Flask is a web framework written in which language?", "Python", ["Java", "PHP", "Ruby"]],
+    ["Which SQL statement adds a new row to a table?", "INSERT INTO", ["ADD NEW", "APPEND", "PUT"]],
+    ["Which operator checks strict equality in JavaScript?", "===", ["=", "==", "!="]],
+    ["Which of these is an input device?", "Keyboard", ["Monitor", "Printer", "Speaker"]],
+    ["Which of these is an output device?", "Printer", ["Mouse", "Scanner", "Keyboard"]],
+    ["What does GPU stand for?", "Graphics Processing Unit", ["General Program Unit", "Graphical Power Utility", "Game Processing Unit"]],
+    ["Which Python keyword defines a function?", "def", ["func", "function", "define"]],
+    ["What does CSS stand for?", "Cascading Style Sheets", ["Creative Style System", "Computer Style Sheets", "Colorful Style Syntax"]],
+    ["Which JavaScript method adds an item to the end of an array?", "push()", ["pop()", "shift()", "unshift()"]],
+    ["Which Python function returns the length of a list?", "len()", ["size()", "count()", "length()"]],
+    ["In a Python list, the first item has which index?", "0", ["1", "-1", "2"]],
+    ["Which HTML tag inserts an image?", "<img>", ["<image>", "<pic>", "<src>"]],
+    ["Which CSS feature is designed for two-dimensional layouts?", "Grid", ["Flexbox", "Float", "Position"]],
+    ["Which of these is a NoSQL database?", "MongoDB", ["MySQL", "PostgreSQL", "Oracle"]],
+    ["Which company developed the Windows operating system?", "Microsoft", ["Apple", "IBM", "Google"]],
+    ["Which operator means logical AND in JavaScript?", "&&", ["||", "!", "=="]],
+    ["What does DNS do?", "Turns domain names into IP addresses", ["Encrypts files", "Compresses images", "Blocks viruses"]],
+    ["What does API stand for?", "Application Programming Interface", ["Applied Program Integration", "Automated Page Index", "Advanced Python Interface"]],
+    ["Which language is officially preferred by Google for Android apps?", "Kotlin", ["Swift", "Objective-C", "Perl"]],
+    ["What is the capital of India?", "New Delhi", ["Mumbai", "Kolkata", "Chennai"]],
+    ["Which planet is known as the Red Planet?", "Mars", ["Venus", "Jupiter", "Saturn"]],
+    ["What is the chemical formula of water?", "H2O", ["CO2", "O2", "NaCl"]],
+    ["Which is the largest planet in our solar system?", "Jupiter", ["Saturn", "Earth", "Neptune"]],
+    ["Which gas do plants absorb for photosynthesis?", "Carbon dioxide", ["Oxygen", "Nitrogen", "Hydrogen"]],
+    ["Which star is closest to the Earth?", "The Sun", ["Proxima Centauri", "Sirius", "Polaris"]],
+    ["How many continents are there on Earth?", "7", ["5", "6", "8"]],
+    ["Which is the largest ocean?", "Pacific Ocean", ["Atlantic Ocean", "Indian Ocean", "Arctic Ocean"]],
+    ["What is the square root of 144?", "12", ["14", "11", "13"]],
+    ["What is the sum of the angles of a triangle?", "180°", ["90°", "360°", "270°"]],
+    ["Which value is closest to pi?", "3.14", ["2.71", "1.62", "4.13"]],
+    ["Which is the hardest natural substance?", "Diamond", ["Gold", "Iron", "Quartz"]],
+    ["Who is credited with writing the original Sanskrit Ramayana?", "Valmiki", ["Vyasa", "Kalidasa", "Tulsidas"]],
+    ["What is the national animal of India?", "Tiger", ["Lion", "Elephant", "Leopard"]],
+    ["Which organ pumps blood around the body?", "Heart", ["Lungs", "Liver", "Kidney"]],
+    ["What is the approximate speed of light?", "300,000 km/s", ["150,000 km/s", "30,000 km/s", "3,000 km/s"]],
+    ["Which vitamin does the body make from sunlight?", "Vitamin D", ["Vitamin C", "Vitamin A", "Vitamin B12"]],
+    ["What is the smallest prime number?", "2", ["1", "3", "0"]],
+    ["Which Roman numeral stands for 50?", "L", ["C", "X", "D"]],
+    ["How many sides does a hexagon have?", "6", ["5", "8", "7"]],
+    ["At what temperature (°C) does water boil at sea level?", "100", ["90", "212", "120"]]
+];
+
+// Small seeded random generator: the same seed always gives the same order.
+const seededRandom = seed => {
+    let a = seed >>> 0;
+
+    return () => {
+        a = (a + 0x6D2B79F5) >>> 0;
+        let t = a;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+};
+
+// Fixed shuffled order of the bank, so levels take different slices of it.
+const QUIZ_ORDER = (() => {
+    const rand = seededRandom(20260614);
+    const idx = QUIZ_BANK.map((_, i) => i);
+
+    for (let i = idx.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        [idx[i], idx[j]] = [idx[j], idx[i]];
+    }
+
+    return idx;
+})();
+
+const quizCount = lvl => Math.min(5 + lvl, 20);
+const quizStaticTake = lvl => Math.ceil(quizCount(lvl) * 0.4);
+
+const makeQuestion = (q, correct, wrongs) => {
+    const right = String(correct);
+    const options = shuffle([right, ...wrongs.map(String)]);
+
+    return { q, options, answer: options.indexOf(right) };
+};
+
+// Three different wrong numbers close to the right one.
+const numOptions = (correct, spread = 10) => {
+    const set = new Set([correct]);
+    let guard = 0;
+
+    while (set.size < 4 && guard++ < 200) {
+        const d = (1 + rnd(spread)) * (Math.random() < 0.5 ? -1 : 1);
+        if (correct + d >= 0) set.add(correct + d);
+    }
+
+    let k = 1;
+    while (set.size < 4) set.add(correct + spread + k++);
+
+    return [...set].filter(v => v !== correct).slice(0, 3);
+};
+
+// A fresh question that gets harder as the level grows.
+const generateQuestion = level => {
+    const n = (min, max) => min + rnd(max - min + 1);
+    const scale = 10 + level * 5;
+
+    switch (pick(["add", "sub", "mul", "bin2dec", "dec2bin", "hex", "percent", "seq", "square", "pow2"])) {
+        case "add": {
+            const a = n(10, scale), b = n(10, scale);
+            return makeQuestion(`What is ${a} + ${b}?`, a + b, numOptions(a + b));
+        }
+        case "sub": {
+            const a = n(20, scale * 2), b = n(5, a - 1);
+            return makeQuestion(`What is ${a} − ${b}?`, a - b, numOptions(a - b));
+        }
+        case "mul": {
+            const a = n(3, 5 + level), b = n(3, 9 + Math.floor(level / 2));
+            return makeQuestion(`What is ${a} × ${b}?`, a * b, numOptions(a * b));
+        }
+        case "bin2dec": {
+            const bits = Math.min(3 + Math.floor(level / 3), 8);
+            const v = n(1 << (bits - 1), (1 << bits) - 1);
+            return makeQuestion(`Binary ${v.toString(2)} equals which decimal number?`, v, numOptions(v, 6));
+        }
+        case "dec2bin": {
+            const v = n(5, Math.min(15 + level * 6, 250));
+            return makeQuestion(
+                `What is the decimal number ${v} in binary?`,
+                v.toString(2),
+                numOptions(v, 4).map(x => x.toString(2))
+            );
+        }
+        case "hex": {
+            const v = n(16, 255);
+            return makeQuestion(`Hex ${v.toString(16).toUpperCase()} equals which decimal number?`, v, numOptions(v, 12));
+        }
+        case "percent": {
+            const p = pick([10, 20, 25, 50, 75]);
+            const v = 20 * n(1, 5 + level * 2);
+            const r = (p * v) / 100;
+            return makeQuestion(`What is ${p}% of ${v}?`, r, numOptions(r, Math.max(3, Math.round(r / 4))));
+        }
+        case "seq": {
+            const a = n(1, 10), d = n(2, 3 + Math.floor(level / 2));
+            return makeQuestion(
+                `What comes next? ${a}, ${a + d}, ${a + 2 * d}, ${a + 3 * d}, ?`,
+                a + 4 * d,
+                numOptions(a + 4 * d, 6)
+            );
+        }
+        case "square": {
+            const m = n(3, 12 + level);
+            return makeQuestion(`What is ${m}²?`, m * m, numOptions(m * m, Math.max(4, m)));
+        }
+        default: {
+            const k = n(3, Math.min(4 + Math.floor(level / 2), 16));
+            return makeQuestion(`What is 2 to the power ${k}?`, 2 ** k, numOptions(2 ** k, Math.max(2, 2 ** (k - 2))));
+        }
+    }
+};
+
+// Builds the question list for one level.
+const buildQuizSet = level => {
+    const count = quizCount(level);
+
+    // each level continues where the previous level stopped in the bank
+    let offset = 0;
+    for (let l = 1; l < level; l++) offset += quizStaticTake(l);
+    offset %= QUIZ_ORDER.length;
+
+    const take = Math.min(quizStaticTake(level), QUIZ_ORDER.length);
+    const picked = [];
+
+    for (let i = 0; i < take; i++) {
+        const [q, correct, wrongs] = QUIZ_BANK[QUIZ_ORDER[(offset + i) % QUIZ_ORDER.length]];
+        picked.push(makeQuestion(q, correct, wrongs));
+    }
+
+    const seen = new Set(picked.map(x => x.q));
+    let guard = 0;
+
+    while (picked.length < count && guard++ < 1000) {
+        const g = generateQuestion(level);
+
+        if (g && !seen.has(g.q)) {
+            seen.add(g.q);
+            picked.push(g);
+        }
+    }
+
+    return shuffle(picked);
+};
 
 /* =========================================================
    GAME 11: QUIZ BATTLE
@@ -3437,23 +4628,9 @@ function gameQuizBattle() {
     addHeading("⚔️ Quiz Battle Arena", "Answer correctly to damage the monster. Win at 60% or more!");
 
     const level = currentLevel();
-    const questionCount = Math.min(5 + level, 20);
 
-    const questions = [
-        { q: "Which language is mainly used to style web pages?", options: ["HTML", "CSS", "SQL", "Python"], answer: 1 },
-        { q: "Which data structure follows FIFO?", options: ["Stack", "Tree", "Queue", "Graph"], answer: 2 },
-        { q: "What does CPU stand for?", options: ["Central Processing Unit", "Computer Primary Utility", "Central Program User", "Control Processing Utility"], answer: 0 },
-        { q: "Which SQL command retrieves data?", options: ["GET", "SELECT", "PUSH", "FETCHALL"], answer: 1 },
-        { q: "Which is a Python collection with key-value pairs?", options: ["List", "Tuple", "Dictionary", "String"], answer: 2 },
-        { q: "Which protocol is commonly used for secure web browsing?", options: ["FTP", "HTTPS", "SMTP", "SSH only"], answer: 1 },
-        { q: "Which number system uses only 0 and 1?", options: ["Decimal", "Octal", "Binary", "Hexadecimal"], answer: 2 },
-        { q: "Which of these is a relational database?", options: ["MySQL", "HTML", "CSS", "React"], answer: 0 },
-        { q: "Which keyword declares a constant in JavaScript?", options: ["let", "var", "const", "static"], answer: 2 },
-        { q: "What is the full form of AI?", options: ["Automated Internet", "Artificial Intelligence", "Advanced Interface", "Applied Integration"], answer: 1 }
-    ];
-
-    const pool = shuffle(questions);
-    const selected = Array.from({ length: questionCount }, (_, i) => pool[i % pool.length]);
+    // different questions for every level, never repeated inside a level
+    const selected = buildQuizSet(level);
 
     const needed = Math.ceil(selected.length * 0.6);
     const allowedWrong = selected.length - needed;
@@ -3497,7 +4674,7 @@ function gameQuizBattle() {
                 status("🎉 Battle won! Saving your reward...", "win");
                 winLater(finalScore, 600);
             } else {
-                loseLater("Quiz battle lost. You need at least 60% correct.", 400);
+                loseLater("Quiz battle lost. You need at least 60% correct.", 300);
             }
 
             return;
@@ -3552,9 +4729,19 @@ function gameQuizBattle() {
         } else {
             wrong++;
             button.classList.add("bad");
+            wrongAlert("Wrong answer!");
             hit(meSprite);
             meHp.style.width = `${Math.max(0, 1 - wrong / (allowedWrong + 1)) * 100}%`;
             status(`Ouch! Correct answer: ${item.options[item.answer]}`, "lose");
+
+            // too many wrong answers: the level can no longer be won, show the X popup now
+            if (wrong > allowedWrong) {
+                later(1300, () => finishLose(
+                    `Too many wrong answers. You need at least ${needed} of ${selected.length} correct.`,
+                    "Level Failed"
+                ));
+                return;
+            }
         }
 
         later(1100, () => {
@@ -3562,6 +4749,24 @@ function gameQuizBattle() {
             renderQuestion();
         });
     }
+
+    // HINT: 50-50, two wrong answers fade away
+    onHint(() => {
+        if (over || answered) return false;
+
+        const item = selected[position];
+        const buttons = [...optionsBox.children];
+        const wrongs = buttons.map((_, i) => i).filter(i => i !== item.answer && !buttons[i].disabled);
+
+        if (wrongs.length <= 1) return false;
+
+        shuffle(wrongs).slice(0, 2).forEach(i => {
+            buttons[i].disabled = true;
+            buttons[i].style.opacity = ".25";
+        });
+
+        return true;
+    });
 
     renderQuestion();
 }
@@ -3632,7 +4837,7 @@ function gameTetrisBlocks() {
         if (collides(piece.x, piece.y, piece.shape)) {
             dead = true;
             shake(canvas);
-            loseLater("No space left! Game over.", 700);
+            loseLater("No space left! Game over.", 600);
         }
     }
 
@@ -3715,6 +4920,9 @@ function gameTetrisBlocks() {
         ctx.globalAlpha = 1;
     }
 
+    // HINT ghost (declared before draw so draw can read it)
+    let hintGhost = null;
+
     function draw() {
         const bg = ctx.createLinearGradient(0, 0, 0, H);
         bg.addColorStop(0, "#111827");
@@ -3749,6 +4957,21 @@ function gameTetrisBlocks() {
             piece.shape.forEach((row, y) => row.forEach((value, x) => {
                 if (value) block((piece.x + x) * cell, (piece.y + y) * cell, piece.color);
             }));
+        }
+
+        if (hintGhost && performance.now() < hintGhost.until) {
+            ctx.save();
+            ctx.strokeStyle = "#22c55e";
+            ctx.lineWidth = 4;
+            ctx.setLineDash([8, 5]);
+
+            hintGhost.shape.forEach((row, y) => row.forEach((v, x) => {
+                if (!v) return;
+                rr(ctx, (hintGhost.x + x) * cell + 3, (hintGhost.y + y) * cell + 3, cell - 6, cell - 6, 7);
+                ctx.stroke();
+            }));
+
+            ctx.restore();
         }
 
         flashes.forEach(f => {
@@ -3803,7 +5026,7 @@ function gameTetrisBlocks() {
     controls.style.flexWrap = "wrap";
     controls.style.justifyContent = "center";
     controls.style.gap = "10px";
-    controls.style.marginTop = "12px";
+    controls.style.marginTop = "8px";
 
     [["◀", "left"], ["⟳", "rotate"], ["▼", "down"], ["▶", "right"], ["⏬", "hard"]].forEach(([label, action]) => {
         const button = el("button", "gbtn secondary", label);
@@ -3823,6 +5046,61 @@ function gameTetrisBlocks() {
     });
 
     area.append(controls);
+
+    // HINT: show (dotted green) the best place for the falling block
+    function evaluate(shape, x, y) {
+        const g = grid.map(r => [...r]);
+
+        shape.forEach((row, sy) => row.forEach((v, sx) => {
+            if (v && y + sy >= 0) g[y + sy][x + sx] = 1;
+        }));
+
+        let lines = 0;
+        g.forEach(r => { if (r.every(Boolean)) lines++; });
+
+        let holes = 0;
+        let height = 0;
+
+        for (let c = 0; c < cols; c++) {
+            let seen = false;
+
+            for (let r = 0; r < rows; r++) {
+                if (g[r][c]) {
+                    if (!seen) { seen = true; height += rows - r; }
+                } else if (seen) {
+                    holes++;
+                }
+            }
+        }
+
+        return lines * 8 - holes * 5 - height * 0.3;
+    }
+
+    onHint(() => {
+        if (!piece || over || dead || won) return false;
+
+        let shape = piece.shape;
+        let best = null;
+
+        for (let rot = 0; rot < 4; rot++) {
+            for (let x = 0; x < cols; x++) {
+                if (collides(x, 0, shape)) continue;
+
+                let y = 0;
+                while (!collides(x, y + 1, shape)) y++;
+
+                const s = evaluate(shape, x, y);
+                if (!best || s > best.s) best = { s, shape, x, y };
+            }
+
+            shape = rotate(shape);
+        }
+
+        if (!best) return false;
+
+        hintGhost = { shape: best.shape, x: best.x, y: best.y, until: performance.now() + 4000 };
+        return true;
+    });
 
     loop(dt => {
         dropTimer += dt * 16.667;
@@ -3907,6 +5185,15 @@ function gameFlappyBrain() {
     on(canvas, "pointerdown", e => { e.preventDefault(); flap(); });
     area.append(makeButton("⬆ Flap", flap));
 
+    // HINT: dotted green line to the middle of the next gap
+    let hintUntil = 0;
+
+    onHint(() => {
+        if (!started || dead || won || !obstacles.some(o => o.x + PW > BX - BR)) return false;
+        hintUntil = t + 220;
+        return true;
+    });
+
     function drawPipe(x, y, h, capAtBottom) {
         const g = ctx.createLinearGradient(x, 0, x + PW, 0);
         g.addColorStop(0, "#15803d");
@@ -3982,6 +5269,30 @@ function gameFlappyBrain() {
         ctx.fillText("🧠", 0, 0);
         ctx.restore();
 
+        if (t < hintUntil) {
+            const o = obstacles.find(ob => ob.x + PW > BX - BR);
+
+            if (o) {
+                const gx = o.x + PW / 2;
+                const gy = (o.top + o.bottom) / 2;
+
+                ctx.save();
+                ctx.strokeStyle = "#16a34a";
+                ctx.lineWidth = 4;
+                ctx.setLineDash([10, 8]);
+                ctx.beginPath();
+                ctx.moveTo(BX, birdY);
+                ctx.lineTo(gx, gy);
+                ctx.stroke();
+                ctx.restore();
+
+                ctx.fillStyle = "rgba(34,197,94,.35)";
+                ctx.beginPath();
+                ctx.arc(gx, gy, 30, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
         fx.draw(ctx);
 
         if (!started && !dead) {
@@ -4032,7 +5343,7 @@ function gameFlappyBrain() {
                         dead = true;
                         fx.burst(BX, birdY, "#f472b6", 22, 5);
                         shake(canvas);
-                        loseLater("You hit an obstacle!", 900);
+                        loseLater("You hit an obstacle!", 700);
                         break;
                     }
                 }
@@ -4044,7 +5355,7 @@ function gameFlappyBrain() {
                     birdY = H - GROUND - BR;
                     fx.burst(BX, birdY, "#f472b6", 22, 5);
                     shake(canvas);
-                    loseLater("The brain hit the ground!", 900);
+                    loseLater("The brain hit the ground!", 700);
                 } else if (!dead && passed >= goal) {
                     won = true;
                     status("🎉 Flight target completed! Saving reward...", "win");
@@ -4110,6 +5421,7 @@ function gameSnake() {
 
     function setDirection(x, y) {
         if (over || dead || won) return;
+        // cannot turn back on yourself (checked against the direction already moving)
         if (x === -direction.x && y === -direction.y) return;
 
         nextDirection = { x, y };
@@ -4127,6 +5439,15 @@ function gameSnake() {
         right: () => setDirection(1, 0)
     });
 
+    // HINT: dotted yellow line from the head to the apple
+    let hintUntil = 0;
+
+    onHint(() => {
+        if (dead || won) return false;
+        hintUntil = t + 260;
+        return true;
+    });
+
     function tick() {
         direction = nextDirection;
         old = snake.map(s => ({ ...s }));
@@ -4137,7 +5458,7 @@ function gameSnake() {
             dead = true;
             shake(canvas);
             fx.burst(snake[0].x * cell + cell / 2, snake[0].y * cell + cell / 2, "#22c55e", 20, 5);
-            loseLater("The snake hit the wall!", 800);
+            loseLater("The snake hit the wall!", 600);
             return;
         }
 
@@ -4148,7 +5469,7 @@ function gameSnake() {
             dead = true;
             shake(canvas);
             fx.burst(head.x * cell + cell / 2, head.y * cell + cell / 2, "#22c55e", 20, 5);
-            loseLater("The snake collided with itself!", 800);
+            loseLater("The snake collided with itself!", 600);
             return;
         }
 
@@ -4252,6 +5573,24 @@ function gameSnake() {
             ctx.fill();
         });
 
+        if (t < hintUntil) {
+            const h0 = pts[0];
+
+            ctx.save();
+            ctx.strokeStyle = "#facc15";
+            ctx.lineWidth = 4;
+            ctx.setLineDash([10, 8]);
+            ctx.beginPath();
+            ctx.moveTo(h0.x, h0.y);
+            ctx.lineTo(fxp, fy);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.beginPath();
+            ctx.arc(fxp, fy, cell * 0.7, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
+
         fx.draw(ctx);
 
         txt(ctx, `🍎 ${collected} / ${target}`, W - 12, 24, "bold 18px sans-serif", "#f0fdf4", "right");
@@ -4311,8 +5650,32 @@ function showFatal(message) {
     area.append(box);
 }
 
+let limitShown = false;
+
+function showLimitReached() {
+    resetGame();
+    limitShown = true;
+
+    const panel = el("div", "game-result-panel");
+
+    panel.innerHTML = `
+        <div style="font-size:64px;font-weight:900;color:#dc2626;line-height:1">✕</div>
+        <h3>Enough playing for today!</h3>
+        <p>You have finished ${DailyLimit.limit} of ${DailyLimit.limit} game rounds today.
+           Watch a lesson or ask the AI Tutor, then come back tomorrow.</p>`;
+
+    area.append(panel);
+}
+
 function boot() {
+    limitShown = false;
+
     if (!Levels.gameId) Levels.load();
+
+    if (DailyLimit.reached()) {
+        showLimitReached();
+        return;
+    }
 
     const key = Levels.gameId;
     const gameFunction = GAME_REGISTRY[key];
@@ -4327,6 +5690,9 @@ function boot() {
 
     try {
         gameFunction();
+
+        // bring the game into view once, so the player does not have to scroll to find it
+        try { area.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) { /* ignore */ }
 
         area.setAttribute("tabindex", "-1");
         area.style.outline = "none";
@@ -4345,6 +5711,7 @@ function boot() {
 function restartLevel() {
     try {
         document.getElementById("eduRewardPopup")?.remove();
+        document.getElementById("eduFailPopup")?.remove();
 
         if (Levels.allowReplay) Levels.allowReplay();
 
@@ -4360,6 +5727,9 @@ document.addEventListener("click", event => {
 
     if (!button || area.contains(button)) return;
 
+    // the popups have their own buttons
+    if (button.closest("#eduFailPopup, #eduRewardPopup")) return;
+
     const label = `${button.id} ${button.className} ${button.dataset.action || ""} ${button.textContent}`.toLowerCase();
 
     if (/restart|replay|retry level|reset level/.test(label)) {
@@ -4373,6 +5743,9 @@ document.addEventListener("keydown", event => {
 
     const t = event.target;
     if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+
+    // do not restart behind an open popup
+    if (document.getElementById("eduRewardPopup")) return;
 
     restartLevel();
 });
@@ -4421,7 +5794,34 @@ async function syncLevelFromServer() {
     return false;
 }
 
+/* Ask the server how many rounds were used today (the database is the real counter). */
+async function syncDailyFromServer() {
+    try {
+        const response = await fetch("/api/game-daily-status", {
+            credentials: "same-origin",
+            headers: { "X-Requested-With": "XMLHttpRequest" }
+        });
+
+        if (!response.ok) return;
+
+        const data = await response.json();
+
+        if (!data || !data.ok) return;
+
+        DailyLimit.set(Number(data.used) || 0, Number(data.limit) || 10);
+        refreshDailyStrip();
+
+        const notStarted = score === 0 && moveCount === 0 && !over;
+
+        if (DailyLimit.reached() && notStarted) showLimitReached();
+        else if (!DailyLimit.reached() && limitShown) boot();
+    } catch (error) {
+        console.warn("Could not sync daily limit:", error);
+    }
+}
+
 boot();
+syncDailyFromServer();
 
 syncLevelFromServer().then(levelChanged => {
     const notStarted = score === 0 && moveCount === 0 && !over;

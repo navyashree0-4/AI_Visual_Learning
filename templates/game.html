@@ -6,20 +6,20 @@
 
     {# ---------- game info: title, emoji, label, goal, controls, tip ---------- #}
     {% set game_info = {
-        'arrow_maze':        ('Arrow Finder: Arrow Maze',  '🏹', 'LOGIC',    'Find your way through the maze to the 🏁. Avoid the trap holes.',                     'Arrow keys, WASD, swipe or the on-screen pad. Use "Show arrow" if you are stuck.',      'Dead ends are common. Back up early instead of exploring every branch.'),
+        'arrow_maze':        ('Arrow Escape',              '🏹', 'LOGIC',    'Tap an arrow to slide it out of the board. If another arrow blocks it, you lose a heart.',  'Tap or click an arrow. Use the Hint button if you are stuck.',                         'Free the arrows that unblock the most other arrows first.'),
         'hologram_memory':   ('Hologram Memory Challenge', '✨', 'MEMORY',   'Watch the glowing pads, then repeat the sequence in the same order.',                 'Click or tap the pads.',                                                               'Say the colours in your head as they flash. It helps a lot.'),
-        'candy_match':       ('Candy Match Puzzle',        '🍬', 'ARCADE',   'Reach the target score before you run out of moves.',                                 'Click one candy, then click a neighbour to swap them.',                                'Matches near the bottom trigger combos. Chain reactions score the most.'),
+        'candy_match':       ('Candy Match Puzzle',        '🍬', 'ARCADE',   'Reach the target score before you run out of moves.',                                 'Click one candy, then a neighbour to swap, or drag a candy.',                          'Matches near the bottom trigger combos. Chain reactions score the most.'),
         'memory_match':      ('Memory Card Matching',      '🃏', 'MEMORY',   'Flip cards and find every matching pair.',                                            'Click or tap a card to flip it.',                                                      'Start in one corner and work across. It is easier to remember positions.'),
         'bubble_shooter':    ('Bubble Shooter',            '🫧', 'ARCADE',   'Pop groups of 3 or more bubbles of the same colour and clear the board.',             'Move the mouse to aim, click or tap to shoot. Keyboard: ← → to aim, Space to shoot.',  'Bubbles hanging with nothing above them fall and give bonus points.'),
-        'endless_runner':    ('Endless Runner',            '🏃', 'ACTION',   'Jump over the cacti and collect ⭐ to reach the goal score.',                         'Space, ↑, W, click or tap to jump.',                                                   'Jump a little early. The faster you run, the longer your jump carries you.'),
-        'neon_tic_tac_toe':  ('Neon Tic-Tac-Toe',          '❌', 'STRATEGY', 'Line up your ✕ marks before the AI lines up its ◯ marks.',                            'Click a square to place your mark.',                                                   'Take the centre first. A draw means you try the level again.'),
+        'endless_runner':    ('Endless Runner',            '🏃', 'ACTION',   'Jump over the cacti and reach the goal score.',                                       'Space, ↑, W, click or tap to jump.',                                                   'Jump a little early. The faster you run, the longer your jump carries you.'),
+        'neon_tic_tac_toe':  ('Neon Tic-Tac-Toe',          '❌', 'STRATEGY', 'Line up your ✕ marks before the AI lines up its ◯ marks.',                            'Click a square to place your mark.',                                                   'Take the centre first. A draw just clears the board so you can try again.'),
         'puzzle_2048':       ('2048 Number Puzzle',        '🔢', 'PUZZLE',   'Merge matching tiles to build the target number.',                                    'Arrow keys, WASD, swipe or the on-screen pad.',                                        'Keep your biggest tile in a corner and build next to it.'),
-        'arrow_direction':   ('Arrow Direction Puzzle',    '➡️', 'LOGIC',    'Follow the rule shown on screen and press the right direction before time runs out.', 'Arrow keys, WASD or the on-screen pad.',                                                'Read the rule every round. It can change on higher levels.'),
+        'arrow_direction':   ('Arrow Direction Puzzle',    '➡️', 'LOGIC',    'Press the direction that matches the arrow shown on screen.',                         'Arrow keys, WASD or the on-screen buttons.',                                           'Stay calm. One wrong press ends the level, so go for accuracy.'),
         'sliding_puzzle':    ('Sliding Puzzle',            '🧩', 'PUZZLE',   'Slide the tiles into numerical order.',                                               'Click a tile next to the gap, or use the arrow keys.',                                 'Solve the top row first, then the next one, and leave the last rows for the end.'),
-        'quiz_battle':       ('Quiz Battle Arena',         '⚔️', 'QUIZ',     'Answer the questions correctly before you lose all three hearts.',                    'Click an answer before the timer bar runs out.',                                       'Faster correct answers earn bonus points.'),
-        'tetris_blocks':     ('Tetris Blocks',             '🧱', 'PUZZLE',   'Clear the required number of lines before the stack reaches the top.',                '← → move, ↑ rotate, ↓ soft drop, Space hard drop. Touch buttons are shown below.',     'The faint ghost piece shows exactly where your block will land.'),
+        'quiz_battle':       ('Quiz Battle Arena',         '⚔️', 'QUIZ',     'Answer the questions correctly to defeat the monster. You need 60% or more.',         'Click an answer.',                                                                     'Use the 50-50 hint on the questions you are not sure about.'),
+        'tetris_blocks':     ('Tetris Blocks',             '🧱', 'PUZZLE',   'Clear lines to reach the target score before the stack reaches the top.',             '← → move, ↑ rotate, ↓ soft drop, Space hard drop. Touch buttons are shown below.',     'The faint ghost piece shows exactly where your block will land.'),
         'flappy_brain':      ('Flappy Brain',              '🧠', 'ACTION',   'Fly through the gaps and avoid the pipes.',                                           'Space, ↑, click or tap to flap.',                                                      'Small, steady taps work better than big ones.'),
-        'snake_game':        ('Snake Game',                '🐍', 'ARCADE',   'Eat the apples to grow and avoid walls, blocks and your own tail.',                   'Arrow keys, WASD, swipe or the on-screen pad.',                                        'Plan two moves ahead. You cannot reverse straight into yourself.')
+        'snake_game':        ('Snake Game',                '🐍', 'ARCADE',   'Eat the apples to grow and avoid walls and your own tail.',                           'Arrow keys, WASD, swipe or the on-screen pad.',                                        'Plan two moves ahead. You cannot reverse straight into yourself.')
     } %}
 
     {% set current_payload = payload|default({}) %}
@@ -29,10 +29,27 @@
 
     <title>{{ page_title }} | EduVision</title>
 
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/game.css') }}">
 </head>
 
-<body class="gl-body">
+<body class="gl-body" data-game-key="{{ key }}">
+
+<!-- floating background decoration -->
+<div class="gl-bg" aria-hidden="true">
+    <span class="gl-blob b1"></span>
+    <span class="gl-blob b2"></span>
+    <span class="gl-blob b3"></span>
+    <span class="gl-float f1">🎮</span>
+    <span class="gl-float f2">⭐</span>
+    <span class="gl-float f3">🧩</span>
+    <span class="gl-float f4">🚀</span>
+    <span class="gl-float f5">💎</span>
+    <span class="gl-float f6">🎯</span>
+</div>
+
 <div class="gl-app">
 
     <!-- SIDEBAR -->
@@ -46,7 +63,7 @@
             <div class="gl-avatar">{{ (user_name|default('Learner'))[:1]|upper }}</div>
             <div>
                 <strong>{{ user_name|default('Learner') }}</strong>
-                <small>Active learner</small>
+                <small>● Active learner</small>
             </div>
         </div>
 
@@ -103,7 +120,7 @@
 
             <div class="gl-topbar-right">
                 <div class="gl-credit-badge" title="Your learning credits">
-                    ✦ {{ credits|default(50) }} credits
+                    ✦ <span>{{ credits|default(50) }}</span> credits
                 </div>
                 <div class="gl-top-avatar">
                     {{ (user_name|default('Learner'))[:1]|upper }}
@@ -140,24 +157,36 @@
                 <section class="gl-stage" aria-label="Game">
 
                     <div class="hud">
-                        <div class="hud-tile">
-                            <span class="hud-label">Level</span>
-                            <span id="currentLevel">Level 1</span>
+                        <div class="hud-tile t-level">
+                            <span class="hud-ico">🏆</span>
+                            <div>
+                                <span class="hud-label">Level</span>
+                                <span class="hud-value" id="currentLevel">Level 1</span>
+                            </div>
                         </div>
 
-                        <div class="hud-tile">
-                            <span class="hud-label">Score</span>
-                            <span id="scoreValue">0</span>
+                        <div class="hud-tile t-score">
+                            <span class="hud-ico">⭐</span>
+                            <div>
+                                <span class="hud-label">Score</span>
+                                <span class="hud-value" id="scoreValue">0</span>
+                            </div>
                         </div>
 
-                        <div class="hud-tile">
-                            <span class="hud-label">Completed</span>
-                            <span id="completedCount">0 completed</span>
+                        <div class="hud-tile t-done">
+                            <span class="hud-ico">✅</span>
+                            <div>
+                                <span class="hud-label">Completed</span>
+                                <span class="hud-value" id="completedCount">0 completed</span>
+                            </div>
                         </div>
 
-                        <div class="hud-tile">
-                            <span class="hud-label">Credits earned</span>
-                            <span id="creditValue">0</span>
+                        <div class="hud-tile t-credit">
+                            <span class="hud-ico">💰</span>
+                            <div>
+                                <span class="hud-label">Credits earned</span>
+                                <span class="hud-value" id="creditValue">0</span>
+                            </div>
                         </div>
                     </div>
 
@@ -169,7 +198,9 @@
 
                     <p id="levelMessage" aria-live="polite"></p>
 
-                    <div id="playArea"></div>
+                    <div class="gl-board">
+                        <div id="playArea"></div>
+                    </div>
 
                     <noscript>
                         <p class="gstatus lose">
@@ -186,19 +217,24 @@
                         <p>{{ info[3] if info else 'Complete the challenge to unlock the next level.' }}</p>
 
                         <dl class="gl-facts">
-                            <dt>Controls</dt>
+                            <dt>🎛 Controls</dt>
                             <dd>{{ info[4] if info else 'Use your mouse, keyboard or touch.' }}</dd>
 
-                            <dt>Pro tip</dt>
+                            <dt>💡 Pro tip</dt>
                             <dd>{{ info[5] if info else 'Take your time and look for patterns.' }}</dd>
+
+                            <dt>⌨ Shortcuts</dt>
+                            <dd>
+                                <kbd>H</kbd> hint &nbsp; <kbd>R</kbd> restart
+                            </dd>
                         </dl>
                     </article>
 
                     <article class="gl-card gl-reward-card">
                         <h3>✦ Earn credits</h3>
                         <p>
-                            Finish a level to earn learning credits. Higher levels
-                            pay more, up to 60 credits each.
+                            Finish a level before the timer ends to earn credits. Higher
+                            levels pay more, up to 60 credits each.
                         </p>
 
                         <div class="gl-reward-row"><span>Level 1</span><b>+7</b></div>
@@ -262,7 +298,8 @@
     if (scrim) scrim.addEventListener('click', function () { toggle(false); });
 
     if (restart) restart.addEventListener('click', function () {
-        if (window.EduVisionGames) window.EduVisionGames.start();
+        if (window.EduVisionGame && window.EduVisionGame.restart) window.EduVisionGame.restart();
+        else if (window.EduVisionGames && window.EduVisionGames.start) window.EduVisionGames.start();
     });
 })();
 </script>
