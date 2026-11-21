@@ -18,11 +18,12 @@ import threading
 import time
 from email.message import EmailMessage
 from functools import wraps
+from io import BytesIO
 import uuid
 
 from flask import (
     Flask, abort, current_app, flash, jsonify, redirect, render_template,
-    render_template_string, request, send_from_directory, session, url_for,
+    render_template_string, request, send_file, send_from_directory, session, url_for,
 )
 import mysql.connector
 from mysql.connector import Error
@@ -31,6 +32,12 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
 from services.video_generator import extract_text, generate_video_package, ai_status
+from services.notes_generator import answer_question, make_notes, notes_to_pdf, notes_to_text
+
+try:
+    from services.video_generator import SRC_LIMIT as GEN_SRC_LIMIT   # how much of a PDF / TXT is read
+except ImportError:
+    GEN_SRC_LIMIT = 40000
 
 try:
     # Video length limits of the generator (the form allows 1 to 10 minutes, empty = about 3).
@@ -71,6 +78,15 @@ def _no_cache_for_pages(response):
     if response.mimetype == "text/html":
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         response.headers["Pragma"] = "no-cache"
+    return response
+
+
+@app.after_request
+def _log_game_calls(response):
+    """Prints every /api/game... call in the terminal so you can see what the games send."""
+    if request.path.startswith("/api/game") and request.path != "/api/game-debug":
+        app.logger.warning("GAME CALL: %s %s -> %s | body: %s", request.method, request.path,
+                           response.status_code, request.get_data(as_text=True)[:300])
     return response
 
 
@@ -906,6 +922,38 @@ def arcade():
     )
 
 
+def _fallback_game_page(game_key, game, payload, credits):
+    """Plain game page used only when templates/game.html fails to render.
+
+    It has the elements game.js needs (#playArea, #scoreValue, #eduVisionGameData),
+    so the game can still be played. The real error is written to the terminal
+    with the words GAME PAGE ERROR.
+    """
+    from markupsafe import escape
+
+    data = json.dumps(payload, default=str, ensure_ascii=True).replace("</", "<\\/")
+    title = escape(game.get("name", game_key))
+    script = url_for("static", filename="js/game.js")
+    dash = url_for("dashboard")
+    html = (
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        f"<title>{title} | EduVision</title>"
+        "<style>body{margin:0;font-family:Arial,sans-serif;background:#f4f6fb;color:#182033}"
+        ".bar{display:flex;justify-content:space-between;align-items:center;gap:10px;"
+        "padding:12px 18px;background:#fff;box-shadow:0 2px 10px #1820331a}"
+        ".bar a{color:#5546e8;font-weight:700;text-decoration:none}"
+        "main{max-width:900px;margin:0 auto;padding:12px}</style></head>"
+        f'<body data-game-key="{escape(game_key)}" data-user-id="{int(session["user_id"])}">'
+        f'<div class="bar"><a href="{dash}">&larr; Dashboard</a><strong>{title}</strong>'
+        f'<span>Score <b id="scoreValue">0</b> &middot; Credits <b id="creditValue">{int(credits)}</b></span></div>'
+        '<main><div id="playArea"></div></main>'
+        f'<script id="eduVisionGameData" type="application/json">{data}</script>'
+        f'<script src="{script}"></script></body></html>'
+    )
+    return html
+
+
 @app.route("/game/<game_key>")
 @login_required
 def eduvision_game(game_key):
@@ -914,18 +962,31 @@ def eduvision_game(game_key):
     if game is None:
         abort(404)
 
-    payload = build_payload(game_key, game)
+    try:
+        payload = build_payload(game_key, game)
+    except Exception:
+        app.logger.exception("GAME PAGE ERROR: build_payload failed for %s", game_key)
+        payload = {**game, "key": game_key, "game_id": game_key, "id": game_key}
+    payload["user_id"] = session["user_id"]      # game.js keeps progress per user
+    payload.setdefault("game_id", game_key)
 
-    return render_template(
-        "game.html",
-        payload=payload,
-        game_key=game_key,
-        game_title=game["name"],
-        game_type=game["mode"],
-        credits=get_user_credits(session["user_id"]),
-        daily_cap=DAILY_CREDIT_CAP,
-        video_cost=VIDEO_COST,
-    )
+    credits = get_user_credits(session["user_id"])
+
+    try:
+        return render_template(
+            "game.html",
+            payload=payload,
+            game_key=game_key,
+            game_title=game["name"],
+            game_type=game["mode"],
+            credits=credits,
+            daily_cap=DAILY_CREDIT_CAP,
+            video_cost=VIDEO_COST,
+        )
+    except Exception:
+        # The real reason is printed in the terminal. The game itself still opens.
+        app.logger.exception("GAME PAGE ERROR: templates/game.html failed for %s", game_key)
+        return _fallback_game_page(game_key, game, payload, credits)
 
 
 @app.route("/arcade/<game_key>")
@@ -991,6 +1052,11 @@ def game_result():
             ok=False,
             error="Game result could not be saved."
         ), 500
+
+    # Also store it where the accuracy report reads (game_plays).
+    _key = _game_key_from(data) or _normalize_game_key(game_name)
+    if _key:
+        record_game_play(user_id, _key, _score_pct_from(data), _num(data.get("seconds", 0)))
 
     session["games_played"] = session.get("games_played", 0) + 1
 
@@ -1794,8 +1860,8 @@ def ask_question():
 #   voice      Female / Male ("Female voice" / "Male voice" are accepted)
 #   length     duration_minutes 1..10, empty = about 3 minutes
 
-ALLOWED_UPLOADS = {".pdf", ".txt", ".png", ".jpg", ".jpeg"}
-IMAGE_UPLOADS = {".png", ".jpg", ".jpeg"}
+ALLOWED_UPLOADS = {".pdf", ".txt", ".png", ".jpg", ".jpeg", ".webp", ".bmp"}
+IMAGE_UPLOADS = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
 MAX_UPLOAD_FILES = 5
 VALID_STYLES = {"Educational", "Animated", "Simple Explanation", "Storytelling", "Presenter"}
 VALID_LANGUAGES = {"English", "Kannada", "Hindi"}
@@ -1976,10 +2042,11 @@ def _parse_video_form(form, files):
         raise ValueError(f"Please upload at most {MAX_UPLOAD_FILES} files.")
 
     temp_paths = []
-    texts = [topic] if topic else []
+    # The typed topic stays a TOPIC. Only PDF / TXT text becomes source_text.
+    # A picture is NOT read here: services.video_generator looks at it (vision AI, OCR as backup),
+    # works out what it shows (lesson diagram, photo, resume, document ...) and builds the video from that.
+    texts = []
     image_path = None
-    image_name = ""
-    image_without_text = False
 
     try:
         upload_dir = Path(app.root_path) / "uploads"
@@ -1989,7 +2056,7 @@ def _parse_video_form(form, files):
             filename = secure_filename(uploaded.filename)
             extension = Path(filename).suffix.lower()
             if not filename or extension not in ALLOWED_UPLOADS:
-                raise ValueError("Supported uploads: PDF, TXT, PNG, JPG and JPEG.")
+                raise ValueError("Supported uploads: PDF, TXT, PNG, JPG, JPEG, WEBP and BMP.")
 
             uploaded.stream.seek(0, os.SEEK_END)
             size_bytes = uploaded.stream.tell()
@@ -2002,17 +2069,8 @@ def _parse_video_form(form, files):
             temp_paths.append(path)
 
             if extension in IMAGE_UPLOADS:
-                if image_path is None:
+                if image_path is None:          # the first picture is analysed by the generator
                     image_path = str(path)
-                    image_name = filename
-                try:
-                    text = extract_text(path).strip()  # OCR; may fail if Tesseract is missing
-                except Exception:
-                    text = ""
-                if text:
-                    texts.append(text)
-                else:
-                    image_without_text = True
             else:
                 try:
                     text = extract_text(path).strip()
@@ -2025,22 +2083,14 @@ def _parse_video_form(form, files):
 
         source_text = "\n\n".join(texts).strip()
 
-        if not source_text and not image_path:
-            raise ValueError("Enter a topic or upload a PDF or image first.")
-        if not source_text and image_path and image_without_text and not os.getenv("OLLAMA_VISION_MODEL", "").strip():
-            # No OCR text and no vision model: use the picture's file name as the topic when it says something
-            # ("photosynthesis_diagram.png"), so the picture is still used in the video.
-            source_text = _topic_from_filename(image_name)
-            if not source_text:
-                raise ValueError(
-                    "No readable text was found in the image. Add a topic as well, "
-                    "or set OLLAMA_VISION_MODEL=llava in .env so EduVision can describe pictures."
-                )
+        if not topic and not source_text and not image_path:
+            raise ValueError("Enter a topic or upload a picture, PDF or text file first.")
     except Exception:
         _cleanup_files(temp_paths)
         raise
 
     params = {
+        "topic": topic,
         "source_text": source_text,
         "style": style,
         "language": language,
@@ -2143,6 +2193,7 @@ def _execute_video_job(user_id, params, temp_paths, progress=None, job_id=None):
             charged_here = True
 
         result = _call_generator(
+            topic=params.get("topic", ""),
             source_text=params["source_text"],
             style=params["style"],
             difficulty=params["difficulty"],
@@ -2165,7 +2216,7 @@ def _execute_video_job(user_id, params, temp_paths, progress=None, job_id=None):
         # FIX: never use result["path"] directly (older/newer generators may not return it).
         filename, created_file = _resolve_generated_file(result)
 
-        title = result.get("title") or (params["source_text"] or "Educational Lesson")[:60]
+        title = result.get("title") or (params.get("topic") or params["source_text"] or "Educational Lesson")[:60]
         try:
             duration_seconds = int(float(result.get("duration_seconds") or 0))
         except (TypeError, ValueError):
@@ -2319,7 +2370,173 @@ def _render_generate_page(video_url=None, video_info=None, quiz_url=None, downlo
         tutor_url=tutor_url,
         max_minutes=MAX_VIDEO_MINUTES,
         default_minutes=DEFAULT_VIDEO_MINUTES,
+        notes_cost=NOTES_COST,
     )
+
+
+# ============================================================
+# EXAM NOTES + ASK QUESTIONS (only from the student's own PDF / TXT / text)
+# ============================================================
+#   POST /generate_video/notes                 files / source_text / language / detail -> notes JSON
+#   POST /generate_video/notes/ask             {notes_id, question} -> answer from the document only
+#   GET  /generate_video/notes/download/<id>   ?format=pdf|txt
+# NOTES_COST in .env = credits per notes request (default 0 = free). Charged first, refunded on failure.
+NOTES_COST = max(0, int(os.getenv("NOTES_COST", "0")))
+NOTES_TTL_SECONDS = 2 * 3600
+NOTES_STORE = {}
+NOTES_LOCK = threading.RLock()
+NOTES_EXTS = {".pdf", ".txt"}
+
+
+def _prune_notes():
+    cutoff = time.time() - NOTES_TTL_SECONDS
+    with NOTES_LOCK:
+        for key in [k for k, v in NOTES_STORE.items() if v["created"] < cutoff]:
+            NOTES_STORE.pop(key, None)
+        if len(NOTES_STORE) > 300:
+            for key in sorted(NOTES_STORE, key=lambda k: NOTES_STORE[k]["created"])[:len(NOTES_STORE) - 300]:
+                NOTES_STORE.pop(key, None)
+
+
+def _read_notes_source(form, files):
+    """Text of the uploaded PDF / TXT files plus any pasted text. Raises ValueError with a friendly message."""
+    texts = []
+    pasted = (form.get("source_text") or "").strip()
+    if pasted:
+        texts.append(pasted)
+    uploads = [f for f in (files.getlist("files") + files.getlist("file")) if f and f.filename]
+    if len(uploads) > MAX_UPLOAD_FILES:
+        raise ValueError(f"Please upload at most {MAX_UPLOAD_FILES} files.")
+    temps = []
+    try:
+        upload_dir = Path(app.root_path) / "uploads"
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        for up in uploads:
+            filename = secure_filename(up.filename)
+            ext = Path(filename).suffix.lower()
+            if ext in IMAGE_UPLOADS:
+                raise ValueError("Short notes need a PDF or TXT file (or pasted text). Pictures are only used for videos.")
+            if not filename or ext not in NOTES_EXTS:
+                raise ValueError("Supported files for notes: PDF and TXT.")
+            up.stream.seek(0, os.SEEK_END)
+            size_bytes = up.stream.tell()
+            up.stream.seek(0)
+            if size_bytes > MAX_UPLOAD_MB * 1024 * 1024:
+                raise ValueError(f"{filename} is larger than {MAX_UPLOAD_MB} MB.")
+            path = upload_dir / f"{uuid.uuid4().hex}{ext}"
+            up.save(str(path))
+            temps.append(path)
+            try:
+                text = extract_text(path).strip()
+            except (ValueError, ImportError) as exc:
+                raise ValueError(f"{filename}: {exc}") from exc
+            if text:
+                texts.append(text)
+    finally:
+        _cleanup_files(temps)
+    source = "\n\n".join(texts).strip()
+    if not source:
+        raise ValueError("I could not find any readable text. Upload a PDF / TXT with selectable text "
+                         "(not a scanned picture) or paste the text.")
+    return source[:GEN_SRC_LIMIT]
+
+
+def _owned_notes(notes_id):
+    with NOTES_LOCK:
+        entry = NOTES_STORE.get(str(notes_id))
+    if not entry or entry["uid"] != session.get("user_id"):
+        return None
+    return entry
+
+
+@app.route("/generate_video/notes", methods=["POST"])
+@login_required
+def notes_make():
+    user_id = session["user_id"]
+    _prune_notes()
+    try:
+        source = _read_notes_source(request.form, request.files)
+    except ValueError as exc:
+        return jsonify(ok=False, error=str(exc)), 400
+    except Exception:
+        app.logger.exception("Could not read the notes upload")
+        return jsonify(ok=False, error="Could not read your upload."), 400
+
+    language = _normalize_language(request.form.get("language"))
+    if language not in VALID_LANGUAGES:
+        language = "English"
+    detail = "detailed" if request.form.get("detail") == "detailed" else "quick"
+    topic = (request.form.get("topic") or "").strip()[:150]
+
+    charged = False
+    if NOTES_COST:
+        if not charge_credits(user_id, NOTES_COST):
+            return jsonify(ok=False, error=f"You need {NOTES_COST} credits to make notes.",
+                           credits=get_user_credits(user_id)), 402
+        charged = True
+    try:
+        notes = make_notes(source, topic, language, detail)
+        charged = False                                  # success: keep the charge
+    except ValueError as exc:
+        return jsonify(ok=False, error=str(exc), credits=get_user_credits(user_id)), 400
+    except Exception as exc:
+        app.logger.exception("Notes generation failed")
+        return jsonify(ok=False, error=f"Could not make the notes: {str(exc)[:200]}",
+                       credits=get_user_credits(user_id)), 500
+    finally:
+        if charged:
+            refund_credits(user_id, NOTES_COST)
+
+    notes_id = uuid.uuid4().hex
+    with NOTES_LOCK:
+        NOTES_STORE[notes_id] = {"uid": user_id, "notes": notes, "source": source, "language": language,
+                                 "history": [], "created": time.time()}
+    balance = get_user_credits(user_id)
+    session["credits"] = balance
+    return jsonify(ok=True, notes_id=notes_id, title=notes["title"], blocks=notes["blocks"],
+                   text=notes_to_text(notes), mode=notes["mode"], words=len(source.split()), credits=balance)
+
+
+@app.route("/generate_video/notes/ask", methods=["POST"])
+@login_required
+def notes_ask():
+    data = request.get_json(silent=True) or {}
+    entry = _owned_notes(data.get("notes_id"))
+    if entry is None:
+        return jsonify(ok=False, error="These notes have expired. Please make the notes again."), 404
+    question = str(data.get("question") or "").strip()[:500]
+    if not question:
+        return jsonify(ok=False, error="Type a question first."), 400
+    try:
+        result = answer_question(entry["source"], question, entry["language"], entry["history"])
+    except ValueError as exc:
+        return jsonify(ok=False, error=str(exc)), 400
+    except Exception as exc:
+        app.logger.exception("Answering a notes question failed")
+        return jsonify(ok=False, error=f"Could not answer right now: {str(exc)[:160]}"), 500
+    with NOTES_LOCK:
+        entry["history"] = (entry["history"] + [{"q": question, "a": result["answer"]}])[-6:]
+    return jsonify(ok=True, answer=result["answer"], found=result["found"])
+
+
+@app.route("/generate_video/notes/download/<notes_id>")
+@login_required
+def notes_download(notes_id):
+    entry = _owned_notes(notes_id)
+    if entry is None:
+        return "These notes have expired. Please make the notes again.", 404
+    notes = entry["notes"]
+    name = secure_filename(notes.get("title") or "notes")[:50] or "notes"
+    if request.args.get("format") == "txt":
+        return send_file(BytesIO(notes_to_text(notes).encode("utf-8")), mimetype="text/plain; charset=utf-8",
+                         as_attachment=True, download_name=f"{name}_notes.txt")
+    try:
+        pdf_bytes = notes_to_pdf(notes)
+    except Exception as exc:
+        app.logger.exception("Notes PDF failed")
+        return f"Could not make the PDF: {exc}. Download the notes as text instead.", 500
+    return send_file(BytesIO(pdf_bytes), mimetype="application/pdf", as_attachment=True,
+                     download_name=f"{name}_notes.pdf")
 
 
 @app.route("/generate_video/start", methods=["POST"])
@@ -2512,15 +2729,16 @@ def generate_video_page():
 # ============================================================
 
 def award_game_credits(user_id, game_key, score_pct, seconds):
+    """Store the finished game in game_plays and give credits when allowed.
+
+    FIX: the play is ALWAYS stored (the accuracy report reads game_plays).
+    Only the CREDITS are withheld when the game finished too quickly.
+    """
     game = GAMES[game_key]
     score_pct = max(0, min(100, int(score_pct)))
     seconds = max(0, int(seconds))
     result = {"earned": 0, "message": "", "balance": None}
-
-    if seconds < game.get("min_seconds", 10):
-        result["message"] = "That finished too quickly to count. Please play the game properly."
-        result["balance"] = get_user_credits(user_id)
-        return result
+    too_quick = seconds < game.get("min_seconds", 10)
 
     connection = get_db_connection()
     if connection is None:
@@ -2552,7 +2770,10 @@ def award_game_credits(user_id, game_key, score_pct, seconds):
         played_today = int((cursor.fetchone() or {}).get("c") or 0)
 
         earned = round(game["reward"] * score_pct / 100)
-        if game.get("once_a_day", False) and played_today > 0:
+        if too_quick:
+            earned = 0
+            result["message"] = "Score saved, but it finished too quickly to earn credits."
+        elif game.get("once_a_day", False) and played_today > 0:
             earned = 0
             result["message"] = "You have already played today's bonus challenge."
         elif earned > 0 and earned_today >= DAILY_CREDIT_CAP:
@@ -2562,6 +2783,7 @@ def award_game_credits(user_id, game_key, score_pct, seconds):
             earned = max(0, DAILY_CREDIT_CAP - earned_today)
             result["message"] = f"Daily game-credit limit: {DAILY_CREDIT_CAP} credits."
 
+        # ALWAYS store the play: this is the data the accuracy report reads.
         cursor.execute(
             "INSERT INTO game_plays "
             "(user_id, game_key, score_pct, seconds, credits_earned) "
@@ -2659,17 +2881,76 @@ def _game_key_from(data):
     )
 
 
+def _score_pct_from(data):
+    """Real percentage 0-100 from whatever the game sends.
+
+    Priority:
+      1. an explicit percentage: score_pct / percentage / percent / accuracy
+      2. score and a maximum: max_score / total / out_of / max_possible
+      3. score alone (assumed to already be a percentage), clamped to 0-100
+    """
+    for key in ("score_pct", "percentage", "percent", "accuracy"):
+        if data.get(key) not in (None, ""):
+            return max(0, min(100, _num(data.get(key))))
+    try:
+        score = float(data.get("score", 0) or 0)
+    except (TypeError, ValueError):
+        score = 0.0
+    for key in ("max_score", "total", "out_of", "max_possible"):
+        try:
+            top = float(data.get(key) or 0)
+        except (TypeError, ValueError):
+            top = 0.0
+        if top > 0:
+            return max(0, min(100, round(score * 100 / top)))
+    return max(0, min(100, int(round(score))))
+
+
+def record_game_play(user_id, game_key, score_pct, seconds=0, credits=0):
+    """Store one finished game in game_plays (what the accuracy report reads). No credits logic."""
+    connection = get_db_connection()
+    if connection is None:
+        return False
+    cursor = None
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            "INSERT INTO game_plays (user_id, game_key, score_pct, seconds, credits_earned) "
+            "VALUES (%s, %s, %s, %s, %s)",
+            (int(user_id), game_key, max(0, min(100, int(score_pct))), max(0, int(seconds)), int(credits)),
+        )
+        cursor.execute(
+            "INSERT IGNORE INTO user_activity (user_id, activity_date, activity_type) "
+            "VALUES (%s, CURDATE(), 'game')", (int(user_id),))
+        connection.commit()
+        return True
+    except Error as exc:
+        connection.rollback()
+        app.logger.error("record_game_play failed: %s", exc)
+        return False
+    finally:
+        if cursor is not None:
+            cursor.close()
+        connection.close()
+
+
 @app.route("/api/game/finish", methods=["POST"])
 @login_required
 def api_game_finish():
     data = _read_game_request()
+    app.logger.info("GAME FINISH received: %s", data)   # check this line in the terminal
+
     game_key = _game_key_from(data)
     if game_key is None:
         msg = "Unknown game."
+        app.logger.warning("GAME FINISH rejected, unknown game id in: %s", data)
         return jsonify(ok=False, success=False, error=msg, message=msg), 400
 
-    score_pct = max(0, min(100, _num(data.get("score", data.get("score_pct", 0)))))
-    seconds = max(0, min(86400, _num(data.get("seconds", data.get("time", 0)))))
+    score_pct = _score_pct_from(data)
+    seconds = _num(data.get("seconds", data.get("time", data.get("duration", 0))))
+    if seconds > 86400:          # a game that sends milliseconds
+        seconds = seconds // 1000
+    seconds = max(0, min(86400, seconds))
 
     result = award_game_credits(session["user_id"], game_key, score_pct, seconds)
 
@@ -2683,6 +2964,7 @@ def api_game_finish():
         ok=True, success=True,
         earned=result["earned"], balance=result["balance"],
         credits=result["balance"], message=result["message"],
+        score_pct=score_pct,
     ), 200
 
 
@@ -2802,6 +3084,13 @@ def _pp_aptitude_attempts(cursor, user_id):
         f"SELECT {', '.join(select)} FROM aptitude_attempts WHERE user_id = %s {order} LIMIT 500",
         (user_id,),
     )
+
+    def _f(v):
+        try:
+            return None if v is None else float(v)
+        except (TypeError, ValueError):
+            return None
+
     attempts = []
     for r in rows:
         try:
@@ -2815,6 +3104,8 @@ def _pp_aptitude_attempts(cursor, user_id):
             value = None
         attempts.append({
             "pct": None if value is None else round(max(0, min(100, value))),
+            "score": _f(r["score"]),     # raw score / total: used for exact accuracy
+            "total": _f(r["total"]),
             "at": _pp_iso(r["at"]),
             "label": str(r["label"]) if r["label"] else "Aptitude test",
         })
@@ -3080,32 +3371,39 @@ ALLOWED_GAME_KEYS = set(GAMES)
 GAME_LEVEL_REWARD = 10
 MAX_GAME_LEVEL = 1000
 
-# Maximum completed game rounds per user per day, shared by ALL games.
-# Change with DAILY_GAME_LIMIT in .env (default 10).
-DAILY_GAME_LIMIT = max(1, int(os.getenv("DAILY_GAME_LIMIT", "10")))
+# Daily game rules (shared by ALL games). Both can be changed in .env
+#   DAILY_GAME_LIMIT         = how many DIFFERENT games a student may play per day (default 4)
+#   LEVELS_PER_GAME_PER_DAY  = how many levels of ONE game per day (default 2)
+DAILY_GAME_LIMIT = max(1, int(os.getenv("DAILY_GAME_LIMIT", "4")))
+LEVELS_PER_GAME_PER_DAY = max(1, int(os.getenv("LEVELS_PER_GAME_PER_DAY", "2")))
 
 
-def get_daily_game_count(user_id):
-    """How many game rounds this user completed today (rewards saved today)."""
+def get_daily_game_stats(user_id):
+    """Rewarded levels per game today: {game_key: levels_done}."""
     connection = get_db_connection()
     if connection is None:
-        return 0
+        return {}
     cursor = None
     try:
         cursor = connection.cursor(dictionary=True)
         cursor.execute(
-            "SELECT COUNT(*) AS n FROM game_level_rewards "
-            "WHERE user_id = %s AND DATE(created_at) = CURDATE()",
+            "SELECT game_key, COUNT(*) AS n FROM game_level_rewards "
+            "WHERE user_id = %s AND DATE(created_at) = CURDATE() GROUP BY game_key",
             (user_id,),
         )
-        return int((cursor.fetchone() or {}).get("n") or 0)
+        return {r["game_key"]: int(r["n"] or 0) for r in cursor.fetchall()}
     except Error as exc:
-        app.logger.warning("Daily game count failed: %s", exc)
-        return 0
+        app.logger.warning("Daily game stats failed: %s", exc)
+        return {}
     finally:
         if cursor is not None:
             cursor.close()
         connection.close()
+
+
+def get_daily_game_count(user_id):
+    """How many DIFFERENT games this user has played today (used by the dashboard)."""
+    return len(get_daily_game_stats(user_id))
 
 
 def get_or_create_game_progress(user_id, game_key):
@@ -3148,6 +3446,12 @@ def get_or_create_game_progress(user_id, game_key):
         connection.close()
 
 
+# MySQL errors caused by an old table layout: 1054 unknown column, 1364 no default value,
+# 1048 column cannot be null, 1146 table missing, 1062 duplicate key, 1265/1366 bad value.
+_SCHEMA_ERRNOS = {1054, 1364, 1048, 1146, 1265, 1366}
+_GAME_SCHEMA_REPAIRED = False
+
+
 @app.route("/api/game-level/complete", methods=["POST"])
 @login_required
 def complete_game_level():
@@ -3181,19 +3485,33 @@ def complete_game_level():
             connection.rollback()
             return fail("User account not found.", 404)
 
-        # Daily limit shared by all games (the user row is locked above, so this is race-safe).
+        # ---- Daily rules: max DAILY_GAME_LIMIT games, max LEVELS_PER_GAME_PER_DAY levels per game
+        # (the user row is locked above, so this check is race-safe)
         cursor.execute(
-            "SELECT COUNT(*) AS n FROM game_level_rewards "
-            "WHERE user_id = %s AND DATE(created_at) = CURDATE()",
+            "SELECT game_key, COUNT(*) AS n FROM game_level_rewards "
+            "WHERE user_id = %s AND DATE(created_at) = CURDATE() GROUP BY game_key",
             (user_id,),
         )
-        used_today = int((cursor.fetchone() or {}).get("n") or 0)
-        if used_today >= DAILY_GAME_LIMIT:
+        per_game = {r["game_key"]: int(r["n"] or 0) for r in cursor.fetchall()}
+        this_game_used = per_game.get(game_key, 0)
+
+        reason = ""
+        if this_game_used >= LEVELS_PER_GAME_PER_DAY:
+            reason = "game"      # the levels of this game are used up for today
+        elif this_game_used == 0 and len(per_game) >= DAILY_GAME_LIMIT:
+            reason = "games"     # already played DAILY_GAME_LIMIT different games today
+
+        if reason:
             connection.rollback()
-            msg = "Enough playing for today! Come back tomorrow."
+            if reason == "game":
+                msg = (f"You already finished {LEVELS_PER_GAME_PER_DAY} levels of this game today. "
+                       "Try another game or come back tomorrow!")
+            else:
+                msg = f"You already played {DAILY_GAME_LIMIT} games today. Come back tomorrow!"
             return jsonify(
-                ok=False, success=False, limit_reached=True,
-                daily_used=used_today, daily_limit=DAILY_GAME_LIMIT,
+                ok=False, success=False, limit_reached=True, reason=reason,
+                daily_used=len(per_game), daily_limit=DAILY_GAME_LIMIT,
+                per_game=per_game, per_game_limit=LEVELS_PER_GAME_PER_DAY,
                 error=msg, message=msg,
             ), 429
 
@@ -3206,13 +3524,21 @@ def complete_game_level():
 
         # Anti-cheat: a level can only be completed if the player has unlocked it.
         cursor.execute(
-            "SELECT unlocked_level FROM game_progress WHERE user_id = %s AND game_key = %s",
+            "SELECT unlocked_level, completed_levels FROM game_progress "
+            "WHERE user_id = %s AND game_key = %s",
             (user_id, game_key),
         )
         prog = cursor.fetchone() or {}
-        if level > int(prog.get("unlocked_level") or 1):
+        unlocked = int(prog.get("unlocked_level") or 1)
+        if level > unlocked:
             connection.rollback()
-            return fail("That level is not unlocked yet.", 400)
+            msg = "That level is not unlocked yet."
+            return jsonify(
+                ok=False, success=False, not_unlocked=True,
+                unlocked_level=unlocked,
+                completed_levels=int(prog.get("completed_levels") or 0),
+                error=msg, message=msg,
+            ), 400
 
         # One reward per user + game + level (UNIQUE key blocks duplicates).
         cursor.execute(
@@ -3225,6 +3551,7 @@ def complete_game_level():
         earned = 0
 
         if newly_completed:
+            per_game[game_key] = this_game_used + 1
             earned = GAME_LEVEL_REWARD
             cursor.execute(
                 "UPDATE users SET credits = COALESCE(credits, 0) + %s WHERE id = %s",
@@ -3238,11 +3565,24 @@ def complete_game_level():
                 "WHERE user_id = %s AND game_key = %s",
                 (level + 1, score, user_id, game_key),
             )
-            cursor.execute(
-                "INSERT IGNORE INTO user_activity (user_id, activity_date, activity_type) "
-                "VALUES (%s, CURDATE(), 'game')",
-                (user_id,),
-            )
+            # Extra bookkeeping (streak + accuracy report). If one of these tables has an
+            # old layout, the reward itself must still be saved, so a failure is only logged.
+            try:
+                cursor.execute(
+                    "INSERT IGNORE INTO user_activity (user_id, activity_date, activity_type) "
+                    "VALUES (%s, CURDATE(), 'game')",
+                    (user_id,),
+                )
+            except Error as exc:
+                app.logger.warning("user_activity not updated: %s", exc)
+            try:
+                cursor.execute(
+                    "INSERT INTO game_plays (user_id, game_key, score_pct, seconds, credits_earned) "
+                    "VALUES (%s, %s, %s, 0, %s)",
+                    (user_id, game_key, _score_pct_from(data), earned),
+                )
+            except Error as exc:
+                app.logger.warning("game_plays not updated: %s", exc)
 
         cursor.execute("SELECT credits FROM users WHERE id = %s", (user_id,))
         balance = int((cursor.fetchone() or {}).get("credits") or 0)
@@ -3254,16 +3594,25 @@ def complete_game_level():
             earned=earned, balance=balance, credits=balance,
             level=level, game_key=game_key,
             duplicate=not newly_completed,
-            daily_used=used_today + (1 if newly_completed else 0),
-            daily_limit=DAILY_GAME_LIMIT,
+            daily_used=len(per_game), daily_limit=DAILY_GAME_LIMIT,
+            per_game=per_game, per_game_limit=LEVELS_PER_GAME_PER_DAY,
             message=(f"You earned {earned} credits!" if earned > 0
                      else "This level has already been completed."),
         ), 200
 
-    except Error:
+    except Error as exc:
         connection.rollback()
         app.logger.exception("Game level reward database error")
-        return fail("Database error while saving game reward.", 500)
+        # Old table layouts (missing column, column without default ...): repair the
+        # tables once and try again, so the player does not lose the reward.
+        global _GAME_SCHEMA_REPAIRED
+        if not _GAME_SCHEMA_REPAIRED and getattr(exc, "errno", None) in _SCHEMA_ERRNOS:
+            _GAME_SCHEMA_REPAIRED = True
+            app.logger.warning("Repairing game tables and retrying the reward ...")
+            if initialize_database():
+                return complete_game_level.__wrapped__()
+        detail = f"{getattr(exc, 'errno', '')}: {getattr(exc, 'msg', str(exc))}"
+        return fail(f"Database error while saving game reward ({detail}).", 500)
     except Exception:
         connection.rollback()
         app.logger.exception("Unexpected game level completion error")
@@ -3275,19 +3624,255 @@ def complete_game_level():
 
 
 # ============================================================
+# GAME PROGRESS (the database is the truth for each user's level)
+# ============================================================
+
+@app.route("/api/game-progress/<game_key>")
+@login_required
+def api_game_progress(game_key):
+    """Unlocked level of the logged-in user in one game. Used by game.js on start."""
+    key = _normalize_game_key(game_key)
+    if key is None:
+        return jsonify(ok=False, error="Unknown game."), 404
+    try:
+        progress = get_or_create_game_progress(session["user_id"], key)
+    except Exception:
+        app.logger.exception("Could not load game progress")
+        return jsonify(ok=False, error="Could not load progress."), 503
+    return jsonify(
+        ok=True,
+        user_id=session["user_id"],
+        game_key=key,
+        unlocked_level=int(progress.get("unlocked_level") or 1),
+        completed_levels=int(progress.get("completed_levels") or 0),
+        best_score=int(progress.get("best_score") or 0),
+    )
+
+
+# ============================================================
 # DAILY GAME LIMIT STATUS
 # ============================================================
 
 @app.route("/api/game-daily-status")
 @login_required
 def game_daily_status():
-    """Used by game.js to show the X marks and block games when the limit is used up."""
-    used = get_daily_game_count(session["user_id"])
+    """Used by game.js to show today's games/levels and to block games when limits are used up."""
+    per_game = get_daily_game_stats(session["user_id"])
+    used = len(per_game)
     return jsonify(
         ok=True, used=used, limit=DAILY_GAME_LIMIT,
         remaining=max(0, DAILY_GAME_LIMIT - used),
+        per_game=per_game, per_game_limit=LEVELS_PER_GAME_PER_DAY,
         reached=used >= DAILY_GAME_LIMIT,
     )
+
+
+# ============================================================
+# ACCURACY REPORT (measured from real data in MySQL)
+# ============================================================
+
+def _weighted_overall(parts):
+    """parts = [(accuracy, weight), ...]. Weighted average, or None if there is no data."""
+    parts = [(a, w) for a, w in parts if a is not None and w and w > 0]
+    total_weight = sum(w for _, w in parts)
+    if not total_weight:
+        return None
+    return round(sum(a * w for a, w in parts) / total_weight, 1)
+
+
+def compute_accuracy(user_id=None):
+    """Accuracy numbers from stored results.
+
+    user_id given -> that student only (quiz, games, aptitude).
+    user_id None  -> whole platform (quiz and games, all students).
+    """
+    where = "WHERE user_id = %s" if user_id else ""
+    params = (user_id,) if user_id else ()
+    out = {
+        "quiz": {"attempts": 0, "correct": 0, "questions": 0, "accuracy": None},
+        "games": {"plays": 0, "accuracy": None, "by_game": []},
+        "aptitude": {"attempts": 0, "accuracy": None},
+        "overall": None,
+    }
+    connection = get_db_connection()
+    if connection is None:
+        return None
+    cursor = None
+    try:
+        cursor = connection.cursor(dictionary=True)
+
+        # Quiz accuracy = correct answers / total questions
+        q = _pp_query(
+            cursor,
+            f"SELECT COUNT(*) AS n, COALESCE(SUM(score),0) AS c, "
+            f"COALESCE(SUM(total_questions),0) AS t FROM video_quiz_attempts {where}",
+            params, one=True)
+        n, c, t = int(q.get("n") or 0), int(q.get("c") or 0), int(q.get("t") or 0)
+        out["quiz"] = {"attempts": n, "correct": c, "questions": t,
+                       "accuracy": round(c * 100 / t, 1) if t else None}
+
+        # Game accuracy = average score percentage over every stored play
+        g = _pp_query(
+            cursor,
+            f"SELECT COUNT(*) AS n, AVG(score_pct) AS a FROM game_plays {where}",
+            params, one=True)
+        if int(g.get("n") or 0):
+            out["games"]["plays"] = int(g["n"])
+            out["games"]["accuracy"] = round(float(g["a"] or 0), 1)
+            rows = _pp_query(
+                cursor,
+                f"SELECT game_key, COUNT(*) AS plays, AVG(score_pct) AS avg_pct, "
+                f"MAX(score_pct) AS best FROM game_plays {where} "
+                f"GROUP BY game_key ORDER BY plays DESC",
+                params)
+            out["games"]["by_game"] = [{
+                "name": GAMES.get(r["game_key"], {}).get("name")
+                        or str(r["game_key"]).replace("_", " ").title(),
+                "plays": int(r["plays"] or 0),
+                "avg": round(float(r["avg_pct"] or 0), 1),
+                "best": int(r["best"] or 0),
+            } for r in rows]
+
+        # Aptitude accuracy (per student only)
+        if user_id:
+            attempts = _pp_aptitude_attempts(cursor, user_id)
+            exact = [a for a in attempts
+                     if a.get("score") is not None and a.get("total")]
+            if exact:
+                correct = sum(min(a["score"], a["total"]) for a in exact)
+                total = sum(a["total"] for a in exact)
+                out["aptitude"] = {"attempts": len(exact),
+                                   "accuracy": round(correct * 100 / total, 1)}
+            else:
+                pcts = [a["pct"] for a in attempts if a["pct"] is not None]
+                if pcts:
+                    out["aptitude"] = {"attempts": len(pcts),
+                                       "accuracy": round(sum(pcts) / len(pcts), 1)}
+
+        # Overall = weighted by how many attempts each part really has
+        out["overall"] = _weighted_overall([
+            (out["quiz"]["accuracy"], out["quiz"]["attempts"]),
+            (out["games"]["accuracy"], out["games"]["plays"]),
+            (out["aptitude"]["accuracy"], out["aptitude"]["attempts"]),
+        ])
+        return out
+    except Exception:
+        app.logger.exception("Accuracy calculation failed")
+        return None
+    finally:
+        if cursor is not None:
+            cursor.close()
+        connection.close()
+
+
+@app.route("/api/accuracy")
+@login_required
+def api_accuracy():
+    """JSON accuracy. ?scope=all gives the whole platform, default is the logged-in student."""
+    scope_all = request.args.get("scope") == "all"
+    data = compute_accuracy(None if scope_all else session["user_id"])
+    if data is None:
+        return jsonify(ok=False, error="Could not calculate accuracy."), 503
+    return jsonify(ok=True, scope="all" if scope_all else "me", accuracy=data)
+
+
+@app.route("/api/game-debug")
+@login_required
+def game_debug():
+    """Shows what is stored for YOUR account in each game table. Open it after playing a game."""
+    uid = session["user_id"]
+    connection = get_db_connection()
+    if connection is None:
+        return jsonify(ok=False, error="No database connection."), 503
+    cursor = None
+    try:
+        cursor = connection.cursor(dictionary=True)
+        counts = {}
+        for table in ("game_plays", "game_results", "game_level_rewards", "game_progress"):
+            row = _pp_query(cursor, f"SELECT COUNT(*) AS n FROM {table} WHERE user_id = %s",
+                            (uid,), one=True)
+            counts[table] = int(row.get("n") or 0)
+        last = _pp_query(
+            cursor,
+            "SELECT game_key, score_pct, seconds, credits_earned, played_at FROM game_plays "
+            "WHERE user_id = %s ORDER BY id DESC LIMIT 5", (uid,))
+        for r in last:
+            r["played_at"] = _pp_iso(r.get("played_at"))
+        return jsonify(ok=True, rows_for_you=counts, last_game_plays=last,
+                       hint="If game_plays stays 0 after finishing a game, game.js is not "
+                            "calling POST /api/game/finish. Watch the terminal for 'GAME FINISH received'.")
+    finally:
+        if cursor is not None:
+            cursor.close()
+        connection.close()
+
+
+@app.route("/accuracy")
+@login_required
+def accuracy_page():
+    """Simple report page: my accuracy and platform accuracy."""
+    mine = compute_accuracy(session["user_id"])
+    everyone = compute_accuracy(None)
+    if mine is None or everyone is None:
+        return "Could not calculate accuracy right now.", 503
+
+    def fmt(v):
+        return "No data yet" if v is None else f"{v}%"
+
+    return render_template_string("""
+    <!doctype html><html lang="en"><head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1"><title>Accuracy | EduVision</title>
+    <style>
+    body{font-family:Arial,sans-serif;background:#f4f6fb;margin:0;padding:30px;color:#182033}
+    .wrap{max-width:760px;margin:auto}.card{background:#fff;border-radius:16px;padding:24px;
+    box-shadow:0 10px 30px #1820331a;margin-bottom:20px}
+    table{width:100%;border-collapse:collapse}td,th{padding:10px;border-bottom:1px solid #e3e6f0;text-align:left}
+    .big{font-size:42px;font-weight:700;color:#5546e8}small{color:#6b7385}
+    h3{margin:22px 0 6px}
+    </style></head><body><div class="wrap">
+
+    <div class="card"><h2>My accuracy</h2><div class="big">{{ fmt(mine.overall) }}</div>
+    <small>Overall is weighted by how many quizzes, games and tests you have done.</small>
+    <table>
+    <tr><th>Quiz answers</th><td>{{ fmt(mine.quiz.accuracy) }}</td>
+        <td><small>{{ mine.quiz.correct }} / {{ mine.quiz.questions }} correct</small></td></tr>
+    <tr><th>Games</th><td>{{ fmt(mine.games.accuracy) }}</td>
+        <td><small>{{ mine.games.plays }} plays</small></td></tr>
+    <tr><th>Aptitude</th><td>{{ fmt(mine.aptitude.accuracy) }}</td>
+        <td><small>{{ mine.aptitude.attempts }} tests</small></td></tr>
+    </table>
+    {% if mine.games.by_game %}
+    <h3>My games</h3>
+    <table>
+    <tr><th>Game</th><th>Average</th><th>Best</th><th>Plays</th></tr>
+    {% for g in mine.games.by_game %}
+    <tr><td>{{ g.name }}</td><td>{{ g.avg }}%</td><td>{{ g.best }}%</td><td>{{ g.plays }}</td></tr>
+    {% endfor %}
+    </table>
+    {% endif %}
+    </div>
+
+    <div class="card"><h2>Platform accuracy (all students)</h2><div class="big">{{ fmt(everyone.overall) }}</div>
+    <table>
+    <tr><th>Quiz answers</th><td>{{ fmt(everyone.quiz.accuracy) }}</td>
+        <td><small>{{ everyone.quiz.correct }} / {{ everyone.quiz.questions }} correct</small></td></tr>
+    <tr><th>Games</th><td>{{ fmt(everyone.games.accuracy) }}</td>
+        <td><small>{{ everyone.games.plays }} plays</small></td></tr>
+    </table>
+    {% if everyone.games.by_game %}
+    <h3>All games</h3>
+    <table>
+    <tr><th>Game</th><th>Average</th><th>Best</th><th>Plays</th></tr>
+    {% for g in everyone.games.by_game %}
+    <tr><td>{{ g.name }}</td><td>{{ g.avg }}%</td><td>{{ g.best }}%</td><td>{{ g.plays }}</td></tr>
+    {% endfor %}
+    </table>
+    {% endif %}
+    </div>
+
+    <p><a href="{{ url_for('dashboard') }}">Back to dashboard</a></p>
+    </div></body></html>
+    """, mine=mine, everyone=everyone, fmt=fmt)
 
 
 # ============================================================
@@ -3472,6 +4057,13 @@ def initialize_database():
             cursor.execute(statement)
 
         wanted_columns = [
+            # Old versions of the game tables may not have these key columns at all.
+            ("game_progress", "user_id", "INT NOT NULL DEFAULT 0"),
+            ("game_progress", "game_key", "VARCHAR(100) NOT NULL DEFAULT ''"),
+            ("game_level_rewards", "user_id", "INT NOT NULL DEFAULT 0"),
+            ("game_level_rewards", "game_key", "VARCHAR(100) NOT NULL DEFAULT ''"),
+            ("game_plays", "user_id", "INT NOT NULL DEFAULT 0"),
+            ("game_plays", "game_key", "VARCHAR(100) NOT NULL DEFAULT ''"),
             ("game_progress", "unlocked_level", "INT NOT NULL DEFAULT 1"),
             ("game_progress", "completed_levels", "INT NOT NULL DEFAULT 0"),
             ("game_progress", "best_score", "INT NOT NULL DEFAULT 0"),
@@ -3509,6 +4101,23 @@ def initialize_database():
                 )
                 app.logger.info("Added missing column %s.%s", table, column)
 
+        # Old tables used other names for the game id (game_name, game, game_id, game_type...).
+        # Copy those values into game_key so old rows are not lost.
+        for table in ("game_progress", "game_level_rewards", "game_plays"):
+            cursor.execute(
+                "SELECT COLUMN_NAME FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s",
+                (database_name, table),
+            )
+            have = {(r[0].decode() if isinstance(r[0], (bytes, bytearray)) else r[0]) for r in cursor.fetchall()}
+            for legacy in ("game_name", "game", "game_id", "game_type", "mode"):
+                if legacy in have and "game_key" in have:
+                    cursor.execute(
+                        f"UPDATE `{table}` SET game_key = `{legacy}` "
+                        f"WHERE (game_key IS NULL OR game_key = '') AND `{legacy}` IS NOT NULL"
+                    )
+                    break
+
         # Old game tables may contain leftover NOT NULL columns that make INSERTs fail.
         _relax_legacy_columns(cursor, database_name, "game_level_rewards",
                               {"id", "user_id", "game_key", "level_number", "score",
@@ -3519,6 +4128,22 @@ def initialize_database():
         _relax_legacy_columns(cursor, database_name, "game_plays",
                               {"id", "user_id", "game_key", "score_pct", "seconds",
                                "credits_earned", "played_at"})
+
+        # One progress row per user + game (needed by INSERT IGNORE in the game code).
+        cursor.execute(
+            "SELECT COUNT(*) FROM information_schema.STATISTICS "
+            "WHERE TABLE_SCHEMA = %s AND TABLE_NAME = 'game_progress' "
+            "AND INDEX_NAME = 'unique_user_game_progress'",
+            (database_name,),
+        )
+        if cursor.fetchone()[0] == 0:
+            try:
+                cursor.execute(
+                    "ALTER TABLE game_progress ADD UNIQUE KEY unique_user_game_progress "
+                    "(user_id, game_key)"
+                )
+            except Error as exc:
+                app.logger.warning("Could not add unique game-progress key: %s", exc)
 
         # Make sure the "one reward per level" unique key exists on old tables.
         cursor.execute(

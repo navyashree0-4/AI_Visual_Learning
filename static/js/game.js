@@ -90,8 +90,15 @@ const EduVisionLevels = (() => {
         return "";
     }
 
+    // Progress is saved PER USER, so two accounts on one browser never share a level.
+    function getUserId() {
+        const p = readPayload();
+        const id = String(p.user_id || (document.body && document.body.dataset.userId) || "").trim();
+        return /^\d+$/.test(id) ? id : "guest";
+    }
+
     function storageKey() {
-        return `eduvision_progress_${state.gameId}`;
+        return `eduvision_progress_u${getUserId()}_${state.gameId}`;
     }
 
     function load() {
@@ -145,26 +152,18 @@ const EduVisionLevels = (() => {
         }
     }
 
-    // Use the level stored in the database when it is ahead of the browser.
+    // The database decides the level. It can raise OR lower the browser's copy.
     // Returns true when the level actually changed.
     function setLevel(serverLevel, serverCompleted) {
+        if (state.completedThisLevel) return false;   // a win is being saved right now
+
         const lvl = Math.max(1, Math.floor(Number(serverLevel) || 1));
-        let changed = false;
-        let levelChanged = false;
-
-        if (lvl > state.level) {
-            state.level = lvl;
-            changed = true;
-            levelChanged = true;
-        }
-
         const done = Math.max(0, Math.floor(Number(serverCompleted) || 0));
-        if (done > state.completedLevels) {
-            state.completedLevels = done;
-            changed = true;
-        }
+        const levelChanged = lvl !== state.level;
 
-        if (changed) {
+        if (levelChanged || done !== state.completedLevels) {
+            state.level = lvl;
+            state.completedLevels = done;
             save();
             updatePayload();
             render();
@@ -259,6 +258,7 @@ const EduVisionLevels = (() => {
         getDifficulty,
         allowReplay() { state.completedThisLevel = false; },
         get level() { return state.level; },
+        get userId() { return getUserId(); },
         get gameId() { return state.gameId; },
         get completedLevels() { return state.completedLevels; }
     };
@@ -269,44 +269,85 @@ window.EduVisionLevels = EduVisionLevels;
 /* ---------- DAILY PLAY LIMIT (shared by all games) ----------
    The server (MySQL) is the real counter. localStorage is only a fast cache. */
 const DailyLimit = (() => {
-    const KEY = "eduvision_daily_plays";
-    let limit = 10;                      // replaced by the server value (DAILY_GAME_LIMIT in .env)
+    const keyName = () => `eduvision_daily_plays_u${EduVisionLevels.userId}`;
+    let limit = 4;          // different games per day (the server value replaces it)
+    let perGame = 2;        // levels of ONE game per day (the server value replaces it)
+    let games = {};         // { game_key: levels done today }
 
     const today = () => {
         const d = new Date();
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     };
 
+    const gid = () => EduVisionLevels.gameId;
+
     const read = () => {
         try {
-            const s = JSON.parse(localStorage.getItem(KEY) || "{}");
+            const s = JSON.parse(localStorage.getItem(keyName()) || "{}");
+
             if (s.date === today()) {
                 if (Number(s.limit) > 0) limit = Number(s.limit);
-                return Math.max(0, Number(s.count) || 0);
+                if (Number(s.perGame) > 0) perGame = Number(s.perGame);
+                games = (s.games && typeof s.games === "object") ? s.games : {};
             }
         } catch (e) { /* ignore */ }
-        return 0;
     };
 
-    let count = read();
+    read();
 
     const write = () => {
-        try { localStorage.setItem(KEY, JSON.stringify({ date: today(), count, limit })); } catch (e) { /* ignore */ }
+        try {
+            localStorage.setItem(keyName(), JSON.stringify({ date: today(), limit, perGame, games }));
+        } catch (e) { /* ignore */ }
     };
 
-    return {
+    const gameCount = id => Math.max(0, Number(games[id]) || 0);
+    const distinct = () => Object.keys(games).filter(k => gameCount(k) > 0).length;
+
+    const api = {
         get limit() { return limit; },
-        used: () => count,
-        remaining: () => Math.max(0, limit - count),
-        reached: () => count >= limit,
-        record() { count += 1; write(); },
-        set(used, newLimit) {
-            if (Number.isFinite(newLimit) && newLimit > 0) limit = newLimit;
-            count = Math.max(0, Number(used) || 0);
+        get perGame() { return perGame; },
+        used: distinct,                                    // different games played today
+        remaining: () => Math.max(0, limit - distinct()),  // games still available
+        levelsUsed: (id = gid()) => gameCount(id),         // levels done in this game today
+        levelsLeft: (id = gid()) => Math.max(0, perGame - gameCount(id)),
+
+        // "" = can play, "game" = the levels of this game are done for today,
+        // "games" = the maximum number of different games was already played today
+        blockReason(id = gid()) {
+            if (gameCount(id) >= perGame) return "game";
+            if (gameCount(id) === 0 && distinct() >= limit) return "games";
+            return "";
+        },
+
+        reached() { return api.blockReason() !== ""; },
+
+        record(id = gid()) {
+            games[id] = gameCount(id) + 1;
             write();
         },
-        fill() { count = limit; write(); }
+
+        // data = answer of the server: {limit / daily_limit, per_game_limit, per_game}
+        set(data) {
+            if (!data) return;
+
+            const newLimit = Number(data.limit ?? data.daily_limit);
+            if (newLimit > 0) limit = newLimit;
+
+            if (Number(data.per_game_limit) > 0) perGame = Number(data.per_game_limit);
+
+            if (data.per_game && typeof data.per_game === "object") games = { ...data.per_game };
+
+            write();
+        },
+
+        fill() {
+            games[gid()] = perGame;
+            write();
+        }
     };
+
+    return api;
 })();
 
 window.EduVisionDaily = DailyLimit;
@@ -964,7 +1005,9 @@ const dailyHTML = () => {
     const marks = Array.from({ length: DailyLimit.limit }, (_, i) =>
         i < used ? '<b class="edu-mark on">✕</b>' : '<b class="edu-mark">·</b>').join("");
 
-    return `<span>Today's rounds</span><div class="edu-marks">${marks}</div><span>${used}/${DailyLimit.limit}</span>`;
+    return `<span>Games today</span><div class="edu-marks">${marks}</div>` +
+           `<span>${used}/${DailyLimit.limit}</span>` +
+           `<span>· This game: ${DailyLimit.levelsUsed()}/${DailyLimit.perGame} levels</span>`;
 };
 
 const refreshDailyStrip = () => {
@@ -1171,7 +1214,7 @@ const swipe = (target, handler) => {
    CREDITS, SOUND, REWARD POPUP, SAVING TO FLASK
    ========================================================= */
 
-const CREDIT_KEY = "eduvision_credits_earned";
+const CREDIT_KEY = `eduvision_credits_earned_u${EduVisionLevels.userId}`;
 
 const showCredits = serverBalance => {
     if (serverBalance === undefined || serverBalance === null) return;
@@ -1272,6 +1315,22 @@ const ensureRewardStyle = () => {
     document.head.append(style);
 };
 
+const limitText = () => {
+    const reason = DailyLimit.blockReason();
+
+    if (reason === "games") {
+        return `You have played ${DailyLimit.limit} games today. Time to learn something new 📚`;
+    }
+
+    if (reason === "game") {
+        return DailyLimit.remaining() > 0
+            ? `You finished ${DailyLimit.perGame} levels of this game today. Try another game! (${DailyLimit.remaining()} game${DailyLimit.remaining() === 1 ? "" : "s"} left today)`
+            : `You finished ${DailyLimit.perGame} levels of this game and used all ${DailyLimit.limit} games today. Come back tomorrow 📚`;
+    }
+
+    return "";
+};
+
 const showRewardPopup = ({ level, earned, balance, duplicate = false, time = "", moves = 0, blocked = false, capped = false }) => {
     ensureRewardStyle();
     ensureFailStyle();   // for the shared red X close button style
@@ -1287,20 +1346,21 @@ const showRewardPopup = ({ level, earned, balance, duplicate = false, time = "",
             ? `<b class="edu-mark on${i === used - 1 && !blocked ? " stamp" : ""}">✕</b>`
             : '<b class="edu-mark">·</b>').join("");
 
-    // every finished round gets one red cut mark, so the player can see how much was played today
-    const left = DailyLimit.remaining();
+    // one red cut mark for every different game played today
+    const gameLeft = DailyLimit.levelsLeft();
     const dailyBlock = (blocked || capped) ? "" : `
         <div class="edu-daily">
-            <span>Rounds played today: <b>${used} / ${DailyLimit.limit}</b></span>
+            <span>Games played today: <b>${used} / ${DailyLimit.limit}</b></span>
             <div class="edu-marks">${marks}</div>
-            <small>${left} round${left === 1 ? "" : "s"} left today</small>
+            <small>This game: ${DailyLimit.levelsUsed()} / ${DailyLimit.perGame} levels today
+            (${gameLeft} level${gameLeft === 1 ? "" : "s"} left)</small>
         </div>`;
 
     const limitBox = (blocked || capped) ? `
         <div class="edu-limit-box">
             <div class="edu-limit-x">✕</div>
-            <strong>Enough playing for today!</strong>
-            <p>You have used all ${DailyLimit.limit} game rounds. Time to learn something new 📚</p>
+            <strong>${DailyLimit.blockReason() === "games" ? "Daily games limit reached!" : "Daily level limit reached!"}</strong>
+            <p>${limitText()}</p>
             <div class="edu-marks">${marks}</div>
         </div>` : "";
 
@@ -1318,7 +1378,7 @@ const showRewardPopup = ({ level, earned, balance, duplicate = false, time = "",
 
     overlay.innerHTML = `
         <div class="edu-reward-card" role="dialog" aria-modal="true">
-            <button type="button" class="edu-x-close" id="eduRewardClose" aria-label="Close and go back to dashboard" title="Close">✕</button>
+            <button type="button" class="edu-x-close" id="eduRewardClose" aria-label="Close" title="Close">✕</button>
             <div class="edu-reward-confetti">${blocked ? "✕ ✕ ✕" : "🎉 ✨ 🎊"}</div>
             <div class="edu-reward-trophy">${blocked ? "🛑" : "🏆"}</div>
             <h2>${blocked ? "Daily limit reached" : `Level ${level} Completed!`}</h2>
@@ -1333,7 +1393,9 @@ const showRewardPopup = ({ level, earned, balance, duplicate = false, time = "",
             ${dailyBlock}
             ${limitBox}
             <button type="button" id="eduRewardContinue">
-                ${(blocked || capped) ? "OK" : `Continue to Level ${level + 1} →`}
+                ${(blocked || capped)
+                    ? (DailyLimit.remaining() > 0 ? "Choose another game" : "OK")
+                    : `Continue to Level ${level + 1} →`}
             </button>
         </div>
     `;
@@ -1351,7 +1413,15 @@ const showRewardPopup = ({ level, earned, balance, duplicate = false, time = "",
         window.location.reload();
     };
 
-    document.getElementById("eduRewardContinue").addEventListener("click", stayHere);
+    // this game is finished for today: go to the game list when other games remain
+    const leave = () => {
+        overlay.remove();
+
+        if (DailyLimit.remaining() > 0) window.location.href = "/game";
+        else window.location.reload();
+    };
+
+    document.getElementById("eduRewardContinue").addEventListener("click", (blocked || capped) ? leave : stayHere);
 
     // red X in the corner: close the popup and stay on the same page
     document.getElementById("eduRewardClose").addEventListener("click", stayHere);
@@ -1375,6 +1445,8 @@ const completeLevelAndAwardCredits = async (completedLevel, finalScore) => {
     const finalTime = fmtTime(elapsedSec);
     const finalMoves = hudMovesEl ? hudMovesEl.textContent : String(moveCount);
 
+    // remove old messages / retry button so they never pile up
+    area.querySelectorAll(".game-status, .ev-retry-save").forEach(n => n.remove());
     const status = makeStatus("⏳ Checking your level and saving credits...");
 
     try {
@@ -1406,10 +1478,10 @@ const completeLevelAndAwardCredits = async (completedLevel, finalScore) => {
 
         console.log("Reward API status:", response.status, result);
 
-        // server says the daily limit is used up
+        // server says a daily limit is used up (max games, or max levels of this game)
         if (response.status === 429 || result.limit_reached) {
-            if (Number.isFinite(Number(result.daily_used))) {
-                DailyLimit.set(Number(result.daily_used), Number(result.daily_limit));
+            if (result.per_game) {
+                DailyLimit.set(result);
             } else {
                 DailyLimit.fill();
             }
@@ -1420,6 +1492,18 @@ const completeLevelAndAwardCredits = async (completedLevel, finalScore) => {
                 showRewardPopup({ level: completedLevel, earned: 0, balance: 0, blocked: true });
             }
 
+            return;
+        }
+
+        // the browser level was out of sync with this account: use the database level
+        if (result.not_unlocked) {
+            Levels.setLevel(result.unlocked_level, result.completed_levels);
+
+            if (!stillHere()) return;
+
+            over = false;
+            status(`Your account is on Level ${Levels.level}. Restarting there...`, "lose");
+            later(1600, restartLevel);
             return;
         }
 
@@ -1436,10 +1520,10 @@ const completeLevelAndAwardCredits = async (completedLevel, finalScore) => {
         showCredits(balance);
 
         // keep the local counter in step with the server
-        if (Number.isFinite(Number(result.daily_used))) {
-            DailyLimit.set(Number(result.daily_used), Number(result.daily_limit));
+        if (result.per_game) {
+            DailyLimit.set(result);
         } else if (!result.duplicate) {
-            DailyLimit.record();
+            DailyLimit.record(Levels.gameId);
         }
 
         refreshDailyStrip();
@@ -1491,6 +1575,7 @@ const completeLevelAndAwardCredits = async (completedLevel, finalScore) => {
             retry.remove();
             completeLevelAndAwardCredits(completedLevel, finalScore);
         });
+        retry.classList.add("ev-retry-save");
 
         area.append(retry);
     }
@@ -5656,13 +5741,28 @@ function showLimitReached() {
     resetGame();
     limitShown = true;
 
+    const reason = DailyLimit.blockReason();
+    const title = reason === "games" ? "Daily games limit reached!" : "Enough of this game for today!";
+    const message = reason === "games"
+        ? `You have played ${DailyLimit.limit} games today. Watch a lesson or ask the AI Tutor, then come back tomorrow.`
+        : `You finished ${DailyLimit.perGame} levels of this game today. ` +
+          (DailyLimit.remaining() > 0
+              ? `You can still play ${DailyLimit.remaining()} other game${DailyLimit.remaining() === 1 ? "" : "s"} today.`
+              : "Come back tomorrow!");
+
     const panel = el("div", "game-result-panel");
 
     panel.innerHTML = `
         <div style="font-size:64px;font-weight:900;color:#dc2626;line-height:1">✕</div>
-        <h3>Enough playing for today!</h3>
-        <p>You have finished ${DailyLimit.limit} of ${DailyLimit.limit} game rounds today.
-           Watch a lesson or ask the AI Tutor, then come back tomorrow.</p>`;
+        <h3></h3>
+        <p></p>`;
+
+    panel.querySelector("h3").textContent = title;
+    panel.querySelector("p").textContent = message;
+
+    if (DailyLimit.remaining() > 0) {
+        panel.append(makeButton("🎮 Choose another game", () => { window.location.href = "/game"; }));
+    }
 
     area.append(panel);
 }
@@ -5808,7 +5908,7 @@ async function syncDailyFromServer() {
 
         if (!data || !data.ok) return;
 
-        DailyLimit.set(Number(data.used) || 0, Number(data.limit) || 10);
+        DailyLimit.set(data);
         refreshDailyStrip();
 
         const notStarted = score === 0 && moveCount === 0 && !over;

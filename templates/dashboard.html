@@ -13,7 +13,7 @@
         document.documentElement.dataset.view = location.hash === "#my-videos" ? "videos" : "home";
     </script>
 
-    <!-- Styles for the daily-challenge game picker, the cut marks and the quiz-done badge (dark and light theme) -->
+    <!-- Styles for the daily-challenge game picker, the cut marks, the quiz-done badge and the accuracy card (dark and light theme) -->
     <style>
         /* ---------- cut marks: one box per daily round ---------- */
         .limit-marks{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 4px}
@@ -50,6 +50,21 @@
             background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.5);color:#10b981;
             font-weight:700;font-size:.85rem;line-height:1.2;cursor:default;white-space:nowrap}
         .quiz-done small{font-weight:600;opacity:.9}
+
+        /* ---------- accuracy card ---------- */
+        .acc-grid{display:grid;grid-template-columns:minmax(200px,1fr) 2fr;gap:16px;align-items:stretch}
+        @media (max-width:760px){.acc-grid{grid-template-columns:1fr}}
+        .acc-card{padding:20px;border-radius:18px;background:rgba(127,127,127,.08);border:1px solid rgba(127,127,127,.25)}
+        .acc-overall{display:flex;flex-direction:column;justify-content:center;gap:6px}
+        .acc-overall .acc-big{font-size:3rem;font-weight:800;line-height:1;color:#7c5cff}
+        .acc-overall small{opacity:.8}
+        .acc-row{margin:0 0 14px}
+        .acc-row:last-child{margin-bottom:0}
+        .acc-row-top{display:flex;justify-content:space-between;gap:10px;font-weight:700;font-size:.95rem;margin-bottom:6px}
+        .acc-row-top small{font-weight:600;opacity:.75}
+        .acc-track{height:10px;border-radius:999px;background:rgba(127,127,127,.22);overflow:hidden}
+        .acc-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#7c5cff,#22d3ee)}
+        .acc-link{display:inline-block;margin-top:12px;font-weight:700;font-size:.9rem}
     </style>
 </head>
 <body>
@@ -71,6 +86,9 @@
 {% set milestone_pct = [((st * 100) // next_milestone), 100]|min %}
 {% set week_filled = [st, 7]|min %}
 {% set aptitude_link = aptitude_url|default('/aptitude/') %}
+
+{# Accuracy numbers (from compute_accuracy in app.py). Empty dict if they could not be loaded. #}
+{% set acc = accuracy|default({}) %}
 
 {# All games (used by the Brain break grid AND the daily challenge picker) #}
 {% set game_cards = [
@@ -116,6 +134,7 @@
             </a>
             <a class="nav-link" href="{{ aptitude_link }}">🧠 Aptitude Arena <span class="new-badge">NEW</span></a>
             <a class="nav-link" href="{{ url_for('learning_progress') }}">📈 My progress</a>
+            <a class="nav-link" href="{{ url_for('accuracy_page') }}">🎯 Accuracy report</a>
 
             <p class="nav-title">Brain break</p>
             <a class="nav-link" href="{{ url_for('games') }}">🎮 All games</a>
@@ -219,6 +238,55 @@
                     <article class="stat-card s4"><span>🔥</span><strong data-count="{{ st }}">{{ st }}</strong><p>Day streak</p></article>
                 </div>
             </section>
+
+            <!-- 2b. MY ACCURACY (quiz + games + aptitude, measured from your real results) -->
+            {% if acc %}
+            <section class="view-home" id="my-accuracy">
+                <div class="section-heading">
+                    <div><h2>My accuracy 🎯</h2><p>Measured from your quiz answers, game scores and aptitude tests.</p></div>
+                    <a class="view-all-link" href="{{ url_for('accuracy_page') }}">Full report</a>
+                </div>
+
+                <div class="acc-grid">
+                    <article class="acc-card acc-overall">
+                        <span>Overall accuracy</span>
+                        <div class="acc-big">{% if acc.overall is not none %}{{ acc.overall }}%{% else %}&ndash;{% endif %}</div>
+                        <small>{% if acc.overall is not none %}Weighted by how many quizzes, games and tests you did.{% else %}No data yet. Take a quiz or play a game to see it.{% endif %}</small>
+                    </article>
+
+                    <article class="acc-card">
+                        <div class="acc-row">
+                            <div class="acc-row-top">
+                                <span>🧠 Quiz answers</span>
+                                <span>{% if acc.quiz.accuracy is not none %}{{ acc.quiz.accuracy }}%{% else %}No data yet{% endif %}
+                                    <small>· {{ acc.quiz.correct }}/{{ acc.quiz.questions }} correct</small></span>
+                            </div>
+                            <div class="acc-track"><div class="acc-fill" style="width: {{ acc.quiz.accuracy if acc.quiz.accuracy is not none else 0 }}%"></div></div>
+                        </div>
+
+                        <div class="acc-row">
+                            <div class="acc-row-top">
+                                <span>🎮 Games</span>
+                                <span>{% if acc.games.accuracy is not none %}{{ acc.games.accuracy }}%{% else %}No data yet{% endif %}
+                                    <small>· {{ acc.games.plays }} play{{ '' if acc.games.plays == 1 else 's' }}</small></span>
+                            </div>
+                            <div class="acc-track"><div class="acc-fill" style="width: {{ acc.games.accuracy if acc.games.accuracy is not none else 0 }}%"></div></div>
+                        </div>
+
+                        <div class="acc-row">
+                            <div class="acc-row-top">
+                                <span>📐 Aptitude</span>
+                                <span>{% if acc.aptitude.accuracy is not none %}{{ acc.aptitude.accuracy }}%{% else %}No data yet{% endif %}
+                                    <small>· {{ acc.aptitude.attempts }} test{{ '' if acc.aptitude.attempts == 1 else 's' }}</small></span>
+                            </div>
+                            <div class="acc-track"><div class="acc-fill" style="width: {{ acc.aptitude.accuracy if acc.aptitude.accuracy is not none else 0 }}%"></div></div>
+                        </div>
+
+                        <a class="acc-link" href="{{ url_for('accuracy_page') }}">View full report →</a>
+                    </article>
+                </div>
+            </section>
+            {% endif %}
 
             <!-- 3. CONTINUE LEARNING (latest video) -->
             {% if video_list %}
@@ -622,6 +690,91 @@
     syncUsage();
     if (selected && !full) choose(selected, false);
 })();
+</script>
+
+<!-- Follows a running video job while you use the dashboard (the job itself runs on the server and never stops) -->
+<script>
+(function () {
+  "use strict";
+  if (window.__eduJobTracker) return;
+  window.__eduJobTracker = true;
+  if (location.pathname.indexOf("generate_video") > -1) return;     /* the Study Studio page has its own progress bar */
+
+  var K = "eduvision_video_job", D = "eduvision_video_done", box = null, timer = null;
+  function g(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function s(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function r(k) { try { localStorage.removeItem(k); } catch (e) {} }
+  function el(tag, txt) { var n = document.createElement(tag); if (txt != null) n.textContent = txt; return n; }
+
+  function mk() {
+    if (box) return box;
+    var st = document.createElement("style");
+    st.textContent = "#edj{position:fixed;right:14px;bottom:14px;z-index:99999;width:min(320px,calc(100vw - 28px));background:#fff;border-radius:16px;box-shadow:0 12px 34px #1820334d;padding:14px 16px;font-family:'Segoe UI',Arial,sans-serif;color:#182033;border-left:6px solid #5546e8}#edj.ok{border-left-color:#22c3a6}#edj.bad{border-left-color:#c0262d}#edj b{display:block;font-size:14px;margin-bottom:6px}#edj p{font-size:13px;color:#667089;margin:6px 0 0;word-break:break-word}#edj .bar{height:10px;background:#e8ebf6;border-radius:99px;overflow:hidden}#edj .bar i{display:block;height:100%;background:linear-gradient(90deg,#5546e8,#22c3a6);transition:width .4s}#edj a,#edj button{display:inline-block;margin:10px 8px 0 0;padding:9px 14px;border:0;border-radius:10px;font:700 13px 'Segoe UI',Arial,sans-serif;cursor:pointer;text-decoration:none;background:#5546e8;color:#fff}#edj button{background:#e9e7ff;color:#3b2fc0}";
+    document.head.appendChild(st);
+    box = document.createElement("div"); box.id = "edj"; document.body.appendChild(box);
+    return box;
+  }
+  function gone() { if (box) { box.remove(); box = null; } }
+
+  function card(cls, title, text, url, linkText) {
+    var b = mk(); b.className = cls; b.textContent = "";
+    b.appendChild(el("b", title));
+    if (text) b.appendChild(el("p", text));
+    if (url) { var a = el("a", linkText); a.href = url; b.appendChild(a); }
+    var x = el("button", "Close"); x.type = "button";
+    x.onclick = function () { r(D); gone(); };
+    b.appendChild(x);
+  }
+  function progress(pc, msg) {
+    var b = mk(); b.className = ""; b.textContent = "";
+    b.appendChild(el("b", "Your video is being made"));
+    var bar = el("div"); bar.className = "bar";
+    var i = el("i"); i.style.width = Math.max(1, pc) + "%"; bar.appendChild(i); b.appendChild(bar);
+    b.appendChild(el("p", (msg || "Working") + " (" + pc + "%). You can keep playing, it will not stop."));
+  }
+  function stop() { clearInterval(timer); timer = null; r(K); }
+
+  async function poll() {
+    var id = g(K);
+    if (!id) { stop(); return; }
+    try {
+      var res = await fetch("/generate_video/status/" + encodeURIComponent(id), { credentials: "same-origin" });
+      if (res.status === 404) { stop(); gone(); return; }
+      var d = await res.json();
+      if (!d.ok) { stop(); gone(); return; }
+      if (d.status === "failed") {
+        stop();
+        return card("bad", "Video could not be made", d.error || "Something went wrong.", "/generate_video", "Try again");
+      }
+      if (d.status === "done") {
+        stop();
+        var rs = d.result || {}; var title = (rs.info && rs.info.title) || rs.title || "Your video";
+        s(D, JSON.stringify({ t: title }));
+        return card("ok", "Your video is ready!", title, "/dashboard#my-videos", "Open my videos");
+      }
+      progress(d.percent || 1, d.message);
+    } catch (x) { /* network hiccup: try again on the next tick */ }
+  }
+
+  async function init() {
+    var done = g(D);
+    if (done && !g(K)) {
+      try { card("ok", "Your video is ready!", JSON.parse(done).t, "/dashboard#my-videos", "Open my videos"); } catch (x) { r(D); }
+    }
+    if (!g(K)) {                         /* a job started in another tab, or before this script existed */
+      try {
+        var a = await (await fetch("/generate_video/active", { credentials: "same-origin" })).json();
+        if (a.ok && a.job_id) { s(K, a.job_id); r(D); }
+      } catch (x) {}
+    }
+    if (g(K)) { timer = setInterval(poll, 3000); poll(); }
+  }
+  window.addEventListener("storage", function (ev) {                /* another tab started a video */
+    if (ev.key === K && ev.newValue && !timer) { r(D); gone(); timer = setInterval(poll, 3000); poll(); }
+  });
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
+})();
+
 </script>
 </body>
 </html>

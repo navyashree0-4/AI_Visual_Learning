@@ -48,7 +48,20 @@
     <section class="result-card" id="result" hidden aria-live="polite"></section>
 </main>
 
-<script>window.GAME = {{ {'key': game_key, 'timed': game.timed, 'videoCost': video_cost}|tojson }};</script>
+<!-- Game data as JSON (not executed as JavaScript, so it can never cause "Unexpected token '{'") -->
+<script type="application/json" id="gameData">{{ {'key': game_key, 'timed': game.timed, 'videoCost': video_cost}|tojson }}</script>
+<script>
+(function () {
+    try { window.GAME = JSON.parse(document.getElementById('gameData').textContent); }
+    catch (e) {
+        window.GAME = {};
+        console.error('Game data missing. Open this page through your Flask server (http://127.0.0.1:5000/...), not as a file or Live Server.');
+    }
+})();
+</script>
 <script src="{{ url_for('static', filename='js/games.js') }}"></script>
+
+<!-- Shows the progress card while a video is being made, so you can play and the video keeps generating -->
+<script src="{{ url_for('static', filename='js/video_job_tracker.js') }}"></script>
 </body>
 </html>
